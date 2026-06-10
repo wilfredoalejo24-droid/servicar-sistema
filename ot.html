@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>OT — Servi Car Platinium</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:Arial,sans-serif;background:#f0f4f8}
+    #root{min-height:100vh}
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+
+const SUPA_URL="https://epirsbudngwbxgcsryvv.supabase.co";
+const SUPA_KEY="sb_publishable_zsqvMzJMc80Ypf3UQqs-SA_IrV-XIGc";
+const sb=window.supabase.createClient(SUPA_URL,SUPA_KEY);
+
+const EMPRESA={nombre:"SERVI CAR PLATINIUM",ciudad:"Viacha - La Paz",t1:"Taller 1 · Av. Montes",t2:"Taller 2 · Bella Vista",tel1:"68167264",tel2:"60574920"};
+const TALLERES=["Taller 1 · Montes","Taller 2 · Bella Vista"];
+const TECNICOS=["Wilfredo","William","Diego","Evo","Adolfo","Joel"];
+const COMBUSTIBLE=["Vacío","1/4","1/2","3/4","Lleno"];
+const SERVICIOS_BASE=["Cambio de aceite y filtro","Alineado","Balanceado 4 llantas","Revisión de frenos","Escáner Launch","Cambio de bujías","Lavado exterior + interior","Revisión suspensión","Mano de obra motor","Mano de obra caja","Mano de obra corona","Revisión eléctrica","Revisión electrónica","Soldadura","Cambio de pastillas","Cambio de correa"];
+const PASOS=[{id:1,l:"📥 Recepción",c:"#64748b"},{id:2,l:"🔍 Diagnóstico",c:"#3b82f6"},{id:3,l:"💰 Cotización",c:"#f59e0b"},{id:4,l:"✅ Aprobación",c:"#8b5cf6"},{id:5,l:"🔧 Reparación",c:"#f97316"},{id:6,l:"🔎 Calidad",c:"#06b6d4"},{id:7,l:"🚗 Entrega",c:"#16a34a"},{id:8,l:"✔️ Completado",c:"#16a34a"}];
+
+const fmt=n=>`Bs. ${parseFloat(n||0).toFixed(2)}`;
+const hoy=()=>new Date().toLocaleDateString("es-BO");
+const hora=()=>new Date().toLocaleTimeString("es-BO",{hour:"2-digit",minute:"2-digit"});
+
+const Btn=({onClick,color="#1e293b",text,style={}})=>
+  <button onClick={onClick} style={{padding:"8px 14px",background:color,color:"#fff",border:"none",borderRadius:8,fontWeight:700,fontSize:12,cursor:"pointer",...style}}>{text}</button>;
+const Card=({children,style={}})=>
+  <div style={{background:"#fff",borderRadius:10,padding:14,marginBottom:10,border:"1px solid #e2e8f0",...style}}>{children}</div>;
+const Tit=({text})=>
+  <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",color:"#64748b",marginBottom:8,paddingBottom:4,borderBottom:"2px solid #fbbf24",display:"inline-block"}}>{text}</div>;
+const Campo=({label,children})=>
+  <div><div style={{fontSize:10,color:"#94a3b8",fontWeight:700,textTransform:"uppercase",marginBottom:3}}>{label}</div>{children}</div>;
+const Inp=({value,onChange,type="text",placeholder,style={}})=>
+  <input type={type} value={value} onChange={e=>onChange&&onChange(e.target.value)} placeholder={placeholder}
+    style={{width:"100%",padding:"7px 10px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:13,boxSizing:"border-box",...style}}/>;
+const Sel=({value,onChange,options,style={}})=>
+  <select value={value} onChange={e=>onChange(e.target.value)}
+    style={{width:"100%",padding:"7px 10px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:13,...style}}>
+    <option value="">Seleccionar...</option>
+    {options.map(o=><option key={o.v||o} value={o.v||o}>{o.l||o}</option>)}
+  </select>;
+const Badge=({text,color})=>
+  <span style={{padding:"2px 8px",borderRadius:20,fontSize:10,fontWeight:700,background:color+"22",color,whiteSpace:"nowrap"}}>{text}</span>;
+
+// Comprimir foto
+const comprimirFoto=(file,cb)=>{
+  const r=new FileReader();
+  r.onload=ev=>{
+    const img=new Image();
+    img.onload=()=>{
+      const canvas=document.createElement("canvas");
+      const MAX=300; let w=img.width,h=img.height;
+      if(w>h){if(w>MAX){h=h*(MAX/w);w=MAX;}}else{if(h>MAX){w=w*(MAX/h);h=MAX;}}
+      canvas.width=w;canvas.height=h;
+      canvas.getContext("2d").drawImage(img,0,0,w,h);
+      cb(canvas.toDataURL("image/jpeg",0.6));
+    };
+    img.src=ev.target.result;
+  };
+  r.readAsDataURL(file);
+};
+
+function FotoUpload({fotos,setFotos,label="📷 Agregar fotos"}){
+  const add=e=>{
+    Array.from(e.target.files).forEach(f=>comprimirFoto(f,url=>setFotos(p=>[...p,{url,hora:hora()}])));
+    e.target.value="";
+  };
+  return <div>
+    <label style={{display:"inline-block",padding:"7px 14px",background:"#f1f5f9",border:"1px dashed #94a3b8",borderRadius:8,cursor:"pointer",fontSize:12,fontWeight:700,color:"#64748b"}}>
+      {label}<input type="file" accept="image/*" multiple onChange={add} style={{display:"none"}}/>
+    </label>
+    {fotos.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:8}}>
+      {fotos.map((f,i)=><div key={i} style={{position:"relative"}}>
+        <img src={f.url} alt="" style={{width:70,height:70,objectFit:"cover",borderRadius:8,border:"1px solid #e2e8f0"}}/>
+        <button onClick={()=>setFotos(p=>p.filter((_,j)=>j!==i))} style={{position:"absolute",top:-4,right:-4,background:"#ef4444",color:"#fff",border:"none",borderRadius:"50%",width:16,height:16,fontSize:9,cursor:"pointer",padding:0}}>✕</button>
+      </div>)}
+    </div>}
+  </div>;
+}
+
+// Generar PDF
+function generarPDF(ot){
+  const svcs=(ot.servicios||[]).map(s=>`<tr><td>${s.nombre}</td><td style="text-align:right">Bs.${parseFloat(s.precio||0).toFixed(2)}</td></tr>`).join("");
+  const reps=(ot.repuestos||[]).map(r=>`<tr><td>${r.nom} x${r.qty||1}</td><td style="text-align:right">Bs.${(parseFloat(r.precio||0)*(r.qty||1)).toFixed(2)}</td></tr>`).join("");
+  const mkF=(arr,max=4)=>(arr||[]).slice(0,max).map(f=>`<img src="${f.url}" style="width:100px;height:80px;object-fit:cover;border-radius:5px;margin:3px"/>`).join("");
+  const w=window.open("","_blank");
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${ot.num} — ${ot.placa}</title>
+  <style>body{font-family:Arial;margin:0;padding:16px;font-size:12px}.hdr{background:#1e293b;color:#fbbf24;padding:12px 16px;border-radius:8px;margin-bottom:12px;display:flex;justify-content:space-between}.sec{border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px;margin-bottom:10px}.sec h3{font-size:10px;text-transform:uppercase;color:#64748b;border-bottom:2px solid #fbbf24;padding-bottom:3px;display:inline-block;margin-bottom:8px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:5px}.dato{font-size:11px}.dato span{color:#94a3b8;font-size:10px;display:block}table{width:100%;border-collapse:collapse;font-size:12px}th{background:#1e293b;color:#fbbf24;padding:5px 8px;text-align:left}td{padding:5px 8px;border-bottom:1px solid #f3f4f6}.total{background:#1e293b;color:#fbbf24;padding:10px;border-radius:8px;display:flex;justify-content:space-between;font-size:14px;font-weight:900;margin:10px 0}.firma{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:14px}.fb{border-top:2px solid #1e293b;padding-top:6px;text-align:center;font-size:11px;color:#64748b}.np{margin-bottom:10px}@media print{.np{display:none}}</style></head><body>
+  <div class="np"><button onclick="window.print()" style="padding:8px 16px;background:#1e293b;color:#fbbf24;border:none;border-radius:8px;font-weight:700;cursor:pointer;margin-right:8px">🖨️ Imprimir</button><button onclick="window.close()" style="padding:8px 16px;background:#64748b;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer">✕</button></div>
+  <div class="hdr"><div><div style="font-size:15px;font-weight:900">🚗 ${EMPRESA.nombre}</div><div style="font-size:10px;color:#94a3b8">${EMPRESA.t1} · ${EMPRESA.t2}</div><div style="font-size:10px;color:#94a3b8">📞 ${EMPRESA.tel1} · ${EMPRESA.tel2}</div></div><div style="font-size:20px;font-weight:900">${ot.num||"OT"}</div></div>
+  <div class="sec"><h3>👤 Cliente y Vehículo</h3><div class="grid">
+    <div class="dato"><span>Cliente</span><strong>${ot.cliente||"—"}</strong></div>
+    <div class="dato"><span>Teléfono</span>${ot.tel||"—"}</div>
+    <div class="dato"><span>Placa</span><strong>${ot.placa||"—"}</strong></div>
+    <div class="dato"><span>Vehículo</span>${ot.marca||""} ${ot.modelo||""}</div>
+    <div class="dato"><span>Color</span>${ot.color||"—"}</div>
+    <div class="dato"><span>Km ingreso</span>${ot.km||"—"}</div>
+    <div class="dato"><span>Combustible</span>${ot.combustible||"—"}</div>
+    <div class="dato"><span>Técnico</span>${ot.tecnico||"—"}</div>
+    <div class="dato"><span>Taller</span>${ot.taller||"—"}</div>
+    <div class="dato"><span>Fecha</span>${ot.fecha||hoy()}</div>
+  </div>${ot.problema?`<div style="margin-top:6px;padding:6px;background:#fef9c3;border-radius:5px;font-size:11px"><strong>Problema:</strong> ${ot.problema}</div>`:""}</div>
+  ${(ot.fotos_recepcion||[]).length>0?`<div class="sec"><h3>📷 Recepción</h3><div>${mkF(ot.fotos_recepcion)}</div></div>`:""}
+  ${ot.diagnostico?`<div class="sec"><h3>🔍 Diagnóstico</h3><p style="font-size:11px">${ot.diagnostico}</p>${(ot.fotos_diagnostico||[]).length>0?`<div>${mkF(ot.fotos_diagnostico)}</div>`:""}</div>`:""}
+  ${ot.trabajos_adicionales?`<div class="sec" style="border-color:#fca5a5"><h3>⚠️ Trabajo adicional</h3><p style="font-size:11px;color:#dc2626">${ot.trabajos_adicionales}</p></div>`:""}
+  <div class="sec"><h3>🔧 Servicios realizados</h3><table><thead><tr><th>Servicio</th><th style="text-align:right">Precio</th></tr></thead><tbody>${svcs||"<tr><td colspan='2' style='text-align:center;color:#94a3b8'>Sin servicios</td></tr>"}</tbody></table></div>
+  ${reps?`<div class="sec"><h3>📦 Repuestos</h3><table><thead><tr><th>Repuesto</th><th style="text-align:right">Total</th></tr></thead><tbody>${reps}</tbody></table></div>`:""}
+  ${(ot.fotos_trabajo||[]).length>0?`<div class="sec"><h3>📷 Evidencia del trabajo</h3><div>${mkF(ot.fotos_trabajo,6)}</div></div>`:""}
+  <div class="total"><span>💰 TOTAL COBRADO</span><span>${fmt(ot.total_final||ot.total||0)}</span></div>
+  ${ot.obs_calidad?`<div class="sec"><h3>✅ Control de calidad</h3><p style="font-size:11px">${ot.obs_calidad}</p></div>`:""}
+  <div class="sec"><h3>✍️ Conformidad</h3><div class="firma"><div class="fb">Firma del cliente<br><br><br>${ot.cliente||"___"}</div><div class="fb">Firma del técnico<br><br><br>${ot.tecnico||"___"}</div></div></div>
+  <div style="text-align:center;font-size:10px;color:#94a3b8;margin-top:12px;padding-top:8px;border-top:1px solid #e2e8f0">${EMPRESA.nombre} · ${EMPRESA.ciudad} · Garantía 30 días en mano de obra</div>
+  </body></html>`);
+  w.document.close();
+}
+
+function enviarWA(ot){
+  const msg=`🚗 *${EMPRESA.nombre}*\n━━━━━━━━━━━━━━━\n*${ot.num} — INFORME DE SERVICIO*\n\n🚗 Placa: *${ot.placa}*\n👤 ${ot.cliente||"—"}\n📅 ${ot.fecha}\n👨‍🔧 ${ot.tecnico} · ${ot.taller}\n\n*Trabajos:*\n${(ot.servicios||[]).map(s=>`🔧 ${s.nombre}: Bs.${parseFloat(s.precio||0).toFixed(2)}`).join("\n")}${(ot.repuestos||[]).length>0?"\n\n*Repuestos:*\n"+(ot.repuestos||[]).map(r=>`📦 ${r.nom} x${r.qty||1}: Bs.${(parseFloat(r.precio||0)*(r.qty||1)).toFixed(2)}`).join("\n"):""}\n\n💰 *TOTAL: ${fmt(ot.total_final||ot.total||0)}*\n✅ Garantía 30 días\n\n¡Gracias! 🙏\n📞 ${EMPRESA.tel1}`;
+  if(ot.tel) window.open(`https://wa.me/591${ot.tel.replace(/\D/g,"")}?text=${encodeURIComponent(msg)}`,"_blank");
+  else alert("El cliente no tiene teléfono registrado.");
+}
+
+// LOGIN
+function Login({onLogin}){
+  const [u,setU]=React.useState(""); const [p,setP]=React.useState(""); const [err,setErr]=React.useState(""); const [loading,setLoading]=React.useState(false);
+  const ok=async()=>{
+    setLoading(true);
+    const {data}=await sb.from("usuarios").select("*").eq("user_name",u.toLowerCase()).eq("pass",p).single();
+    setLoading(false);
+    if(data) onLogin(data); else setErr("Usuario o contraseña incorrectos");
+  };
+  return <div style={{minHeight:"100vh",background:"#0f172a",display:"flex",alignItems:"center",justifyContent:"center"}}>
+    <div style={{background:"#1e293b",borderRadius:16,padding:32,width:300,boxShadow:"0 20px 60px rgba(0,0,0,.5)"}}>
+      <div style={{textAlign:"center",marginBottom:24}}>
+        <div style={{fontSize:40}}>📋</div>
+        <div style={{color:"#fbbf24",fontWeight:900,fontSize:18}}>{EMPRESA.nombre}</div>
+        <div style={{color:"#64748b",fontSize:11,marginTop:4}}>Órdenes de Trabajo</div>
+      </div>
+      {[["USUARIO",u,setU,"text"],["CONTRASEÑA",p,setP,"password"]].map(([l,v,s,t])=>
+        <div key={l} style={{marginBottom:12}}>
+          <div style={{color:"#94a3b8",fontSize:11,marginBottom:4,fontWeight:700}}>{l}</div>
+          <input type={t} value={v} onChange={e=>s(e.target.value)} onKeyDown={e=>e.key==="Enter"&&ok()}
+            style={{width:"100%",padding:"10px 12px",background:"#0f172a",border:"1px solid #334155",borderRadius:8,color:"#fff",fontSize:13,boxSizing:"border-box"}}/>
+        </div>)}
+      {err&&<div style={{color:"#ef4444",fontSize:11,marginBottom:10,textAlign:"center"}}>{err}</div>}
+      <button onClick={ok} disabled={loading} style={{width:"100%",padding:11,background:"#f59e0b",color:"#1e293b",border:"none",borderRadius:8,fontWeight:900,fontSize:14,cursor:"pointer"}}>{loading?"Verificando...":"Ingresar →"}</button>
+    </div>
+  </div>;
+}
+
+// LISTA OTs
+function ListaOTs({usuario,onNueva,onDetalle}){
+  const [ots,setOts]=React.useState([]);
+  const [filtro,setFiltro]=React.useState("todas");
+  const esEnc=["admin","encargado"].includes(usuario.rol);
+  const esMec=usuario.rol==="mecanico";
+
+  React.useEffect(()=>{
+    const q=esMec
+      ?sb.from("ots").select("*").eq("tecnico",usuario.nombre).order("created_at",{ascending:false})
+      :usuario.rol==="encargado"
+        ?sb.from("ots").select("*").eq("taller",usuario.taller).order("created_at",{ascending:false})
+        :sb.from("ots").select("*").order("created_at",{ascending:false});
+    q.then(({data})=>setOts(data||[]));
+  },[]);
+
+  const colP={1:"#64748b",2:"#3b82f6",3:"#f59e0b",4:"#8b5cf6",5:"#f97316",6:"#06b6d4",7:"#16a34a",8:"#16a34a"};
+  const filt=filtro==="todas"?ots:ots.filter(o=>o.paso===parseInt(filtro));
+
+  return <div>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,flexWrap:"wrap",gap:8}}>
+      <div style={{fontWeight:800,fontSize:15}}>📋 Órdenes de Trabajo</div>
+      {esEnc&&<Btn onClick={onNueva} color="#1d4ed8" text="+ Nueva OT"/>}
+    </div>
+    <div style={{display:"flex",gap:5,marginBottom:10,flexWrap:"wrap"}}>
+      <button onClick={()=>setFiltro("todas")} style={{padding:"4px 10px",borderRadius:20,border:`1px solid ${filtro==="todas"?"#1d4ed8":"#e2e8f0"}`,background:filtro==="todas"?"#eff6ff":"#fff",fontSize:11,fontWeight:700,cursor:"pointer",color:filtro==="todas"?"#1d4ed8":"#64748b"}}>Todas ({ots.length})</button>
+      {PASOS.slice(0,7).map(p=>{const n=ots.filter(o=>o.paso===p.id).length;if(!n)return null;
+        return <button key={p.id} onClick={()=>setFiltro(String(p.id))} style={{padding:"4px 10px",borderRadius:20,border:`1px solid ${filtro===String(p.id)?p.c:"#e2e8f0"}`,background:filtro===String(p.id)?p.c+"22":"#fff",fontSize:11,fontWeight:700,cursor:"pointer",color:filtro===String(p.id)?p.c:"#64748b"}}>{p.l.split(" ")[1]} ({n})</button>;
+      })}
+    </div>
+    {filt.length===0
+      ?<Card><div style={{textAlign:"center",padding:30,color:"#94a3b8",fontSize:13}}>{esEnc?"Sin órdenes. Toca + Nueva OT":"Sin órdenes asignadas aún"}</div></Card>
+      :filt.map(o=>{
+        const paso=PASOS.find(p=>p.id===o.paso)||PASOS[0];
+        return <div key={o.id} onClick={()=>onDetalle(o)}
+          style={{background:"#fff",borderRadius:10,padding:"12px 14px",marginBottom:8,border:`1px solid ${o.paso===7?"#f59e0b":"#e2e8f0"}`,cursor:"pointer",boxShadow:o.paso===7?"0 0 0 2px #fbbf2444":"none"}}
+          onMouseEnter={e=>e.currentTarget.style.background="#fffbeb"}
+          onMouseLeave={e=>e.currentTarget.style.background="#fff"}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+            <div>
+              <div style={{fontWeight:800,fontSize:13}}>{o.num} — 🚗 {o.placa}</div>
+              <div style={{fontSize:11,color:"#64748b",marginTop:2}}>{o.cliente||"Sin nombre"} · {o.marca} {o.modelo}</div>
+              <div style={{fontSize:11,color:"#94a3b8"}}>{o.taller} · {o.fecha} · 👨‍🔧 {o.tecnico}</div>
+            </div>
+            <div style={{textAlign:"right"}}>
+              <Badge text={paso.l} color={colP[o.paso]||"#64748b"}/>
+              {esEnc&&<div style={{fontWeight:900,color:"#16a34a",fontSize:13,marginTop:4}}>{fmt(o.total_final||o.total||0)}</div>}
+            </div>
+          </div>
+        </div>;
+      })}
+  </div>;
+}
+
+// NUEVA OT
+function NuevaOT({usuario,totalOTs,onVolver,onCreate}){
+  const tallerDef=usuario.taller==="ambos"?"":usuario.taller;
+  const [f,setF]=React.useState({cliente:"",tel:"",placa:"",marca:"",modelo:"",color:"",km:"",combustible:"1/2",taller:tallerDef,tecnico:usuario.nombre,problema:""});
+  const [fotosR,setFotosR]=React.useState([]);
+  const upd=k=>v=>setF(p=>({...p,[k]:v}));
+  const crear=async()=>{
+    if(!f.placa||!f.taller||!f.tecnico){alert("Completa placa, taller y técnico.");return;}
+    const num=`OT-${String((totalOTs||0)+1).padStart(3,"0")}`;
+    const ot={num,paso:2,...f,fotos_recepcion:fotosR,servicios:[],repuestos:[],fotos_diagnostico:[],fotos_trabajo:[],total:0,total_final:0,fecha:hoy(),creado_por:usuario.nombre};
+    const {data,error}=await sb.from("ots").insert(ot).select().single();
+    if(error){alert("Error al crear OT: "+error.message);return;}
+    // Notificar si no es auto-asignado
+    if(f.tecnico!==usuario.nombre){
+      await sb.from("caja").insert({fecha:hoy(),taller:f.taller,concepto:`Nueva OT ${num} asignada a ${f.tecnico}`,tipo:"notif",monto:0,user_name:usuario.nombre});
+    }
+    onCreate(data);
+  };
+  const tecsFiltrados=TECNICOS.filter(t=>!f.taller||t==="Wilfredo"||t==="William"||(f.taller==="Taller 1 · Montes"&&["William","Diego","Evo"].includes(t))||(f.taller==="Taller 2 · Bella Vista"&&["Adolfo","Joel"].includes(t)));
+
+  return <div>
+    <div style={{display:"flex",gap:8,marginBottom:12,alignItems:"center"}}>
+      <button onClick={onVolver} style={{padding:"6px 12px",background:"#f1f5f9",border:"none",borderRadius:8,cursor:"pointer",fontSize:12,fontWeight:700}}>← Volver</button>
+      <div style={{fontWeight:800,fontSize:15}}>📋 Nueva OT</div>
+    </div>
+    <Card>
+      <Tit text="🏢 Taller y Técnico"/>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+        <Campo label="Taller *">{usuario.taller!=="ambos"
+          ?<div style={{padding:"8px 10px",background:"#eff6ff",borderRadius:8,fontWeight:700,color:"#1d4ed8",fontSize:13}}>🔧 {f.taller}</div>
+          :<Sel value={f.taller} onChange={upd("taller")} options={TALLERES}/>}
+        </Campo>
+        <Campo label="Técnico *"><Sel value={f.tecnico} onChange={upd("tecnico")} options={[...new Set([usuario.nombre,...TECNICOS])].map(t=>({v:t,l:t+(t===usuario.nombre?" (yo)":"")}))}/></Campo>
+      </div>
+    </Card>
+    <Card>
+      <Tit text="👤 Cliente y Vehículo"/>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+        <Campo label="Cliente"><Inp value={f.cliente} onChange={upd("cliente")} placeholder="Nombre completo"/></Campo>
+        <Campo label="Teléfono"><Inp value={f.tel} onChange={upd("tel")} placeholder="70000000"/></Campo>
+        <Campo label="Placa *"><Inp value={f.placa} onChange={upd("placa")} placeholder="1234ABC"/></Campo>
+        <Campo label="Marca"><Inp value={f.marca} onChange={upd("marca")} placeholder="Toyota"/></Campo>
+        <Campo label="Modelo"><Inp value={f.modelo} onChange={upd("modelo")} placeholder="Corolla 2018"/></Campo>
+        <Campo label="Color"><Inp value={f.color} onChange={upd("color")} placeholder="Blanco"/></Campo>
+        <Campo label="Km ingreso"><Inp type="number" value={f.km} onChange={upd("km")} placeholder="85000"/></Campo>
+        <Campo label="⛽ Combustible"><Sel value={f.combustible} onChange={upd("combustible")} options={COMBUSTIBLE}/></Campo>
+      </div>
+      <Campo label="Problema reportado">
+        <textarea value={f.problema} onChange={e=>upd("problema")(e.target.value)} placeholder="Describe el problema que reporta el cliente..."
+          style={{width:"100%",padding:"8px 10px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:12,boxSizing:"border-box",minHeight:60,resize:"vertical"}}/>
+      </Campo>
+    </Card>
+    <Card>
+      <Tit text="📷 Fotos de recepción"/>
+      <FotoUpload fotos={fotosR} setFotos={setFotosR} label="📷 Fotografiar el vehículo al ingreso"/>
+    </Card>
+    <Btn onClick={crear} color="#1d4ed8" text={`💾 Crear OT y ${f.tecnico===usuario.nombre?"continuar":"notificar a "+f.tecnico}`} style={{width:"100%",padding:13,fontSize:13}}/>
+  </div>;
+}
+
+// DETALLE OT
+function DetalleOT({ot:otInit,usuario,onVolver,onUpdate}){
+  const [ot,setOt]=React.useState(otInit);
+  const [sec,setSec]=React.useState("info");
+  const [diag,setDiag]=React.useState(ot.diagnostico||"");
+  const [tiempoEst,setTiempoEst]=React.useState(ot.tiempo_est||"");
+  const [servicios,setServicios]=React.useState(ot.servicios||[]);
+  const [repuestos,setRepuestos]=React.useState(ot.repuestos||[]);
+  const [fotosDiag,setFotosDiag]=React.useState(ot.fotos_diagnostico||[]);
+  const [fotosTrab,setFotosTrab]=React.useState(ot.fotos_trabajo||[]);
+  const [trabajosAd,setTrabajosAd]=React.useState(ot.trabajos_adicionales||"");
+  const [fotosAd,setFotosAd]=React.useState(ot.fotos_adicionales||[]);
+  const [obsCalidad,setObsCalidad]=React.useState(ot.obs_calidad||"");
+  const [busqSvc,setBusqSvc]=React.useState(""); const [nuevoSvc,setNuevoSvc]=React.useState("");
+  const [inv,setInv]=React.useState([]);
+  const [saving,setSaving]=React.useState(false);
+
+  React.useEffect(()=>{sb.from("inventario").select("*").gt("stock",0).then(({data})=>setInv(data||[]));},[ ]);
+
+  const esEnc=["admin","encargado"].includes(usuario.rol);
+  const esMec=usuario.rol==="mecanico";
+  const esRapido=esEnc&&ot.tecnico===usuario.nombre;
+  const paso=ot.paso||1;
+  const colP={1:"#64748b",2:"#3b82f6",3:"#f59e0b",4:"#8b5cf6",5:"#f97316",6:"#06b6d4",7:"#16a34a",8:"#16a34a"};
+
+  const totalServ=servicios.reduce((s,x)=>s+parseFloat(x.precio||0),0);
+  const totalRep=repuestos.reduce((s,x)=>s+parseFloat(x.precio||0)*(x.qty||1),0);
+  const totalOT=totalServ+totalRep;
+
+  const actualizar=async(changes)=>{
+    setSaving(true);
+    const {data,error}=await sb.from("ots").update(changes).eq("id",ot.id).select().single();
+    setSaving(false);
+    if(error){alert("Error: "+error.message);return;}
+    setOt(data);
+    onUpdate(data);
+    // Guardar en CRM al completar
+    if(changes.paso===8){
+      await sb.from("crm").insert({fecha:hoy(),num:data.num,placa:data.placa,cliente:data.cliente,tel:data.tel,vehiculo:`${data.marca||""} ${data.modelo||""}`,taller:data.taller,tecnico:data.tecnico,total:fmt(data.total_final||data.total||0),tipo:"OT"});
+      await sb.from("caja").insert({fecha:hoy(),taller:data.taller,concepto:`OT ${data.num} — ${data.placa}`,tipo:"ingreso",monto:data.total_final||data.total||0,user_name:usuario.nombre});
+    }
+  };
+
+  const agregarSvc=nom=>{if(!nom)return;setServicios(p=>[...p,{id:Date.now(),nombre:nom,precio:0}]);setBusqSvc("");setNuevoSvc("");};
+  const agregarRep=r=>setRepuestos(p=>{const ex=p.find(x=>x.id===r.id);return ex?p.map(x=>x.id===r.id?{...x,qty:(x.qty||1)+1}:x):[...p,{...r,qty:1}];});
+  const svcsFilt=SERVICIOS_BASE.filter(s=>!busqSvc||s.toLowerCase().includes(busqSvc.toLowerCase()));
+  const invFilt=inv.filter(i=>!busqSvc||i.nom?.toLowerCase().includes(busqSvc.toLowerCase()));
+
+  const SECS=[{k:"info",l:"📋 Info"},{k:"diag",l:"🔍 Diagnóstico"},{k:"cotiz",l:"💰 Cotización"},{k:"trabajo",l:"🔧 Trabajo"},{k:"calidad",l:"🔎 Calidad"}];
+
+  return <div>
+    <div style={{display:"flex",gap:8,marginBottom:8,alignItems:"center",flexWrap:"wrap"}}>
+      <button onClick={onVolver} style={{padding:"6px 12px",background:"#f1f5f9",border:"none",borderRadius:8,cursor:"pointer",fontSize:12,fontWeight:700}}>← Volver</button>
+      <div style={{fontWeight:800,fontSize:13}}>{ot.num} — 🚗 {ot.placa}</div>
+      <Badge text={PASOS.find(p=>p.id===paso)?.l||""} color={colP[paso]||"#64748b"}/>
+      {saving&&<span style={{fontSize:11,color:"#64748b"}}>Guardando...</span>}
+    </div>
+    {/* Barra pasos */}
+    <div style={{display:"flex",alignItems:"center",overflowX:"auto",padding:"4px 0",marginBottom:10}}>
+      {PASOS.map((p,i)=>{
+        const idx=PASOS.findIndex(x=>x.id===paso);
+        return <div key={p.id} style={{display:"flex",alignItems:"center",flexShrink:0}}>
+          <div style={{display:"flex",flexDirection:"column",alignItems:"center",minWidth:44}}>
+            <div style={{width:24,height:24,borderRadius:"50%",background:i<=idx?p.c:"#e2e8f0",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:i<=idx?"#fff":"#94a3b8",fontWeight:700,border:i===idx?`3px solid ${p.c}`:"3px solid transparent",boxSizing:"border-box"}}>{i<idx?"✓":i+1}</div>
+            <div style={{fontSize:8,marginTop:2,color:i<=idx?p.c:"#94a3b8",textAlign:"center",maxWidth:44,lineHeight:1.2}}>{p.l.replace(/[^\w\s]/gi,"").trim().split(" ")[0]}</div>
+          </div>
+          {i<PASOS.length-1&&<div style={{width:14,height:2,background:i<idx?p.c:"#e2e8f0",flexShrink:0}}/>}
+        </div>;})}
+    </div>
+    {/* Sub tabs */}
+    <div style={{display:"flex",gap:4,marginBottom:10,flexWrap:"wrap"}}>
+      {SECS.map(s=><button key={s.k} onClick={()=>setSec(s.k)} style={{padding:"5px 10px",borderRadius:8,border:`1px solid ${sec===s.k?"#fbbf24":"#e2e8f0"}`,background:sec===s.k?"#fffbeb":"#fff",color:sec===s.k?"#92400e":"#64748b",fontWeight:700,fontSize:11,cursor:"pointer"}}>{s.l}</button>)}
+    </div>
+
+    {/* INFO */}
+    {sec==="info"&&<div>
+      <Card>
+        <Tit text="📋 Datos"/>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5,fontSize:12,marginBottom:8}}>
+          {[["Cliente",ot.cliente],["Teléfono",ot.tel],["Placa",ot.placa],["Vehículo",`${ot.marca||""} ${ot.modelo||""}`],["Color",ot.color],["Km",ot.km],["Combustible",ot.combustible],["Técnico",ot.tecnico],["Taller",ot.taller],["Fecha",ot.fecha]].map(([l,v])=>
+            <div key={l}><span style={{color:"#94a3b8",fontSize:10}}>{l}: </span><strong>{v||"—"}</strong></div>)}
+        </div>
+        {ot.problema&&<div style={{padding:"7px 10px",background:"#fef9c3",borderRadius:8,fontSize:12,color:"#92400e"}}>📝 <strong>Problema:</strong> {ot.problema}</div>}
+      </Card>
+      {(ot.fotos_recepcion||[]).length>0&&<Card>
+        <Tit text="📷 Fotos recepción"/>
+        <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+          {ot.fotos_recepcion.map((f,i)=><img key={i} src={f.url} alt="" style={{width:75,height:75,objectFit:"cover",borderRadius:8,border:"1px solid #e2e8f0"}}/>)}
+        </div>
+      </Card>}
+      {esEnc&&ot.tel&&<Btn onClick={()=>window.open(`https://wa.me/591${ot.tel.replace(/\D/g,"")}?text=${encodeURIComponent(`Estimado ${ot.cliente||"cliente"}, su vehículo ${ot.placa} fue recibido en ${EMPRESA.nombre}. Le informaremos pronto. 📞 ${EMPRESA.tel1}`)}`,"_blank")} color="#25d366" text="📱 WhatsApp bienvenida"/>}
+    </div>}
+
+    {/* DIAGNÓSTICO */}
+    {sec==="diag"&&<Card>
+      <Tit text="🔍 Diagnóstico"/>
+      {(esMec||esEnc)&&paso===2?<>
+        <Campo label="¿Qué encontraste?">
+          <textarea value={diag} onChange={e=>setDiag(e.target.value)} placeholder="Describe el diagnóstico detallado..."
+            style={{width:"100%",padding:"8px 10px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:12,boxSizing:"border-box",minHeight:70,resize:"vertical"}}/>
+        </Campo>
+        <div style={{marginTop:8}}><Campo label="⏱️ Tiempo estimado"><Sel value={tiempoEst} onChange={setTiempoEst} options={["30 minutos","1 hora","2 horas","3 horas","4 horas","Medio día","1 día","2 días","3+ días"]}/></Campo></div>
+        <div style={{marginTop:10}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:6}}>🔧 Servicios a realizar</div>
+          <input value={busqSvc} onChange={e=>setBusqSvc(e.target.value)} placeholder="🔍 Buscar servicio..."
+            style={{width:"100%",padding:"7px 10px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:12,boxSizing:"border-box",marginBottom:5}}/>
+          <div style={{maxHeight:120,overflowY:"auto",border:"1px solid #f3f4f6",borderRadius:8,marginBottom:6}}>
+            {svcsFilt.map(s=><div key={s} onClick={()=>agregarSvc(s)} style={{padding:"6px 10px",cursor:"pointer",borderBottom:"1px solid #f8fafc",fontSize:12}} onMouseEnter={e=>e.currentTarget.style.background="#fffbeb"} onMouseLeave={e=>e.currentTarget.style.background="#fff"}>{s}</div>)}
+          </div>
+          <div style={{display:"flex",gap:6,marginBottom:8}}>
+            <input value={nuevoSvc} onChange={e=>setNuevoSvc(e.target.value)} placeholder="Servicio personalizado..."
+              style={{flex:1,padding:"7px 10px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:12}}/>
+            <Btn onClick={()=>agregarSvc(nuevoSvc)} color="#16a34a" text="+ Agregar"/>
+          </div>
+          {servicios.map((s,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"5px 8px",background:"#f0fdf4",borderRadius:6,marginBottom:4,fontSize:12}}>
+            <span>🔧 {s.nombre}</span>
+            <button onClick={()=>setServicios(p=>p.filter((_,j)=>j!==i))} style={{background:"#fee2e2",color:"#dc2626",border:"none",borderRadius:6,padding:"2px 8px",cursor:"pointer",fontSize:11}}>✕</button>
+          </div>)}
+        </div>
+        <div style={{marginTop:10}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:6}}>📦 Repuestos necesarios</div>
+          <div style={{maxHeight:130,overflowY:"auto",border:"1px solid #f3f4f6",borderRadius:8,marginBottom:6}}>
+            {invFilt.map(i=><div key={i.id} onClick={()=>agregarRep(i)} style={{padding:"6px 10px",cursor:"pointer",borderBottom:"1px solid #f8fafc",display:"flex",justifyContent:"space-between",fontSize:12}} onMouseEnter={e=>e.currentTarget.style.background="#fffbeb"} onMouseLeave={e=>e.currentTarget.style.background="#fff"}>
+              <span>{i.nom} <span style={{color:"#94a3b8",fontSize:10}}>Stock:{i.stock}</span></span>
+              <span style={{fontWeight:700,color:"#f59e0b"}}>{fmt(i.precio)}</span>
+            </div>)}
+          </div>
+          {repuestos.map((r,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"5px 8px",background:"#eff6ff",borderRadius:6,marginBottom:4,fontSize:12}}>
+            <span>📦 {r.nom} x{r.qty||1}</span>
+            <button onClick={()=>setRepuestos(p=>p.filter((_,j)=>j!==i))} style={{background:"#fee2e2",color:"#dc2626",border:"none",borderRadius:6,padding:"2px 8px",cursor:"pointer",fontSize:11}}>✕</button>
+          </div>)}
+        </div>
+        <div style={{marginTop:10}}><Tit text="📷 Fotos del diagnóstico"/><FotoUpload fotos={fotosDiag} setFotos={setFotosDiag} label="📷 Fotografiar el problema"/></div>
+        <Btn onClick={()=>{
+          if(!diag){alert("Escribe el diagnóstico.");return;}
+          actualizar({paso:3,diagnostico:diag,tiempo_est:tiempoEst,servicios,repuestos,fotos_diagnostico:fotosDiag});
+          setSec("cotiz");
+        }} color={esRapido?"#f59e0b":"#3b82f6"} text={esRapido?"💰 Continuar a cotización":"📤 Enviar a encargado para cotizar"} style={{width:"100%",marginTop:12,padding:12}}/>
+      </>:<div>
+        {ot.diagnostico?<><p style={{fontSize:12,margin:"0 0 6px"}}>{ot.diagnostico}</p>
+          {ot.tiempo_est&&<p style={{fontSize:11,color:"#64748b"}}>⏱️ {ot.tiempo_est}</p>}
+          {(ot.fotos_diagnostico||[]).length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:5,marginTop:8}}>
+            {ot.fotos_diagnostico.map((f,i)=><img key={i} src={f.url} alt="" style={{width:70,height:70,objectFit:"cover",borderRadius:8}}/>)}
+          </div>}</>
+        :<div style={{color:"#94a3b8",fontSize:12,textAlign:"center",padding:20}}>Esperando diagnóstico...</div>}
+      </div>}
+    </Card>}
+
+    {/* COTIZACIÓN */}
+    {sec==="cotiz"&&<Card>
+      <Tit text="💰 Cotización"/>
+      {esEnc?<>
+        {servicios.length>0&&<>
+          <div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:5}}>🔧 Mano de obra</div>
+          {servicios.map((s,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 8px",background:"#f8fafc",borderRadius:8,marginBottom:4,gap:8}}>
+            <span style={{fontSize:12,flex:1}}>🔧 {s.nombre}</span>
+            <div style={{display:"flex",alignItems:"center",gap:4}}>
+              <span style={{fontSize:11,color:"#64748b"}}>Bs.</span>
+              <input type="number" value={s.precio} onChange={e=>setServicios(p=>p.map((x,j)=>j===i?{...x,precio:+e.target.value}:x))}
+                style={{width:75,padding:"5px 8px",border:"1px solid #fbbf24",borderRadius:6,fontSize:13,fontWeight:800,color:"#92400e",textAlign:"center"}}/>
+            </div>
+          </div>)}
+        </>}
+        {repuestos.length>0&&<>
+          <div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:5,marginTop:8}}>📦 Repuestos</div>
+          {repuestos.map((r,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 8px",background:"#eff6ff",borderRadius:8,marginBottom:4,gap:8}}>
+            <span style={{fontSize:12,flex:1}}>📦 {r.nom} x{r.qty||1}</span>
+            <div style={{display:"flex",alignItems:"center",gap:4}}>
+              <span style={{fontSize:11,color:"#64748b"}}>Bs.</span>
+              <input type="number" value={r.precio||0} onChange={e=>setRepuestos(p=>p.map((x,j)=>j===i?{...x,precio:+e.target.value}:x))}
+                style={{width:75,padding:"5px 8px",border:"1px solid #fbbf24",borderRadius:6,fontSize:13,fontWeight:800,color:"#92400e",textAlign:"center"}}/>
+            </div>
+          </div>)}
+        </>}
+        <div style={{background:"#1e293b",borderRadius:10,padding:"10px 14px",display:"flex",justifyContent:"space-between",margin:"10px 0",fontWeight:900,color:"#fbbf24",fontSize:15}}>
+          <span>TOTAL</span><span>{fmt(totalOT)}</span>
+        </div>
+        {paso<=4&&<>
+          <div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:6}}>Enviar cotización al cliente:</div>
+          <div style={{display:"grid",gap:7,marginBottom:10}}>
+            <Btn onClick={()=>{
+              actualizar({paso:4,servicios,repuestos,total:totalOT});
+              const msg=`🚗 *${EMPRESA.nombre}*\n*COTIZACIÓN ${ot.num}*\n🚗 ${ot.placa} ${ot.marca||""} ${ot.modelo||""}\n\n${servicios.map(s=>`🔧 ${s.nombre}: Bs.${parseFloat(s.precio||0).toFixed(2)}`).join("\n")}${repuestos.length>0?"\n\n"+repuestos.map(r=>`📦 ${r.nom} x${r.qty||1}: Bs.${(parseFloat(r.precio||0)*(r.qty||1)).toFixed(2)}`).join("\n"):""}\n\n💰 *TOTAL: ${fmt(totalOT)}*\n⏱️ Tiempo: ${ot.tiempo_est||"Por confirmar"}\n\n¿Aprueba? Responda SÍ o NO\n📞 ${EMPRESA.tel1}`;
+              if(ot.tel) window.open(`https://wa.me/591${ot.tel.replace(/\D/g,"")}?text=${encodeURIComponent(msg)}`,"_blank");
+              else alert("Sin teléfono del cliente.");
+            }} color="#25d366" text="📱 Enviar cotización por WhatsApp" style={{width:"100%",padding:11}}/>
+            <Btn onClick={()=>{actualizar({servicios,repuestos,total:totalOT});generarPDF({...ot,servicios,repuestos,total:totalOT});}} color="#dc2626" text="📄 PDF / Imprimir cotización" style={{width:"100%",padding:11}}/>
+          </div>
+          <div style={{background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:10,padding:"12px"}}>
+            <div style={{fontWeight:700,fontSize:12,marginBottom:8,color:"#1d4ed8"}}>📱 ¿Respondió el cliente?</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+              <Btn onClick={()=>actualizar({paso:5,aprobacion:"aprobado",servicios,repuestos,total:totalOT})} color="#16a34a" text="✅ Cliente APROBÓ"/>
+              <Btn onClick={()=>actualizar({aprobacion:"rechazado",paso:1})} color="#dc2626" text="❌ Cliente RECHAZÓ"/>
+            </div>
+          </div>
+        </>}
+        {ot.aprobacion==="aprobado"&&paso>4&&<div style={{background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:8,padding:"8px 12px",fontSize:12,color:"#16a34a",fontWeight:700}}>✅ Cliente aprobó la cotización</div>}
+        {ot.aprobacion==="rechazado"&&<div style={{background:"#fef2f2",border:"1px solid #fca5a5",borderRadius:8,padding:"8px 12px",fontSize:12,color:"#dc2626",fontWeight:700}}>❌ Cliente rechazó la cotización</div>}
+      </>:<div style={{color:"#94a3b8",fontSize:12,textAlign:"center",padding:20}}>Solo encargados pueden ver los precios de cotización.</div>}
+    </Card>}
+
+    {/* TRABAJO */}
+    {sec==="trabajo"&&<Card>
+      <Tit text="🔧 Ejecución"/>
+      {(esMec||esEnc)&&paso===5?<>
+        {ot.servicios?.length>0&&<div style={{background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:8,padding:"8px 12px",marginBottom:10,fontSize:12}}>
+          <strong>Trabajos aprobados:</strong>
+          {ot.servicios.map((s,i)=><div key={i}>🔧 {s.nombre}</div>)}
+          {ot.repuestos?.map((r,i)=><div key={i}>📦 {r.nom} x{r.qty||1}</div>)}
+        </div>}
+        <div style={{marginBottom:10}}><Tit text="📷 Evidencia del trabajo"/><FotoUpload fotos={fotosTrab} setFotos={setFotosTrab} label="📷 Fotografiar trabajo y repuestos"/></div>
+        <div style={{border:"1px solid #fbbf24",borderRadius:10,padding:"12px",background:"#fffbeb",marginBottom:10}}>
+          <div style={{fontWeight:700,fontSize:12,color:"#92400e",marginBottom:6}}>⚠️ ¿Problema adicional encontrado?</div>
+          <textarea value={trabajosAd} onChange={e=>setTrabajosAd(e.target.value)} placeholder="Describe el problema adicional..."
+            style={{width:"100%",padding:"7px 10px",border:"1px solid #fde68a",borderRadius:8,fontSize:12,boxSizing:"border-box",minHeight:55,resize:"vertical",background:"#fff"}}/>
+          <FotoUpload fotos={fotosAd} setFotos={setFotosAd} label="📷 Fotos del problema"/>
+          {trabajosAd&&<Btn onClick={()=>{actualizar({trabajos_adicionales:trabajosAd,fotos_adicionales:fotosAd});alert("✅ Notificado al encargado");setTrabajosAd("");}} color="#f59e0b" text="📤 Notificar al encargado" style={{marginTop:8}}/>}
+        </div>
+        <Btn onClick={()=>actualizar({paso:6,fotos_trabajo:fotosTrab,trabajos_adicionales:trabajosAd,fotos_adicionales:fotosAd})} color="#f59e0b" text="✅ Marcar trabajo TERMINADO" style={{width:"100%",padding:12,fontSize:13}}/>
+      </>:<div>
+        {paso<5?<div style={{color:"#94a3b8",fontSize:12,textAlign:"center",padding:20}}>Esperando aprobación del cliente...</div>:
+        <div>
+          {(ot.fotos_trabajo||[]).length>0&&<><div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:6}}>📷 Evidencia:</div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:8}}>{ot.fotos_trabajo.map((f,i)=><img key={i} src={f.url} alt="" style={{width:70,height:70,objectFit:"cover",borderRadius:8}}/>)}</div></>}
+          {ot.trabajos_adicionales&&<div style={{background:"#fef2f2",border:"1px solid #fca5a5",borderRadius:8,padding:"10px 12px",fontSize:12,color:"#dc2626",marginBottom:8}}>
+            <strong>⚠️ Problema adicional:</strong> {ot.trabajos_adicionales}
+            {esEnc&&ot.tel&&<Btn onClick={()=>window.open(`https://wa.me/591${ot.tel.replace(/\D/g,"")}?text=${encodeURIComponent(`Estimado ${ot.cliente||"cliente"}, encontramos un problema adicional en su vehículo ${ot.placa}: ${ot.trabajos_adicionales}. Comuníquese con nosotros. 📞 ${EMPRESA.tel1}`)}`,"_blank")} color="#25d366" text="📱 Contactar cliente" style={{marginTop:6}}/>}
+          </div>}
+        </div>}
+      </div>}
+    </Card>}
+
+    {/* CALIDAD Y ENTREGA */}
+    {sec==="calidad"&&<Card>
+      <Tit text="🔎 Control de calidad y entrega"/>
+      {esEnc&&paso===6?<>
+        <div style={{fontSize:12,color:"#64748b",marginBottom:10}}>Realiza la prueba antes de entregar.</div>
+        {["✅ Motor arranca correctamente","✅ Sin fugas de aceite","✅ Frenos funcionan bien","✅ Eléctrico correcto","✅ Limpieza del vehículo","✅ Prueba de manejo"].map(item=>
+          <label key={item} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 10px",background:"#f8fafc",borderRadius:8,cursor:"pointer",fontSize:12,marginBottom:4}}>
+            <input type="checkbox" style={{width:16,height:16}}/>{item}
+          </label>)}
+        <div style={{marginTop:8}}><Campo label="Observaciones (opcional)">
+          <textarea value={obsCalidad} onChange={e=>setObsCalidad(e.target.value)} placeholder="Fallas encontradas u observaciones..."
+            style={{width:"100%",padding:"7px 10px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:12,boxSizing:"border-box",minHeight:55,resize:"vertical"}}/>
+        </Campo></div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:10}}>
+          <Btn onClick={()=>{if(!obsCalidad){alert("Escribe las observaciones.");return;}actualizar({obs_calidad:obsCalidad,falla_calidad:true});alert(`✅ Observaciones enviadas a ${ot.tecnico}`);}} color="#f97316" text="⚠️ Enviar fallas al técnico"/>
+          <Btn onClick={()=>actualizar({paso:7,obs_calidad:obsCalidad,aprobado_calidad:true})} color="#16a34a" text="✅ Aprobado — Pasar a entrega"/>
+        </div>
+      </>:paso===7&&esEnc?<>
+        {ot.obs_calidad&&<div style={{background:"#fffbeb",border:"1px solid #fde68a",borderRadius:8,padding:"10px",fontSize:12,marginBottom:10}}><strong>Observaciones:</strong> {ot.obs_calidad}</div>}
+        <div style={{background:"#f0fdf4",border:"2px solid #16a34a",borderRadius:10,padding:"14px"}}>
+          <div style={{fontWeight:800,color:"#16a34a",fontSize:14,marginBottom:6}}>🚗 Entrega al cliente</div>
+          <div style={{fontSize:12,color:"#64748b",marginBottom:10}}>El cliente revisa y prueba el vehículo.</div>
+          <div style={{display:"grid",gap:7}}>
+            <Btn onClick={()=>enviarWA({...ot,total_final:ot.total})} color="#25d366" text="📱 Enviar informe por WhatsApp" style={{width:"100%",padding:11}}/>
+            <Btn onClick={()=>generarPDF({...ot,total_final:ot.total})} color="#dc2626" text="📄 Generar PDF / Imprimir" style={{width:"100%",padding:11}}/>
+            <Btn onClick={()=>{actualizar({paso:8,entregado:true,fecha_entrega:hoy(),entregado_por:usuario.nombre,total_final:ot.total});alert(`✅ Entregado y guardado en CRM\n🚗 ${ot.placa}\n💰 ${fmt(ot.total)}`);}} color="#16a34a" text="🚗 CONFIRMAR ENTREGA AL CLIENTE" style={{width:"100%",padding:13,fontSize:14,fontWeight:900}}/>
+          </div>
+        </div>
+      </>:paso===8?<div style={{background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:8,padding:"14px",textAlign:"center"}}>
+        <div style={{fontSize:24,marginBottom:6}}>✅</div>
+        <div style={{fontWeight:900,color:"#16a34a",fontSize:15}}>Vehículo entregado</div>
+        <div style={{fontSize:12,color:"#64748b",marginBottom:10}}>Por {ot.entregado_por} · {ot.fecha_entrega}</div>
+        <div style={{display:"grid",gap:7}}>
+          <Btn onClick={()=>generarPDF({...ot,total_final:ot.total_final||ot.total})} color="#1d4ed8" text="📄 Informe final PDF" style={{width:"100%",padding:11}}/>
+          <Btn onClick={()=>enviarWA({...ot,total_final:ot.total_final||ot.total})} color="#25d366" text="📱 Enviar por WhatsApp" style={{width:"100%",padding:11}}/>
+        </div>
+      </div>:<div style={{color:"#94a3b8",fontSize:12,textAlign:"center",padding:20}}>El trabajo aún no ha terminado.</div>}
+    </Card>}
+  </div>;
+}
+
+// APP PRINCIPAL
+function App(){
+  const [usuario,setUsuario]=React.useState(null);
+  const [vista,setVista]=React.useState("lista");
+  const [otActual,setOtActual]=React.useState(null);
+  const [totalOTs,setTotalOTs]=React.useState(0);
+
+  React.useEffect(()=>{
+    if(usuario) sb.from("ots").select("id",{count:"exact"}).then(({count})=>setTotalOTs(count||0));
+  },[usuario]);
+
+  if(!usuario) return <Login onLogin={u=>{setUsuario(u);setVista("lista");}}/>;
+
+  const esEnc=["admin","encargado"].includes(usuario.rol);
+
+  return <div style={{padding:10,background:"#f0f4f8",minHeight:"100vh",fontFamily:"Arial,sans-serif",color:"#1a1a1a"}}>
+    <div style={{background:"#1e293b",color:"#fbbf24",padding:"10px 14px",borderRadius:10,marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}}>
+      <div>
+        <div style={{fontSize:14,fontWeight:900}}>📋 {EMPRESA.nombre}</div>
+        <div style={{fontSize:9,color:"#94a3b8"}}>Órdenes de Trabajo · {EMPRESA.ciudad}</div>
+      </div>
+      <div style={{textAlign:"right"}}>
+        <div style={{fontSize:11,color:"#fbbf24",fontWeight:700}}>{usuario.nombre}</div>
+        <div style={{display:"flex",gap:5,marginTop:4,justifyContent:"flex-end"}}>
+          <button onClick={()=>window.location.href="/"} style={{padding:"3px 8px",background:"#1d4ed8",color:"#fff",border:"none",borderRadius:6,fontSize:10,cursor:"pointer",fontWeight:700}}>🏠 Inicio</button>
+          <button onClick={()=>window.location.href="/admin.html"} style={{padding:"3px 8px",background:"#7c3aed",color:"#fff",border:"none",borderRadius:6,fontSize:10,cursor:"pointer",fontWeight:700}}>⚙️ Admin</button>
+          <button onClick={()=>setUsuario(null)} style={{padding:"3px 8px",background:"#ef4444",color:"#fff",border:"none",borderRadius:6,fontSize:10,cursor:"pointer",fontWeight:700}}>Salir</button>
+        </div>
+      </div>
+    </div>
+
+    {vista==="lista"&&<ListaOTs usuario={usuario} onNueva={()=>setVista("nueva")} onDetalle={o=>{setOtActual(o);setVista("detalle");}}/>}
+    {vista==="nueva"&&esEnc&&<NuevaOT usuario={usuario} totalOTs={totalOTs} onVolver={()=>setVista("lista")} onCreate={o=>{setTotalOTs(n=>n+1);setOtActual(o);setVista("detalle");}}/>}
+    {vista==="detalle"&&otActual&&<DetalleOT ot={otActual} usuario={usuario} onVolver={()=>setVista("lista")} onUpdate={o=>setOtActual(o)}/>}
+  </div>;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
