@@ -1,1 +1,298 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Servi Car Platinium</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:Arial,sans-serif;background:#f0f4f8}
+    #root{min-height:100vh}
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
 
+const SUPA_URL = "https://epirsbudngwbxgcsryvv.supabase.co";
+const SUPA_KEY = "sb_publishable_zsqvMzJMc80Ypf3UQqs-SA_IrV-XIGc";
+const supabase = window.supabase.createClient(SUPA_URL, SUPA_KEY);
+
+const EMPRESA = {
+  nombre:"SERVI CAR PLATINIUM", ciudad:"Viacha - La Paz",
+  t1:"Taller 1 · Av. Montes", t2:"Taller 2 · Bella Vista · Calle María Barzola",
+  tel1:"68167264", tel2:"60574920"
+};
+
+const fmt = n=>`Bs. ${parseFloat(n||0).toFixed(2)}`;
+const hoy = ()=>new Date().toLocaleDateString("es-BO");
+const hora = ()=>new Date().toLocaleTimeString("es-BO",{hour:"2-digit",minute:"2-digit"});
+
+const Btn=({onClick,color="#1e293b",text,style={}})=>
+  <button onClick={onClick} style={{padding:"8px 14px",background:color,color:"#fff",border:"none",borderRadius:8,fontWeight:700,fontSize:12,cursor:"pointer",...style}}>{text}</button>;
+const Card=({children,style={}})=>
+  <div style={{background:"#fff",borderRadius:10,padding:14,marginBottom:10,border:"1px solid #e2e8f0",...style}}>{children}</div>;
+const Badge=({text,color})=>
+  <span style={{padding:"2px 8px",borderRadius:20,fontSize:10,fontWeight:700,background:color+"22",color}}>{text}</span>;
+
+function Login({onLogin}){
+  const [u,setU]=React.useState("");
+  const [p,setP]=React.useState("");
+  const [err,setErr]=React.useState("");
+  const [loading,setLoading]=React.useState(false);
+
+  const ok=async()=>{
+    setLoading(true);
+    const {data,error}=await supabase.from("usuarios").select("*").eq("user_name",u.toLowerCase()).eq("pass",p).single();
+    setLoading(false);
+    if(data) onLogin(data);
+    else setErr("Usuario o contraseña incorrectos");
+  };
+
+  return <div style={{minHeight:"100vh",background:"#0f172a",display:"flex",alignItems:"center",justifyContent:"center"}}>
+    <div style={{background:"#1e293b",borderRadius:16,padding:32,width:300,boxShadow:"0 20px 60px rgba(0,0,0,.5)"}}>
+      <div style={{textAlign:"center",marginBottom:24}}>
+        <div style={{fontSize:40}}>🚗</div>
+        <div style={{color:"#fbbf24",fontWeight:900,fontSize:18}}>{EMPRESA.nombre}</div>
+        <div style={{color:"#64748b",fontSize:11,marginTop:4}}>{EMPRESA.ciudad}</div>
+      </div>
+      {[["USUARIO",u,setU,"text"],["CONTRASEÑA",p,setP,"password"]].map(([l,v,s,t])=>
+        <div key={l} style={{marginBottom:12}}>
+          <div style={{color:"#94a3b8",fontSize:11,marginBottom:4,fontWeight:700}}>{l}</div>
+          <input type={t} value={v} onChange={e=>s(e.target.value)} onKeyDown={e=>e.key==="Enter"&&ok()}
+            style={{width:"100%",padding:"10px 12px",background:"#0f172a",border:"1px solid #334155",borderRadius:8,color:"#fff",fontSize:13,boxSizing:"border-box"}}/>
+        </div>)}
+      {err&&<div style={{color:"#ef4444",fontSize:11,marginBottom:10,textAlign:"center"}}>{err}</div>}
+      <button onClick={ok} disabled={loading} style={{width:"100%",padding:11,background:"#f59e0b",color:"#1e293b",border:"none",borderRadius:8,fontWeight:900,fontSize:14,cursor:"pointer"}}>
+        {loading?"Verificando...":"Ingresar →"}
+      </button>
+      <div style={{marginTop:10,color:"#475569",fontSize:10,textAlign:"center"}}>📞 {EMPRESA.tel1} · {EMPRESA.tel2}</div>
+    </div>
+  </div>;
+}
+
+function Dashboard({usuario,onTab}){
+  const [stats,setStats]=React.useState({ing:0,eg:0,ots:0,t1:0,t2:0});
+  const h=hoy();
+  React.useEffect(()=>{
+    (async()=>{
+      const {data:caja}=await supabase.from("caja").select("*").eq("fecha",h);
+      const {data:ots}=await supabase.from("ots").select("*").neq("paso",8);
+      const ing=(caja||[]).filter(c=>c.tipo==="ingreso").reduce((s,c)=>s+parseFloat(c.monto||0),0);
+      const eg=(caja||[]).filter(c=>c.tipo==="egreso").reduce((s,c)=>s+parseFloat(c.monto||0),0);
+      const t1=(caja||[]).filter(c=>c.tipo==="ingreso"&&c.taller==="Taller 1 · Montes").reduce((s,c)=>s+parseFloat(c.monto||0),0);
+      const t2=(caja||[]).filter(c=>c.tipo==="ingreso"&&c.taller==="Taller 2 · Bella Vista").reduce((s,c)=>s+parseFloat(c.monto||0),0);
+      setStats({ing,eg,ots:(ots||[]).length,t1,t2});
+    })();
+  },[]);
+  return <div>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+      {[{l:"💰 Ingresos hoy",v:fmt(stats.ing),c:"#16a34a"},{l:"💸 Egresos",v:fmt(stats.eg),c:"#dc2626"},
+        {l:"📈 Utilidad",v:fmt(stats.ing-stats.eg),c:stats.ing-stats.eg>=0?"#2563eb":"#dc2626"},{l:"📋 OTs activas",v:stats.ots,c:"#7c3aed"}
+      ].map(x=><Card key={x.l} style={{textAlign:"center",padding:10}}>
+        <div style={{fontSize:10,color:"#64748b",marginBottom:3}}>{x.l}</div>
+        <div style={{fontSize:18,fontWeight:900,color:x.c}}>{x.v}</div>
+      </Card>)}
+    </div>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+      {[{l:"🔧 Taller 1 Montes",v:fmt(stats.t1)},{l:"🔧 Taller 2 Bella Vista",v:fmt(stats.t2)}].map(x=>
+        <Card key={x.l} style={{padding:10,textAlign:"center"}}>
+          <div style={{fontSize:10,color:"#64748b",marginBottom:3}}>{x.l}</div>
+          <div style={{fontSize:15,fontWeight:900,color:"#f59e0b"}}>{x.v}</div>
+        </Card>)}
+    </div>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+      {[{l:"📋 Nueva OT",c:"#1d4ed8",t:"ots"},{l:"🛒 Nueva venta",c:"#16a34a",t:"ventas"},{l:"🛢️ Cambio aceite",c:"#f59e0b",t:"aceite"},{l:"📦 Inventario",c:"#7c3aed",t:"inventario"}].map(x=>
+        <Btn key={x.l} onClick={()=>onTab(x.t)} color={x.c} text={x.l} style={{width:"100%",padding:12}}/>)}
+    </div>
+  </div>;
+}
+
+function Ventas({usuario}){
+  const [inv,setInv]=React.useState([]);
+  const [carrito,setCarrito]=React.useState([]);
+  const [cliente,setCliente]=React.useState("");
+  const [pago,setPago]=React.useState("Efectivo");
+  const [descuento,setDescuento]=React.useState(0);
+  const [busq,setBusq]=React.useState("");
+  const [tallerSel,setTallerSel]=React.useState(usuario.taller==="ambos"?"":usuario.taller);
+  const [ventaOk,setVentaOk]=React.useState(null);
+  const [loading,setLoading]=React.useState(false);
+
+  React.useEffect(()=>{
+    supabase.from("inventario").select("*").gt("stock",0).then(({data})=>setInv(data||[]));
+  },[]);
+
+  const invFilt=inv.filter(i=>!busq||i.nom.toLowerCase().includes(busq.toLowerCase())||i.marca?.toLowerCase().includes(busq.toLowerCase()));
+  const agregar=p=>{
+    setCarrito(c=>{const ex=c.find(x=>x.id===p.id);
+      if(ex){if(ex.qty>=p.stock){alert(`Solo hay ${p.stock} en stock`);return c;}return c.map(x=>x.id===p.id?{...x,qty:x.qty+1}:x);}
+      return [...c,{...p,qty:1}];});
+  };
+  const sub=carrito.reduce((s,i)=>s+(parseFloat(i.precio||0)*i.qty),0);
+  const total=sub-(parseFloat(descuento)||0);
+
+  const cobrar=async()=>{
+    if(!carrito.length){alert("Agrega productos.");return;}
+    if(!tallerSel){alert("Selecciona el taller.");return;}
+    setLoading(true);
+    const {data:cnt}=await supabase.from("ventas").select("id",{count:"exact"});
+    const num=`VT-${String((cnt?.length||0)+1).padStart(3,"0")}`;
+    const venta={num,fecha:hoy(),hora:hora(),taller:tallerSel,cliente,pago,items:carrito,subtotal:sub,descuento:parseFloat(descuento)||0,total,vendedor:usuario.nombre};
+    await supabase.from("ventas").insert(venta);
+    await supabase.from("caja").insert({fecha:hoy(),taller:tallerSel,concepto:`Venta ${num}`,tipo:"ingreso",monto:total,user_name:usuario.nombre});
+    for(const i of carrito){await supabase.from("inventario").update({stock:i.stock-i.qty}).eq("id",i.id);}
+    setVentaOk({...venta});
+    setCarrito([]); setCliente(""); setDescuento(0); setBusq("");
+    setLoading(false);
+  };
+
+  if(ventaOk) return <Card style={{border:"2px solid #16a34a",background:"#f0fdf4"}}>
+    <div style={{textAlign:"center",marginBottom:12}}>
+      <div style={{fontSize:36}}>✅</div>
+      <div style={{fontWeight:900,color:"#16a34a",fontSize:16}}>¡Venta registrada!</div>
+      <div style={{fontSize:12,color:"#64748b",marginTop:4}}>{ventaOk.num} · guardado en Supabase ✅</div>
+    </div>
+    <div style={{background:"#fff",borderRadius:8,padding:"10px 12px",marginBottom:10}}>
+      {ventaOk.items.map((i,idx)=><div key={idx} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",fontSize:13,borderBottom:"1px solid #f3f4f6"}}>
+        <span>{i.nom} x{i.qty}</span><span style={{fontWeight:700}}>{fmt(parseFloat(i.precio||0)*i.qty)}</span>
+      </div>)}
+      <div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",fontWeight:900,fontSize:15,color:"#f59e0b"}}><span>TOTAL</span><span>{fmt(ventaOk.total)}</span></div>
+    </div>
+    <div style={{display:"grid",gap:7}}>
+      <Btn onClick={()=>{const msg=`🛒 *${EMPRESA.nombre}*\n*${ventaOk.num}*\n${ventaOk.items.map(i=>`📦 ${i.nom} x${i.qty}: ${fmt(parseFloat(i.precio||0)*i.qty)}`).join("\n")}\n💰 *TOTAL: ${fmt(ventaOk.total)}*\n📞 ${EMPRESA.tel1}`;window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`,"_blank");}} color="#25d366" text="📱 Enviar por WhatsApp" style={{width:"100%",padding:11}}/>
+      <Btn onClick={()=>setVentaOk(null)} color="#1d4ed8" text="🛒 Nueva venta" style={{width:"100%",padding:11}}/>
+    </div>
+  </Card>;
+
+  return <div>
+    {usuario.taller==="ambos"&&<Card>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+        {["Taller 1 · Montes","Taller 2 · Bella Vista"].map(t=><div key={t} onClick={()=>setTallerSel(t)}
+          style={{border:`2px solid ${tallerSel===t?"#f59e0b":"#e2e8f0"}`,borderRadius:10,padding:"10px",cursor:"pointer",textAlign:"center",fontWeight:700,fontSize:12,background:tallerSel===t?"#fffbeb":"#f8fafc",color:tallerSel===t?"#92400e":"#64748b"}}>
+          🔧 {t}
+        </div>)}
+      </div>
+    </Card>}
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+      <Card>
+        <div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:6}}>📦 PRODUCTOS</div>
+        <input value={busq} onChange={e=>setBusq(e.target.value)} placeholder="🔍 Buscar..."
+          style={{width:"100%",padding:"7px 10px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:12,boxSizing:"border-box",marginBottom:7}}/>
+        <div style={{maxHeight:300,overflowY:"auto"}}>
+          {invFilt.map(p=><div key={p.id} onClick={()=>agregar(p)}
+            style={{padding:"7px 8px",borderRadius:8,marginBottom:4,background:"#f8fafc",border:"1px solid #e2e8f0",cursor:"pointer",display:"flex",justifyContent:"space-between"}}
+            onMouseEnter={e=>e.currentTarget.style.background="#fffbeb"}
+            onMouseLeave={e=>e.currentTarget.style.background="#f8fafc"}>
+            <div><div style={{fontWeight:700,fontSize:11}}>{p.nom}</div><div style={{fontSize:10,color:"#94a3b8"}}>Stock: {p.stock}</div></div>
+            <div style={{fontWeight:900,color:"#f59e0b",fontSize:12}}>{fmt(p.precio)}</div>
+          </div>)}
+        </div>
+      </Card>
+      <Card>
+        <div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:6}}>🛒 CARRITO</div>
+        {carrito.length===0?<div style={{color:"#94a3b8",fontSize:12,textAlign:"center",padding:20}}>Toca un producto</div>:
+        <div style={{maxHeight:180,overflowY:"auto",marginBottom:8}}>
+          {carrito.map(i=><div key={i.id} style={{padding:"6px 8px",background:"#f8fafc",borderRadius:7,marginBottom:4,border:"1px solid #e2e8f0"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <span style={{fontWeight:700,fontSize:11}}>{i.nom}</span>
+              <button onClick={()=>setCarrito(c=>c.filter(x=>x.id!==i.id))} style={{background:"#fee2e2",color:"#dc2626",border:"none",borderRadius:5,padding:"1px 6px",cursor:"pointer",fontSize:11}}>✕</button>
+            </div>
+            <div style={{display:"flex",gap:5,alignItems:"center",marginTop:4}}>
+              <button onClick={()=>setCarrito(c=>c.map(x=>x.id===i.id&&x.qty>1?{...x,qty:x.qty-1}:x))} style={{width:22,height:22,borderRadius:5,border:"1px solid #e2e8f0",background:"#fff",cursor:"pointer",fontSize:13,fontWeight:700}}>−</button>
+              <span style={{fontWeight:800,fontSize:13,minWidth:20,textAlign:"center"}}>{i.qty}</span>
+              <button onClick={()=>setCarrito(c=>c.map(x=>x.id===i.id&&x.qty<x.stock?{...x,qty:x.qty+1}:x))} style={{width:22,height:22,borderRadius:5,border:"1px solid #e2e8f0",background:"#fff",cursor:"pointer",fontSize:13,fontWeight:700}}>+</button>
+              <span style={{fontWeight:700,color:"#16a34a",fontSize:11}}>{fmt(parseFloat(i.precio||0)*i.qty)}</span>
+            </div>
+          </div>)}
+        </div>}
+        <div style={{borderTop:"1px solid #f3f4f6",paddingTop:8}}>
+          <input value={cliente} onChange={e=>setCliente(e.target.value)} placeholder="Cliente (opcional)"
+            style={{width:"100%",padding:"6px 8px",border:"1px solid #e2e8f0",borderRadius:7,fontSize:12,boxSizing:"border-box",marginBottom:6}}/>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+            <span style={{fontSize:12,color:"#64748b"}}>Descuento Bs.</span>
+            <input type="number" value={descuento} onChange={e=>setDescuento(e.target.value)} style={{width:70,padding:"4px 6px",border:"1px solid #fde68a",borderRadius:6,fontSize:12,textAlign:"right"}}/>
+          </div>
+          <div style={{background:"#1e293b",borderRadius:8,padding:"8px 12px",display:"flex",justifyContent:"space-between",fontWeight:900,color:"#fbbf24",fontSize:14,marginBottom:8}}>
+            <span>TOTAL</span><span>{fmt(total)}</span>
+          </div>
+          <Btn onClick={cobrar} color="#16a34a" text={loading?"Guardando...":"💰 Cobrar y registrar"} style={{width:"100%",padding:11}}/>
+        </div>
+      </Card>
+    </div>
+  </div>;
+}
+
+function CRMView({usuario}){
+  const [data,setData]=React.useState([]);
+  const [busq,setBusq]=React.useState("");
+  const esEnc=["admin","encargado"].includes(usuario.rol);
+  React.useEffect(()=>{
+    supabase.from("crm").select("*").order("created_at",{ascending:false}).then(({data})=>setData(data||[]));
+  },[]);
+  const filt=data.filter(r=>{
+    const q=busq.toLowerCase();
+    return (!q||r.placa?.toLowerCase().includes(q)||r.cliente?.toLowerCase().includes(q));
+  });
+  return <div>
+    <input value={busq} onChange={e=>setBusq(e.target.value)} placeholder="🔍 Buscar por placa o cliente..."
+      style={{width:"100%",padding:"8px 12px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:13,boxSizing:"border-box",marginBottom:10}}/>
+    {filt.length===0?<Card><div style={{textAlign:"center",padding:30,color:"#94a3b8"}}>Sin registros</div></Card>:
+    filt.map((r,i)=><Card key={i} style={{padding:10}}>
+      <div style={{display:"flex",justifyContent:"space-between"}}>
+        <div><div style={{fontWeight:800}}>{r.placa} — {r.cliente}</div>
+        <div style={{fontSize:11,color:"#64748b"}}>{r.fecha} · {r.taller} · {r.tecnico}</div></div>
+        <div style={{textAlign:"right"}}>
+          {esEnc&&<div style={{fontWeight:900,color:"#16a34a"}}>{r.total}</div>}
+          <Badge text={r.tipo||"Servicio"} color="#64748b"/>
+        </div>
+      </div>
+    </Card>)}
+  </div>;
+}
+
+function App(){
+  const [usuario,setUsuario]=React.useState(null);
+  const [tab,setTab]=React.useState("dashboard");
+
+  if(!usuario) return <Login onLogin={u=>{setUsuario(u);setTab(["admin","encargado"].includes(u.rol)?"dashboard":"ventas");}}/>;
+
+  const esAdmin=usuario.rol==="admin";
+  const esEnc=["admin","encargado"].includes(usuario.rol);
+  const TABS=[
+    ...(esAdmin?[{k:"dashboard",l:"📊 Dashboard"}]:[]),
+    {k:"ventas",l:"🛒 Ventas"},
+    {k:"crm",l:"👥 CRM"},
+  ];
+
+  return <div style={{padding:10,background:"#f0f4f8",minHeight:"100vh"}}>
+    <div style={{background:"#1e293b",color:"#fbbf24",padding:"10px 14px",borderRadius:10,marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+      <div>
+        <div style={{fontSize:14,fontWeight:900}}>🚗 {EMPRESA.nombre}</div>
+        <div style={{fontSize:9,color:"#94a3b8"}}>{EMPRESA.t1} · {EMPRESA.t2}</div>
+      </div>
+      <div style={{textAlign:"right"}}>
+        <div style={{fontSize:11,color:"#fbbf24",fontWeight:700}}>{usuario.nombre}</div>
+        <button onClick={()=>setUsuario(null)} style={{padding:"3px 8px",background:"#ef4444",color:"#fff",border:"none",borderRadius:6,fontSize:10,cursor:"pointer",fontWeight:700,marginTop:4}}>Salir</button>
+      </div>
+    </div>
+    <div style={{display:"flex",gap:4,marginBottom:10,flexWrap:"wrap"}}>
+      {TABS.map(t=><button key={t.k} onClick={()=>setTab(t.k)}
+        style={{padding:"6px 12px",borderRadius:8,border:`1px solid ${tab===t.k?"#fbbf24":"#e2e8f0"}`,background:tab===t.k?"#fffbeb":"#fff",color:tab===t.k?"#92400e":"#64748b",fontWeight:700,fontSize:11,cursor:"pointer"}}>
+        {t.l}
+      </button>)}
+    </div>
+    {tab==="dashboard"&&esAdmin&&<Dashboard usuario={usuario} onTab={setTab}/>}
+    {tab==="ventas"&&<Ventas usuario={usuario}/>}
+    {tab==="crm"&&<CRMView usuario={usuario}/>}
+  </div>;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
