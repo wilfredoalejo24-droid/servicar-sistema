@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Admin — Servi Car Platinium</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:Arial,sans-serif;background:#f0f4f8}
+    #root{min-height:100vh}
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+
+const SUPA_URL = "https://epirsbudngwbxgcsryvv.supabase.co";
+const SUPA_KEY = "sb_publishable_zsqvMzJMc80Ypf3UQqs-SA_IrV-XIGc";
+const sb = window.supabase.createClient(SUPA_URL, SUPA_KEY);
+
+const EMPRESA = {nombre:"SERVI CAR PLATINIUM",ciudad:"Viacha - La Paz",tel1:"68167264",tel2:"60574920"};
+const TALLERES = ["Taller 1 · Montes","Taller 2 · Bella Vista"];
+const USUARIOS_LOCAL = [
+  {user:"wilfredo",pass:"admin123",nombre:"Wilfredo",rol:"admin",taller:"ambos"},
+  {user:"william",pass:"taller1",nombre:"William",rol:"encargado",taller:"Taller 1 · Montes"},
+];
+const CATS_INV = ["Aceites","Lubricantes","Filtros","Líquidos","Repuestos mecánicos","Repuestos electrónicos","Accesorios","Prod. lavado","Herramientas","Insumos"];
+const PREF_INV = {Aceites:"AC",Lubricantes:"LB",Filtros:"FI","Líquidos":"LQ","Repuestos mecánicos":"RM","Repuestos electrónicos":"RE",Accesorios:"ACC","Prod. lavado":"PL",Herramientas:"HE",Insumos:"IN"};
+const TRABAJADORES = ["Wilfredo","William","Diego","Evo","Adolfo","Joel"];
+const fmt = n=>`Bs. ${parseFloat(n||0).toFixed(2)}`;
+const hoy = ()=>new Date().toLocaleDateString("es-BO");
+
+// ─── UI BASE ───
+const Btn=({onClick,color="#1e293b",text,style={}})=>
+  <button onClick={onClick} style={{padding:"8px 14px",background:color,color:"#fff",border:"none",borderRadius:8,fontWeight:700,fontSize:12,cursor:"pointer",...style}}>{text}</button>;
+const Card=({children,style={}})=>
+  <div style={{background:"#fff",borderRadius:10,padding:14,marginBottom:10,border:"1px solid #e2e8f0",...style}}>{children}</div>;
+const Tit=({text})=>
+  <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",color:"#64748b",marginBottom:8,paddingBottom:4,borderBottom:"2px solid #fbbf24",display:"inline-block"}}>{text}</div>;
+const Campo=({label,children})=>
+  <div><div style={{fontSize:10,color:"#94a3b8",fontWeight:700,textTransform:"uppercase",marginBottom:3}}>{label}</div>{children}</div>;
+const Inp=({value,onChange,type="text",placeholder,style={}})=>
+  <input type={type} value={value} onChange={e=>onChange&&onChange(e.target.value)} placeholder={placeholder}
+    style={{width:"100%",padding:"7px 10px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:13,boxSizing:"border-box",...style}}/>;
+const Sel=({value,onChange,options,style={}})=>
+  <select value={value} onChange={e=>onChange(e.target.value)}
+    style={{width:"100%",padding:"7px 10px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:13,...style}}>
+    <option value="">Seleccionar...</option>
+    {options.map(o=><option key={o.v||o} value={o.v||o}>{o.l||o}</option>)}
+  </select>;
+const Badge=({text,color})=>
+  <span style={{padding:"2px 8px",borderRadius:20,fontSize:10,fontWeight:700,background:color+"22",color,whiteSpace:"nowrap"}}>{text}</span>;
+
+// ─── LOGIN ───
+function Login({onLogin}){
+  const [u,setU]=React.useState(""); const [p,setP]=React.useState(""); const [err,setErr]=React.useState("");
+  const ok=async()=>{
+    const {data}=await sb.from("usuarios").select("*").eq("user_name",u.toLowerCase()).eq("pass",p).single();
+    if(data) onLogin(data);
+    else{const local=USUARIOS_LOCAL.find(x=>x.user===u.toLowerCase()&&x.pass===p);
+      if(local) onLogin(local); else setErr("Usuario o contraseña incorrectos");}
+  };
+  return <div style={{minHeight:"100vh",background:"#0f172a",display:"flex",alignItems:"center",justifyContent:"center"}}>
+    <div style={{background:"#1e293b",borderRadius:16,padding:32,width:300,boxShadow:"0 20px 60px rgba(0,0,0,.5)"}}>
+      <div style={{textAlign:"center",marginBottom:24}}>
+        <div style={{fontSize:40}}>🚗</div>
+        <div style={{color:"#fbbf24",fontWeight:900,fontSize:18}}>{EMPRESA.nombre}</div>
+        <div style={{color:"#64748b",fontSize:11,marginTop:4}}>Panel Administrativo</div>
+      </div>
+      {[["USUARIO",u,setU,"text"],["CONTRASEÑA",p,setP,"password"]].map(([l,v,s,t])=>
+        <div key={l} style={{marginBottom:12}}>
+          <div style={{color:"#94a3b8",fontSize:11,marginBottom:4,fontWeight:700}}>{l}</div>
+          <input type={t} value={v} onChange={e=>s(e.target.value)} onKeyDown={e=>e.key==="Enter"&&ok()}
+            style={{width:"100%",padding:"10px 12px",background:"#0f172a",border:"1px solid #334155",borderRadius:8,color:"#fff",fontSize:13,boxSizing:"border-box"}}/>
+        </div>)}
+      {err&&<div style={{color:"#ef4444",fontSize:11,marginBottom:10,textAlign:"center"}}>{err}</div>}
+      <button onClick={ok} style={{width:"100%",padding:11,background:"#f59e0b",color:"#1e293b",border:"none",borderRadius:8,fontWeight:900,fontSize:14,cursor:"pointer"}}>Ingresar →</button>
+    </div>
+  </div>;
+}
+
+// ─── INVENTARIO ───
+function Inventario({usuario}){
+  const esAdmin=["admin","encargado"].includes(usuario.rol);
+  const [inv,setInv]=React.useState([]);
+  const [busq,setBusq]=React.useState(""); const [catF,setCatF]=React.useState("");
+  const [modal,setModal]=React.useState(false);
+  const [nuevo,setNuevo]=React.useState({nom:"",marca:"",cat:"",stock:0,min:2,costo:0,precio:0,prov:"",para:"",medida:"",foto:null});
+  const [dupAlert,setDupAlert]=React.useState("");
+
+  React.useEffect(()=>{sb.from("inventario").select("*").order("nom").then(({data})=>setInv(data||[]));},[ ]);
+
+  const genCod=cat=>{const p=PREF_INV[cat]||"PR";const n=inv.filter(i=>i.cod?.startsWith(p)).map(i=>parseInt(i.cod?.split("-")[1])||0);return `${p}-${String((Math.max(0,...n)+1)).padStart(3,"0")}`;};
+  const chkDup=v=>{const dup=inv.find(i=>i.nom?.toLowerCase()===v.toLowerCase());setDupAlert(dup?`⚠️ Ya existe: ${dup.cod}`:"");setNuevo(p=>({...p,nom:v}));};
+  const filtrado=inv.filter(i=>{const q=busq.toLowerCase();return(!q||i.nom?.toLowerCase().includes(q)||i.cod?.toLowerCase().includes(q)||i.marca?.toLowerCase().includes(q))&&(!catF||i.cat===catF);});
+  const stockBajo=inv.filter(i=>i.stock<=i.min);
+
+  const agregar=async()=>{
+    if(!nuevo.nom||!nuevo.cat){alert("Completa nombre y categoría.");return;}
+    if(dupAlert){alert("Ese producto ya existe.");return;}
+    const cod=genCod(nuevo.cat);
+    const {data}=await sb.from("inventario").insert({...nuevo,cod}).select().single();
+    if(data){setInv(p=>[...p,data]);setModal(false);setNuevo({nom:"",marca:"",cat:"",stock:0,min:2,costo:0,precio:0,prov:"",para:"",medida:"",foto:null});setDupAlert("");}
+  };
+
+  const exportarCSV=()=>{
+    const h=["Código","Producto","Marca","Categoría","Para","Medida","Stock","Mínimo","Precio venta",...(esAdmin?["Costo","Margen%"]:[])];
+    const rows=inv.map(i=>[i.cod,i.nom,i.marca,i.cat,i.para,i.medida,i.stock,i.min,i.precio,...(esAdmin?[i.costo,i.precio>0?(((i.precio-i.costo)/i.precio)*100).toFixed(0)+"%":"0%"]:[])]);
+    const csv=[h,...rows].map(r=>r.join(",")).join("\n");
+    const a=document.createElement("a");a.href="data:text/csv;charset=utf-8,"+encodeURIComponent(csv);a.download="inventario_servicar.csv";a.click();
+  };
+
+  return <div>
+    {stockBajo.length>0&&<div style={{background:"#fef2f2",border:"1px solid #fca5a5",borderRadius:10,padding:"10px 14px",marginBottom:10,fontSize:12}}>
+      <div style={{fontWeight:700,color:"#dc2626",marginBottom:5}}>⚠️ {stockBajo.length} producto(s) con stock bajo:</div>
+      {stockBajo.map(i=><div key={i.id} style={{color:"#dc2626"}}>• {i.nom} — Stock: <strong>{i.stock}</strong> (mín: {i.min})</div>)}
+    </div>}
+    <div style={{display:"flex",gap:7,marginBottom:10,flexWrap:"wrap"}}>
+      <input value={busq} onChange={e=>setBusq(e.target.value)} placeholder="🔍 Buscar nombre, código o marca..."
+        style={{flex:1,minWidth:140,padding:"7px 10px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:13}}/>
+      <select value={catF} onChange={e=>setCatF(e.target.value)} style={{padding:"7px 10px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:12}}>
+        <option value="">Todas</option>{CATS_INV.map(c=><option key={c}>{c}</option>)}
+      </select>
+      <Btn onClick={exportarCSV} color="#16a34a" text="⬇️ Excel"/>
+      {esAdmin&&<Btn onClick={()=>setModal(true)} color="#1d4ed8" text="+ Agregar"/>}
+    </div>
+    <div style={{overflowX:"auto"}}>
+      <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+        <thead><tr style={{background:"#1e293b"}}>
+          {["Código","Producto","Marca","Cat.","Para","Stock","P.Venta",...(esAdmin?["Costo","Margen"]:[])].map(h=>
+            <th key={h} style={{padding:"6px 8px",color:"#fbbf24",fontSize:10,textAlign:"left",fontWeight:700,whiteSpace:"nowrap"}}>{h}</th>)}
+        </tr></thead>
+        <tbody>{filtrado.map((i,idx)=>{
+          const margen=i.precio>0?(i.precio-i.costo)/i.precio*100:0;
+          return <tr key={i.id} style={{background:idx%2===0?"#fff":"#f8fafc",borderBottom:"1px solid #f3f4f6"}}>
+            <td style={{padding:"5px 8px",color:"#64748b",fontSize:10}}>{i.cod}</td>
+            <td style={{padding:"5px 8px",fontWeight:600,fontSize:12}}>
+              {i.nom}
+              {i.stock===0&&<span style={{marginLeft:4,background:"#fee2e2",color:"#dc2626",fontSize:9,padding:"1px 5px",borderRadius:10,fontWeight:700}}>AGOTADO</span>}
+              {i.stock>0&&i.stock<=i.min&&<span style={{marginLeft:4,background:"#fef2f2",color:"#f97316",fontSize:9,padding:"1px 5px",borderRadius:10,fontWeight:700}}>BAJO</span>}
+            </td>
+            <td style={{padding:"5px 8px",fontSize:11,color:"#64748b"}}>{i.marca}</td>
+            <td style={{padding:"5px 8px",fontSize:11}}>{i.cat}</td>
+            <td style={{padding:"5px 8px",fontSize:10,color:"#64748b"}}>{i.para||"—"}</td>
+            <td style={{padding:"5px 8px",fontWeight:700,color:i.stock===0?"#dc2626":i.stock<=i.min?"#f97316":"#16a34a"}}>{i.stock}</td>
+            <td style={{padding:"5px 8px",fontWeight:700,color:"#f59e0b"}}>{fmt(i.precio)}</td>
+            {esAdmin&&<><td style={{padding:"5px 8px",color:"#64748b",fontSize:11}}>{fmt(i.costo)}</td>
+            <td style={{padding:"5px 8px"}}><span style={{padding:"2px 6px",borderRadius:10,fontSize:10,fontWeight:700,background:margen>=20?"#dcfce7":margen>=10?"#fef9c3":"#fee2e2",color:margen>=20?"#16a34a":margen>=10?"#92400e":"#dc2626"}}>{margen.toFixed(0)}%</span></td></>}
+          </tr>;})}
+        </tbody>
+      </table>
+    </div>
+    {modal&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",padding:12}}>
+      <div style={{background:"#fff",borderRadius:12,padding:18,width:340,maxHeight:"90vh",overflowY:"auto"}}>
+        <div style={{fontWeight:800,fontSize:14,marginBottom:10}}>➕ Nuevo Producto</div>
+        <div style={{display:"grid",gap:7}}>
+          <Campo label="Nombre *"><Inp value={nuevo.nom} onChange={chkDup} placeholder="Nombre del producto"/>{dupAlert&&<div style={{color:"#dc2626",fontSize:11,marginTop:2}}>{dupAlert}</div>}</Campo>
+          <Campo label="Marca"><Inp value={nuevo.marca} onChange={v=>setNuevo(p=>({...p,marca:v}))} placeholder="Toyota, Bosch..."/></Campo>
+          <Campo label="Categoría *"><Sel value={nuevo.cat} onChange={v=>setNuevo(p=>({...p,cat:v}))} options={CATS_INV}/>{nuevo.cat&&<div style={{fontSize:10,color:"#64748b",marginTop:2}}>Código: <strong>{genCod(nuevo.cat)}</strong></div>}</Campo>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7}}>
+            <Campo label="Stock actual"><Inp type="number" value={nuevo.stock} onChange={v=>setNuevo(p=>({...p,stock:+v}))}/></Campo>
+            <Campo label="Stock mínimo"><Inp type="number" value={nuevo.min} onChange={v=>setNuevo(p=>({...p,min:+v}))}/></Campo>
+            {esAdmin&&<Campo label="Costo Bs."><Inp type="number" value={nuevo.costo} onChange={v=>setNuevo(p=>({...p,costo:+v}))}/></Campo>}
+            <Campo label="Precio venta Bs."><Inp type="number" value={nuevo.precio} onChange={v=>setNuevo(p=>({...p,precio:+v}))}/></Campo>
+          </div>
+          <Campo label="Para qué auto"><Inp value={nuevo.para} onChange={v=>setNuevo(p=>({...p,para:v}))} placeholder="Toyota Corolla 2015-2020"/></Campo>
+          <Campo label="Medida / Especificación"><Inp value={nuevo.medida} onChange={v=>setNuevo(p=>({...p,medida:v}))} placeholder="500ml, 1L..."/></Campo>
+          <Campo label="Proveedor"><Inp value={nuevo.prov} onChange={v=>setNuevo(p=>({...p,prov:v}))} placeholder="Nombre del proveedor"/></Campo>
+          <Campo label="📷 Foto del producto">
+            <input type="file" accept="image/*" onChange={e=>{const f=e.target.files[0];if(f){const r=new FileReader();r.onload=ev=>setNuevo(p=>({...p,foto:ev.target.result}));r.readAsDataURL(f);}}} style={{fontSize:12}}/>
+            {nuevo.foto&&<img src={nuevo.foto} alt="" style={{width:70,height:70,objectFit:"cover",borderRadius:8,marginTop:5}}/>}
+          </Campo>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:10}}>
+          <Btn onClick={()=>setModal(false)} color="#64748b" text="Cancelar"/>
+          <Btn onClick={agregar} color="#16a34a" text="✅ Agregar"/>
+        </div>
+      </div>
+    </div>}
+  </div>;
+}
+
+// ─── CAJA ───
+function Caja({usuario}){
+  const esAdmin=usuario.rol==="admin";
+  const [caja,setCaja]=React.useState([]);
+  const [tallerF,setTallerF]=React.useState(usuario.taller==="ambos"?"":usuario.taller);
+  const [modal,setModal]=React.useState(false);
+  const [nuevo,setNuevo]=React.useState({concepto:"",tipo:"ingreso",monto:0,taller:usuario.taller==="ambos"?"Taller 1 · Montes":usuario.taller});
+  const h=hoy();
+
+  React.useEffect(()=>{
+    sb.from("caja").select("*").order("created_at",{ascending:false}).then(({data})=>setCaja(data||[]));
+  },[]);
+
+  const datos=caja.filter(c=>!tallerF||c.taller===tallerF);
+  const ing=datos.filter(c=>c.fecha===h&&c.tipo==="ingreso").reduce((s,c)=>s+parseFloat(c.monto||0),0);
+  const eg=datos.filter(c=>c.fecha===h&&c.tipo==="egreso").reduce((s,c)=>s+parseFloat(c.monto||0),0);
+
+  const agregar=async()=>{
+    if(!nuevo.concepto||!nuevo.monto){alert("Completa concepto y monto.");return;}
+    const reg={...nuevo,fecha:h,monto:+nuevo.monto,user_name:usuario.nombre};
+    const {data}=await sb.from("caja").insert(reg).select().single();
+    if(data){setCaja(p=>[data,...p]);setModal(false);}
+  };
+
+  const exportarCSV=()=>{
+    const h2=["Fecha","Taller","Concepto","Tipo","Monto","Quién"];
+    const rows=datos.map(c=>[c.fecha,c.taller,c.concepto,c.tipo,c.monto,c.user_name]);
+    const csv=[h2,...rows].map(r=>r.join(",")).join("\n");
+    const a=document.createElement("a");a.href="data:text/csv;charset=utf-8,"+encodeURIComponent(csv);a.download="caja_servicar.csv";a.click();
+  };
+
+  return <div>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:7,marginBottom:8}}>
+      {[{l:"💰 Ingresos hoy",v:fmt(ing),c:"#16a34a"},{l:"💸 Egresos hoy",v:fmt(eg),c:"#dc2626"},{l:"📈 Utilidad",v:fmt(ing-eg),c:ing-eg>=0?"#2563eb":"#dc2626"}].map(x=>
+        <Card key={x.l} style={{padding:8,textAlign:"center"}}>
+          <div style={{fontSize:10,color:"#64748b",marginBottom:2}}>{x.l}</div>
+          <div style={{fontWeight:900,color:x.c,fontSize:14}}>{x.v}</div>
+        </Card>)}
+    </div>
+    <div style={{display:"flex",gap:7,marginBottom:8,flexWrap:"wrap"}}>
+      {esAdmin&&<select value={tallerF} onChange={e=>setTallerF(e.target.value)} style={{padding:"6px 10px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:12}}>
+        <option value="">Todos</option>{[...TALLERES,"Grúa"].map(t=><option key={t}>{t}</option>)}
+      </select>}
+      <Btn onClick={()=>setModal(true)} color="#1d4ed8" text="+ Registrar"/>
+      <Btn onClick={exportarCSV} color="#16a34a" text="⬇️ Excel"/>
+      <Btn onClick={()=>alert(`✅ CIERRE DE CAJA\n${h}\n${tallerF||"Todos"}\nIngresos: ${fmt(ing)}\nEgresos: ${fmt(eg)}\nUtilidad: ${fmt(ing-eg)}`)} color="#7c3aed" text="🔒 Cerrar caja"/>
+    </div>
+    <div style={{overflowX:"auto"}}>
+      <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+        <thead><tr style={{background:"#1e293b"}}>
+          {["Fecha","Taller","Concepto","Tipo","Monto","Quién"].map(h3=><th key={h3} style={{padding:"6px 8px",color:"#fbbf24",fontSize:10,textAlign:"left",fontWeight:700}}>{h3}</th>)}
+        </tr></thead>
+        <tbody>{datos.slice(0,30).map((c,i)=><tr key={i} style={{background:i%2===0?"#fff":"#f8fafc",borderBottom:"1px solid #f3f4f6"}}>
+          <td style={{padding:"5px 8px",color:"#64748b",fontSize:11,whiteSpace:"nowrap"}}>{c.fecha}</td>
+          <td style={{padding:"5px 8px",fontSize:10,color:"#64748b"}}>{c.taller}</td>
+          <td style={{padding:"5px 8px",fontSize:12}}>{c.concepto}</td>
+          <td style={{padding:"5px 8px"}}><Badge text={c.tipo==="ingreso"?"Ingreso":"Egreso"} color={c.tipo==="ingreso"?"#16a34a":"#dc2626"}/></td>
+          <td style={{padding:"5px 8px",fontWeight:700,color:c.tipo==="ingreso"?"#16a34a":"#dc2626"}}>{fmt(c.monto)}</td>
+          <td style={{padding:"5px 8px",fontSize:11,color:"#64748b"}}>{c.user_name}</td>
+        </tr>)}</tbody>
+      </table>
+    </div>
+    {modal&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center"}}>
+      <div style={{background:"#fff",borderRadius:12,padding:18,width:300}}>
+        <div style={{fontWeight:800,fontSize:14,marginBottom:10}}>💵 Nuevo movimiento</div>
+        <div style={{display:"grid",gap:7}}>
+          <Campo label="Concepto"><Inp value={nuevo.concepto} onChange={v=>setNuevo(p=>({...p,concepto:v}))} placeholder="Descripción"/></Campo>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7}}>
+            <Campo label="Tipo"><select value={nuevo.tipo} onChange={e=>setNuevo(p=>({...p,tipo:e.target.value}))} style={{width:"100%",padding:"7px 10px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:13}}><option value="ingreso">Ingreso</option><option value="egreso">Egreso</option></select></Campo>
+            <Campo label="Monto Bs."><Inp type="number" value={nuevo.monto} onChange={v=>setNuevo(p=>({...p,monto:v}))}/></Campo>
+          </div>
+          {esAdmin&&<Campo label="Taller"><Sel value={nuevo.taller} onChange={v=>setNuevo(p=>({...p,taller:v}))} options={[...TALLERES,"Grúa"]}/></Campo>}
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7,marginTop:10}}>
+          <Btn onClick={()=>setModal(false)} color="#64748b" text="Cancelar"/>
+          <Btn onClick={agregar} color="#16a34a" text="✅ Guardar"/>
+        </div>
+      </div>
+    </div>}
+  </div>;
+}
+
+// ─── CRM ───
+function CRM({usuario}){
+  const esAdmin=["admin","encargado"].includes(usuario.rol);
+  const [data,setData]=React.useState([]);
+  const [busq,setBusq]=React.useState("");
+
+  React.useEffect(()=>{sb.from("crm").select("*").order("created_at",{ascending:false}).then(({data})=>setData(data||[]));},[ ]);
+
+  const filt=data.filter(r=>{const q=busq.toLowerCase();return(!q||r.placa?.toLowerCase().includes(q)||r.cliente?.toLowerCase().includes(q)||r.num?.toLowerCase().includes(q));});
+
+  const exportarCSV=()=>{
+    const h=["Fecha","OT","Placa","Cliente","Vehículo","Taller","Técnico",...(esAdmin?["Total"]:[]),"Tipo"];
+    const rows=filt.map(r=>[r.fecha,r.num,r.placa,r.cliente,r.vehiculo,r.taller,r.tecnico,...(esAdmin?[r.total]:[]),r.tipo]);
+    const csv=[h,...rows].map(r=>r.join(",")).join("\n");
+    const a=document.createElement("a");a.href="data:text/csv;charset=utf-8,"+encodeURIComponent(csv);a.download="crm_servicar.csv";a.click();
+  };
+
+  return <div>
+    <div style={{display:"flex",gap:7,marginBottom:10,flexWrap:"wrap"}}>
+      <input value={busq} onChange={e=>setBusq(e.target.value)} placeholder="🔍 Buscar por placa, cliente u OT..."
+        style={{flex:1,padding:"8px 12px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:13}}/>
+      <Btn onClick={exportarCSV} color="#16a34a" text="⬇️ Exportar Excel"/>
+    </div>
+    {filt.length===0?<Card><div style={{textAlign:"center",padding:30,color:"#94a3b8"}}>Sin registros</div></Card>:
+    <div style={{overflowX:"auto"}}>
+      <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+        <thead><tr style={{background:"#1e293b"}}>
+          {["Fecha","OT","Placa","Cliente","Vehículo","Taller","Técnico",...(esAdmin?["Total"]:[]),"Tipo"].map(h=>
+            <th key={h} style={{padding:"6px 8px",color:"#fbbf24",fontSize:10,textAlign:"left",fontWeight:700,whiteSpace:"nowrap"}}>{h}</th>)}
+        </tr></thead>
+        <tbody>{filt.map((r,i)=><tr key={i} style={{background:i%2===0?"#fff":"#f8fafc",borderBottom:"1px solid #f3f4f6"}}>
+          <td style={{padding:"5px 8px",color:"#64748b",fontSize:11,whiteSpace:"nowrap"}}>{r.fecha}</td>
+          <td style={{padding:"5px 8px",fontWeight:700,color:"#1d4ed8"}}>{r.num||"—"}</td>
+          <td style={{padding:"5px 8px",fontWeight:700}}>{r.placa}</td>
+          <td style={{padding:"5px 8px"}}>{r.cliente}</td>
+          <td style={{padding:"5px 8px",fontSize:11,color:"#64748b"}}>{r.vehiculo}</td>
+          <td style={{padding:"5px 8px",fontSize:10,color:"#64748b"}}>{r.taller}</td>
+          <td style={{padding:"5px 8px",fontSize:11}}>{r.tecnico}</td>
+          {esAdmin&&<td style={{padding:"5px 8px",fontWeight:800,color:"#16a34a"}}>{r.total}</td>}
+          <td style={{padding:"5px 8px"}}><Badge text={r.tipo||"Servicio"} color="#64748b"/></td>
+        </tr>)}</tbody>
+      </table>
+    </div>}
+  </div>;
+}
+
+// ─── PERSONAL Y HERRAMIENTAS ───
+function Personal({usuario}){
+  const esAdmin=usuario.rol==="admin";
+  const [trabajadorSel,setTrabajadorSel]=React.useState(null);
+  const [herramientas,setHerramientas]=React.useState([]);
+  const [modal,setModal]=React.useState(false);
+  const [nuevo,setNuevo]=React.useState({nombre:"",codigo:"",estado:"Activa",fecha_entrega:hoy(),obs:"",foto:null});
+
+  const cargar=async(t)=>{
+    setTrabajadorSel(t);
+    const {data}=await sb.from("herramientas").select("*").eq("trabajador",t).order("created_at");
+    setHerramientas(data||[]);
+  };
+
+  const agregar=async()=>{
+    if(!nuevo.nombre){alert("Escribe el nombre de la herramienta.");return;}
+    const reg={...nuevo,trabajador:trabajadorSel};
+    const {data}=await sb.from("herramientas").insert(reg).select().single();
+    if(data){setHerramientas(p=>[...p,data]);setModal(false);setNuevo({nombre:"",codigo:"",estado:"Activa",fecha_entrega:hoy(),obs:"",foto:null});}
+  };
+
+  const cambiarEstado=async(id,estado,obs="")=>{
+    await sb.from("herramientas").update({estado,obs:obs||undefined}).eq("id",id);
+    setHerramientas(p=>p.map(h=>h.id===id?{...h,estado,obs:obs||h.obs}:h));
+  };
+
+  const eliminar=async(id)=>{
+    if(!confirm("¿Eliminar esta herramienta?")) return;
+    await sb.from("herramientas").delete().eq("id",id);
+    setHerramientas(p=>p.filter(h=>h.id!==id));
+  };
+
+  const imprimirActa=()=>{
+    const rows=herramientas.map(h=>`<tr><td>${h.codigo||"—"}</td><td>${h.nombre}</td><td>${h.estado}</td><td>${h.fecha_entrega||"—"}</td></tr>`).join("");
+    const w=window.open("","_blank");
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Dotación ${trabajadorSel}</title>
+    <style>body{font-family:Arial;padding:20px;font-size:12px}h2{color:#1e293b}table{width:100%;border-collapse:collapse}th{background:#1e293b;color:#fbbf24;padding:6px}td{padding:6px;border-bottom:1px solid #eee}.firma{margin-top:40px;display:grid;grid-template-columns:1fr 1fr;gap:40px}.firma-box{border-top:2px solid #1e293b;padding-top:8px;text-align:center}</style></head>
+    <body><h2>🚗 ${EMPRESA.nombre} — Dotación de Herramientas</h2><p><strong>Trabajador:</strong> ${trabajadorSel} &nbsp;&nbsp; <strong>Fecha:</strong> ${hoy()}</p>
+    <table><thead><tr><th>Código</th><th>Herramienta</th><th>Estado</th><th>Fecha entrega</th></tr></thead><tbody>${rows}</tbody></table>
+    <div class="firma"><div class="firma-box">Firma del trabajador<br><br><br>${trabajadorSel}</div><div class="firma-box">Firma del responsable<br><br><br>Wilfredo</div></div>
+    <script>window.print()<\/script></body></html>`);
+    w.document.close();
+  };
+
+  const COLORES_ESTADO={Activa:"#16a34a",Dañada:"#f97316",Transferida:"#3b82f6","Dada de baja":"#64748b",Faltante:"#dc2626"};
+
+  if(!trabajadorSel) return <div>
+    <div style={{fontSize:13,color:"#64748b",marginBottom:10}}>Selecciona un trabajador para ver sus herramientas:</div>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+      {TRABAJADORES.map(t=><div key={t} onClick={()=>cargar(t)}
+        style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:10,padding:"14px 12px",cursor:"pointer",textAlign:"center",fontWeight:700,fontSize:13}}
+        onMouseEnter={e=>e.currentTarget.style.background="#fffbeb"}
+        onMouseLeave={e=>e.currentTarget.style.background="#fff"}>
+        👨‍🔧 {t}
+      </div>)}
+    </div>
+  </div>;
+
+  const faltantes=herramientas.filter(h=>h.estado==="Faltante"||h.estado==="Dañada");
+
+  return <div>
+    <div style={{display:"flex",gap:8,marginBottom:10,alignItems:"center",flexWrap:"wrap"}}>
+      <button onClick={()=>setTrabajadorSel(null)} style={{padding:"6px 12px",background:"#f1f5f9",border:"none",borderRadius:8,cursor:"pointer",fontSize:12,fontWeight:700}}>← Volver</button>
+      <div style={{fontWeight:800,fontSize:14}}>👨‍🔧 {trabajadorSel}</div>
+      {faltantes.length>0&&<Badge text={`⚠️ ${faltantes.length} herramienta(s) con problema`} color="#dc2626"/>}
+    </div>
+    <div style={{display:"flex",gap:7,marginBottom:10,flexWrap:"wrap"}}>
+      {esAdmin&&<Btn onClick={()=>setModal(true)} color="#1d4ed8" text="+ Agregar herramienta"/>}
+      <Btn onClick={imprimirActa} color="#7c3aed" text="🖨️ Imprimir acta"/>
+    </div>
+    {herramientas.length===0?<Card><div style={{textAlign:"center",padding:30,color:"#94a3b8",fontSize:13}}>Sin herramientas registradas</div></Card>:
+    <div style={{overflowX:"auto"}}>
+      <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+        <thead><tr style={{background:"#1e293b"}}>
+          {["Código","Herramienta","Estado","Fecha entrega","Observación",...(esAdmin?["Acciones"]:[])].map(h=>
+            <th key={h} style={{padding:"6px 8px",color:"#fbbf24",fontSize:10,textAlign:"left",fontWeight:700}}>{h}</th>)}
+        </tr></thead>
+        <tbody>{herramientas.map((h,i)=><tr key={h.id} style={{background:i%2===0?"#fff":"#f8fafc",borderBottom:"1px solid #f3f4f6"}}>
+          <td style={{padding:"5px 8px",color:"#64748b",fontSize:11}}>{h.codigo||"—"}</td>
+          <td style={{padding:"5px 8px",fontWeight:600}}>{h.nombre}</td>
+          <td style={{padding:"5px 8px"}}><Badge text={h.estado} color={COLORES_ESTADO[h.estado]||"#64748b"}/></td>
+          <td style={{padding:"5px 8px",color:"#64748b",fontSize:11}}>{h.fecha_entrega||"—"}</td>
+          <td style={{padding:"5px 8px",color:"#64748b",fontSize:11}}>{h.obs||"—"}</td>
+          {esAdmin&&<td style={{padding:"5px 8px"}}>
+            <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+              {h.estado==="Activa"&&<>
+                <button onClick={()=>{const obs=prompt("Descripción del daño:");if(obs)cambiarEstado(h.id,"Dañada",obs);}} style={{padding:"2px 6px",background:"#fef3c7",color:"#92400e",border:"none",borderRadius:5,fontSize:10,cursor:"pointer",fontWeight:700}}>⚠️ Dañada</button>
+                <button onClick={()=>{if(confirm("¿Dar de baja esta herramienta?"))cambiarEstado(h.id,"Dada de baja");}} style={{padding:"2px 6px",background:"#f1f5f9",color:"#64748b",border:"none",borderRadius:5,fontSize:10,cursor:"pointer",fontWeight:700}}>⬛ Baja</button>
+                <button onClick={()=>{const obs=prompt("¿Motivo de faltante?");if(obs)cambiarEstado(h.id,"Faltante",obs);}} style={{padding:"2px 6px",background:"#fef2f2",color:"#dc2626",border:"none",borderRadius:5,fontSize:10,cursor:"pointer",fontWeight:700}}>❓ Faltante</button>
+              </>}
+              {h.estado!=="Activa"&&<button onClick={()=>cambiarEstado(h.id,"Activa","")} style={{padding:"2px 6px",background:"#dcfce7",color:"#16a34a",border:"none",borderRadius:5,fontSize:10,cursor:"pointer",fontWeight:700}}>✅ Activa</button>}
+              <button onClick={()=>eliminar(h.id)} style={{padding:"2px 6px",background:"#fee2e2",color:"#dc2626",border:"none",borderRadius:5,fontSize:10,cursor:"pointer",fontWeight:700}}>🗑️</button>
+            </div>
+          </td>}
+        </tr>)}</tbody>
+      </table>
+    </div>}
+    {modal&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",padding:12}}>
+      <div style={{background:"#fff",borderRadius:12,padding:18,width:320}}>
+        <div style={{fontWeight:800,fontSize:14,marginBottom:10}}>🔧 Nueva herramienta — {trabajadorSel}</div>
+        <div style={{display:"grid",gap:7}}>
+          <Campo label="Nombre *"><Inp value={nuevo.nombre} onChange={v=>setNuevo(p=>({...p,nombre:v}))} placeholder="Ej: Llave 14mm"/></Campo>
+          <Campo label="Código (opcional)"><Inp value={nuevo.codigo} onChange={v=>setNuevo(p=>({...p,codigo:v}))} placeholder="HE-001"/></Campo>
+          <Campo label="Fecha de entrega"><Inp type="date" value={nuevo.fecha_entrega} onChange={v=>setNuevo(p=>({...p,fecha_entrega:v}))}/></Campo>
+          <Campo label="Observación"><Inp value={nuevo.obs} onChange={v=>setNuevo(p=>({...p,obs:v}))} placeholder="Condición, marca..."/></Campo>
+          <Campo label="📷 Foto">
+            <input type="file" accept="image/*" onChange={e=>{const f=e.target.files[0];if(f){const r=new FileReader();r.onload=ev=>setNuevo(p=>({...p,foto:ev.target.result}));r.readAsDataURL(f);}}} style={{fontSize:12}}/>
+            {nuevo.foto&&<img src={nuevo.foto} alt="" style={{width:60,height:60,objectFit:"cover",borderRadius:6,marginTop:4}}/>}
+          </Campo>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7,marginTop:10}}>
+          <Btn onClick={()=>setModal(false)} color="#64748b" text="Cancelar"/>
+          <Btn onClick={agregar} color="#16a34a" text="✅ Agregar"/>
+        </div>
+      </div>
+    </div>}
+  </div>;
+}
+
+// ─── VACACIONES ───
+function Vacaciones({usuario}){
+  const esAdmin=usuario.rol==="admin";
+  const [saldos,setSaldos]=React.useState([]);
+  const [solicitudes,setSolicitudes]=React.useState([]);
+  const [vista,setVista]=React.useState("resumen");
+  const [formSol,setFormSol]=React.useState({trabajador:usuario.nombre,fecha_inicio:"",fecha_fin:"",motivo:"",quien_cubre:""});
+  const [editModal,setEditModal]=React.useState(null);
+
+  React.useEffect(()=>{
+    sb.from("vacaciones_saldo").select("*").order("trabajador").then(({data})=>setSaldos(data||[]));
+    sb.from("vacaciones_solicitudes").select("*").order("created_at",{ascending:false}).then(({data})=>setSolicitudes(data||[]));
+  },[]);
+
+  const calcDias=(ini,fin)=>{
+    if(!ini||!fin) return 0;
+    let d=0; let cur=new Date(ini);const end=new Date(fin);
+    while(cur<=end){const day=cur.getDay();if(day!==0&&day!==6)d++;cur.setDate(cur.getDate()+1);}
+    return d;
+  };
+
+  const solicitarVacaciones=async()=>{
+    if(!formSol.fecha_inicio||!formSol.fecha_fin){alert("Completa las fechas.");return;}
+    const dias=calcDias(formSol.fecha_inicio,formSol.fecha_fin);
+    if(dias===0){alert("Las fechas no son válidas.");return;}
+    const saldo=saldos.find(s=>s.trabajador===formSol.trabajador);
+    if(saldo&&(saldo.dias_totales-saldo.dias_usados)<dias){alert(`No hay suficientes días disponibles. Disponibles: ${saldo.dias_totales-saldo.dias_usados}`);return;}
+    const reg={...formSol,dias,estado:"Pendiente"};
+    const {data}=await sb.from("vacaciones_solicitudes").insert(reg).select().single();
+    if(data){setSolicitudes(p=>[data,...p]);setVista("solicitudes");alert("✅ Solicitud enviada a Wilfredo");}
+  };
+
+  const aprobar=async(sol)=>{
+    await sb.from("vacaciones_solicitudes").update({estado:"Aprobado",aprobado_por:usuario.nombre,fecha_aprobacion:hoy()}).eq("id",sol.id);
+    const saldo=saldos.find(s=>s.trabajador===sol.trabajador);
+    if(saldo){
+      const nuevosUsados=saldo.dias_usados+sol.dias;
+      await sb.from("vacaciones_saldo").update({dias_usados:nuevosUsados}).eq("id",saldo.id);
+      setSaldos(p=>p.map(s=>s.trabajador===sol.trabajador?{...s,dias_usados:nuevosUsados}:s));
+    }
+    setSolicitudes(p=>p.map(s=>s.id===sol.id?{...s,estado:"Aprobado"}:s));
+    alert(`✅ Vacaciones aprobadas para ${sol.trabajador}`);
+  };
+
+  const rechazar=async(id)=>{
+    await sb.from("vacaciones_solicitudes").update({estado:"Rechazado",aprobado_por:usuario.nombre}).eq("id",id);
+    setSolicitudes(p=>p.map(s=>s.id===id?{...s,estado:"Rechazado"}:s));
+  };
+
+  const guardarEdicion=async()=>{
+    if(!editModal) return;
+    await sb.from("vacaciones_saldo").update({dias_totales:+editModal.dias_totales,dias_usados:+editModal.dias_usados,fecha_inicio:editModal.fecha_inicio,fecha_recarga:editModal.fecha_recarga}).eq("id",editModal.id);
+    setSaldos(p=>p.map(s=>s.id===editModal.id?{...s,...editModal}:s));
+    setEditModal(null); alert("✅ Datos actualizados");
+  };
+
+  const pendientes=solicitudes.filter(s=>s.estado==="Pendiente");
+
+  return <div>
+    <div style={{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}}>
+      {[{k:"resumen",l:"📊 Resumen"},{k:"solicitar",l:"📝 Solicitar"},{k:"solicitudes",l:`📋 Solicitudes${pendientes.length>0?` (${pendientes.length})`:""}`,}].map(t=>
+        <button key={t.k} onClick={()=>setVista(t.k)} style={{padding:"6px 12px",borderRadius:8,border:`1px solid ${vista===t.k?"#fbbf24":"#e2e8f0"}`,background:vista===t.k?"#fffbeb":"#fff",color:vista===t.k?"#92400e":"#64748b",fontWeight:700,fontSize:11,cursor:"pointer"}}>{t.l}</button>)}
+    </div>
+
+    {/* RESUMEN */}
+    {vista==="resumen"&&<div>
+      {pendientes.length>0&&<Card style={{border:"2px solid #f59e0b",background:"#fffbeb"}}>
+        <Tit text="🔔 Solicitudes pendientes de aprobación"/>
+        {pendientes.map(s=><div key={s.id} style={{padding:"8px 10px",background:"#fff",borderRadius:8,marginBottom:6,border:"1px solid #fde68a"}}>
+          <div style={{fontWeight:700,fontSize:13}}>{s.trabajador} — {s.dias} días hábiles</div>
+          <div style={{fontSize:11,color:"#64748b"}}>Del {s.fecha_inicio} al {s.fecha_fin}</div>
+          {s.motivo&&<div style={{fontSize:11,color:"#64748b"}}>Motivo: {s.motivo}</div>}
+          {s.quien_cubre&&<div style={{fontSize:11,color:"#64748b"}}>Cubre: {s.quien_cubre}</div>}
+          {esAdmin&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7,marginTop:8}}>
+            <Btn onClick={()=>aprobar(s)} color="#16a34a" text="✅ Aprobar"/>
+            <Btn onClick={()=>rechazar(s.id)} color="#dc2626" text="❌ Rechazar"/>
+          </div>}
+        </div>)}
+      </Card>}
+      <Card>
+        <Tit text="🏖️ Saldo de vacaciones 2026"/>
+        <div style={{overflowX:"auto"}}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+            <thead><tr style={{background:"#1e293b"}}>
+              {["Trabajador","Días/año","Usados","Disponibles","Desde","Próx. recarga",...(esAdmin?["Editar"]:[])].map(h=>
+                <th key={h} style={{padding:"6px 8px",color:"#fbbf24",fontSize:10,textAlign:"left",fontWeight:700}}>{h}</th>)}
+            </tr></thead>
+            <tbody>{saldos.map((s,i)=>{
+              const disp=s.dias_totales-s.dias_usados;
+              const hoy2=new Date();const inicio=new Date(s.fecha_inicio?.split("/").reverse().join("-"));
+              const disponible=hoy2>=inicio;
+              return <tr key={s.id} style={{background:i%2===0?"#fff":"#f8fafc",borderBottom:"1px solid #f3f4f6"}}>
+                <td style={{padding:"6px 8px",fontWeight:700}}>{s.trabajador}</td>
+                <td style={{padding:"6px 8px",textAlign:"center"}}>{s.dias_totales}</td>
+                <td style={{padding:"6px 8px",textAlign:"center",color:"#dc2626"}}>{s.dias_usados}</td>
+                <td style={{padding:"6px 8px",textAlign:"center"}}>
+                  {disponible?<Badge text={`${disp} días`} color={disp>0?"#16a34a":"#dc2626"}/>:<Badge text="Sin vacaciones aún" color="#94a3b8"/>}
+                </td>
+                <td style={{padding:"6px 8px",fontSize:11,color:"#64748b"}}>{s.fecha_inicio}</td>
+                <td style={{padding:"6px 8px",fontSize:11,color:"#f97316",fontWeight:700}}>{s.fecha_recarga}</td>
+                {esAdmin&&<td style={{padding:"6px 8px"}}>
+                  <button onClick={()=>setEditModal({...s})} style={{padding:"2px 8px",background:"#eff6ff",color:"#1d4ed8",border:"none",borderRadius:6,fontSize:11,cursor:"pointer",fontWeight:700}}>✏️ Editar</button>
+                </td>}
+              </tr>;})}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+    </div>}
+
+    {/* SOLICITAR */}
+    {vista==="solicitar"&&<Card>
+      <Tit text="📝 Nueva solicitud de vacaciones"/>
+      <div style={{display:"grid",gap:8}}>
+        {esAdmin&&<Campo label="Trabajador"><Sel value={formSol.trabajador} onChange={v=>setFormSol(p=>({...p,trabajador:v}))} options={TRABAJADORES}/></Campo>}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+          <Campo label="Fecha inicio"><Inp type="date" value={formSol.fecha_inicio} onChange={v=>setFormSol(p=>({...p,fecha_inicio:v}))}/></Campo>
+          <Campo label="Fecha fin"><Inp type="date" value={formSol.fecha_fin} onChange={v=>setFormSol(p=>({...p,fecha_fin:v}))}/></Campo>
+        </div>
+        {formSol.fecha_inicio&&formSol.fecha_fin&&<div style={{background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:8,padding:"8px 12px",fontSize:12,color:"#16a34a",fontWeight:700}}>
+          📅 Días hábiles: {calcDias(formSol.fecha_inicio,formSol.fecha_fin)}
+        </div>}
+        <Campo label="Motivo (opcional)"><Inp value={formSol.motivo} onChange={v=>setFormSol(p=>({...p,motivo:v}))} placeholder="Vacaciones anuales, motivo personal..."/></Campo>
+        <Campo label="¿Quién cubre?"><Inp value={formSol.quien_cubre} onChange={v=>setFormSol(p=>({...p,quien_cubre:v}))} placeholder="Nombre del compañero"/></Campo>
+        <Btn onClick={solicitarVacaciones} color="#1d4ed8" text="📤 Enviar solicitud" style={{width:"100%",padding:12}}/>
+      </div>
+    </Card>}
+
+    {/* SOLICITUDES */}
+    {vista==="solicitudes"&&<div>
+      {solicitudes.length===0?<Card><div style={{textAlign:"center",padding:30,color:"#94a3b8"}}>Sin solicitudes</div></Card>:
+      solicitudes.map((s,i)=><Card key={i} style={{padding:10}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+          <div>
+            <div style={{fontWeight:700,fontSize:13}}>{s.trabajador} — {s.dias} días hábiles</div>
+            <div style={{fontSize:11,color:"#64748b"}}>Del {s.fecha_inicio} al {s.fecha_fin}</div>
+            {s.motivo&&<div style={{fontSize:11,color:"#64748b"}}>Motivo: {s.motivo}</div>}
+            {s.quien_cubre&&<div style={{fontSize:11,color:"#64748b"}}>Cubre: {s.quien_cubre}</div>}
+            {s.aprobado_por&&<div style={{fontSize:11,color:"#64748b"}}>{s.estado==="Aprobado"?"Aprobado":"Rechazado"} por: {s.aprobado_por}</div>}
+          </div>
+          <Badge text={s.estado} color={s.estado==="Aprobado"?"#16a34a":s.estado==="Rechazado"?"#dc2626":"#f59e0b"}/>
+        </div>
+        {esAdmin&&s.estado==="Pendiente"&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7,marginTop:8}}>
+          <Btn onClick={()=>aprobar(s)} color="#16a34a" text="✅ Aprobar"/>
+          <Btn onClick={()=>rechazar(s.id)} color="#dc2626" text="❌ Rechazar"/>
+        </div>}
+      </Card>)}
+    </div>}
+
+    {/* MODAL EDITAR SALDO */}
+    {editModal&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",padding:12}}>
+      <div style={{background:"#fff",borderRadius:12,padding:18,width:320}}>
+        <div style={{fontWeight:800,fontSize:14,marginBottom:10}}>✏️ Editar vacaciones — {editModal.trabajador}</div>
+        <div style={{display:"grid",gap:8}}>
+          <Campo label="Días totales por año"><Inp type="number" value={editModal.dias_totales} onChange={v=>setEditModal(p=>({...p,dias_totales:v}))}/></Campo>
+          <Campo label="Días usados"><Inp type="number" value={editModal.dias_usados} onChange={v=>setEditModal(p=>({...p,dias_usados:v}))}/></Campo>
+          <Campo label="Disponible desde (dd/mm/aaaa)"><Inp value={editModal.fecha_inicio} onChange={v=>setEditModal(p=>({...p,fecha_inicio:v}))}/></Campo>
+          <Campo label="Próxima recarga (dd/mm/aaaa)"><Inp value={editModal.fecha_recarga} onChange={v=>setEditModal(p=>({...p,fecha_recarga:v}))}/></Campo>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:10}}>
+          <Btn onClick={()=>setEditModal(null)} color="#64748b" text="Cancelar"/>
+          <Btn onClick={guardarEdicion} color="#16a34a" text="✅ Guardar"/>
+        </div>
+      </div>
+    </div>}
+  </div>;
+}
+
+// ─── APP PRINCIPAL ───
+function App(){
+  const [usuario,setUsuario]=React.useState(null);
+  const [tab,setTab]=React.useState("inventario");
+
+  if(!usuario) return <Login onLogin={u=>{setUsuario(u);setTab("inventario");}}/>;
+
+  const esAdmin=usuario.rol==="admin";
+  const TABS=[
+    {k:"inventario",l:"📦 Inventario"},
+    {k:"caja",l:"💵 Caja"},
+    {k:"crm",l:"👥 CRM"},
+    {k:"personal",l:"👨‍🔧 Personal"},
+    {k:"vacaciones",l:"🏖️ Vacaciones"},
+  ];
+
+  return <div style={{padding:10,background:"#f0f4f8",minHeight:"100vh",fontFamily:"Arial,sans-serif",color:"#1a1a1a"}}>
+    <div style={{background:"#1e293b",color:"#fbbf24",padding:"10px 14px",borderRadius:10,marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}}>
+      <div>
+        <div style={{fontSize:14,fontWeight:900}}>🚗 {EMPRESA.nombre}</div>
+        <div style={{fontSize:9,color:"#94a3b8"}}>Panel Administrativo · {EMPRESA.ciudad}</div>
+      </div>
+      <div style={{textAlign:"right"}}>
+        <div style={{fontSize:11,color:"#fbbf24",fontWeight:700}}>{usuario.nombre}</div>
+        <div style={{display:"flex",gap:6,marginTop:4,justifyContent:"flex-end"}}>
+          <button onClick={()=>window.location.href="/"} style={{padding:"3px 8px",background:"#1d4ed8",color:"#fff",border:"none",borderRadius:6,fontSize:10,cursor:"pointer",fontWeight:700}}>🏠 Inicio</button>
+          <button onClick={()=>setUsuario(null)} style={{padding:"3px 8px",background:"#ef4444",color:"#fff",border:"none",borderRadius:6,fontSize:10,cursor:"pointer",fontWeight:700}}>Salir</button>
+        </div>
+      </div>
+    </div>
+    <div style={{display:"flex",gap:4,marginBottom:10,flexWrap:"wrap"}}>
+      {TABS.map(t=><button key={t.k} onClick={()=>setTab(t.k)}
+        style={{padding:"6px 10px",borderRadius:8,border:`1px solid ${tab===t.k?"#fbbf24":"#e2e8f0"}`,background:tab===t.k?"#fffbeb":"#fff",color:tab===t.k?"#92400e":"#64748b",fontWeight:700,fontSize:11,cursor:"pointer"}}>
+        {t.l}
+      </button>)}
+    </div>
+    {tab==="inventario"&&<Inventario usuario={usuario}/>}
+    {tab==="caja"&&<Caja usuario={usuario}/>}
+    {tab==="crm"&&<CRM usuario={usuario}/>}
+    {tab==="personal"&&<Personal usuario={usuario}/>}
+    {tab==="vacaciones"&&<Vacaciones usuario={usuario}/>}
+  </div>;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
