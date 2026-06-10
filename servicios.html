@@ -140,7 +140,13 @@ function CambioAceite({usuario,inv}){
         <Campo label="Placa *"><Inp value={form.placa} onChange={v=>setForm(f=>({...f,placa:v}))} placeholder="1234ABC"/></Campo>
         <Campo label="Modelo"><Inp value={form.modelo} onChange={v=>setForm(f=>({...f,modelo:v}))} placeholder="Toyota Corolla"/></Campo>
         <Campo label="Técnico"><Inp value={form.tec} onChange={v=>setForm(f=>({...f,tec:v}))} placeholder={usuario.nombre}/></Campo>
-        <Campo label="Intervalo"><Sel value={kmInt} onChange={v=>setKmInt(+v)} options={[5000,7500,10000,15000].map(v=>({v,l:`${v.toLocaleString()} km`}))}/></Campo>
+        <Campo label="Intervalo km (editable)">
+          <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:5}}>
+            {[5000,7500,10000,15000].map(v=><button key={v} onClick={()=>setKmInt(v)} style={{padding:"3px 8px",borderRadius:20,border:`1px solid ${kmInt===v?"#f59e0b":"#e2e8f0"}`,background:kmInt===v?"#fef3c7":"#f8fafc",fontWeight:700,fontSize:11,cursor:"pointer"}}>{v.toLocaleString()}</button>)}
+          </div>
+          <input type="number" value={kmInt} onChange={e=>setKmInt(+e.target.value)} placeholder="Escribe el intervalo..."
+            style={{width:"100%",padding:"7px 10px",border:"1px solid #86efac",borderRadius:8,fontSize:13,fontWeight:800,color:"#15803d",boxSizing:"border-box"}}/>
+        </Campo>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:8,alignItems:"end",background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:8,padding:"10px 12px"}}>
         <Campo label="🔢 Km ingreso"><Inp type="number" value={kmIn} onChange={setKmIn} placeholder="85000"/></Campo>
@@ -160,15 +166,20 @@ function CambioAceite({usuario,inv}){
     </Card>
     <Card><Tit text="🔘 Filtro de Aceite"/>
       <div style={{border:"1px solid #22c55e",borderRadius:10,padding:"10px 12px",background:"#f0fdf4"}}>
-        <select value={filtro?.id||""} onChange={e=>{const f=filtrosAceite.find(x=>x.id===+e.target.value);setFiltro(f||null);if(f)setFiPv(f.precio);}}
-          style={{width:"100%",padding:"7px 10px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:13,marginBottom:8}}>
-          <option value="">Seleccionar filtro...</option>
-          {filtrosAceite.map(f=><option key={f.id} value={f.id}>{f.nom} — Stock: {f.stock}</option>)}
+        <select value={filtro?.id||"sin"} onChange={e=>{
+          if(e.target.value==="sin"){setFiltro(null);setFiPv(0);return;}
+          const f=filtrosAceite.find(x=>String(x.id)===e.target.value);
+          setFiltro(f||null);if(f)setFiPv(f.precio);
+        }} style={{width:"100%",padding:"7px 10px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:13,marginBottom:8}}>
+          <option value="sin">❌ Sin filtro (no se cambia)</option>
+          {filtrosAceite.length===0?<option disabled>Sin filtros en inventario</option>:filtrosAceite.map(f=><option key={f.id} value={String(f.id)}>{f.nom} · Stock: {f.stock} · Bs.{f.precio}</option>)}
         </select>
-        <div style={{display:"flex",alignItems:"center",gap:8}}>
+        {filtro&&<div style={{display:"flex",alignItems:"center",gap:8}}>
           <span style={{fontSize:11,color:"#64748b"}}>Precio Bs.:</span>
           <input type="number" value={fiPv} onChange={e=>setFiPv(+e.target.value)} style={{width:80,padding:"5px 8px",border:"1px solid #fbbf24",borderRadius:6,fontSize:13,fontWeight:800,color:"#92400e",textAlign:"center"}}/>
-        </div>
+          <span style={{fontSize:11,color:"#16a34a",fontWeight:700}}>= {fmt(fiPv)}</span>
+        </div>}
+        {!filtro&&<div style={{fontSize:11,color:"#94a3b8",fontStyle:"italic"}}>No se incluye filtro en este servicio</div>}
       </div>
     </Card>
     <Card><Tit text="➕ Opcionales"/>
