@@ -554,7 +554,15 @@ function DetalleOT({ot:otInit,usuario,onVolver,onUpdate}){
           <div style={{display:"grid",gap:7}}>
             <Btn onClick={()=>enviarWA({...ot,total_final:totalOT},pendientes)} color="#25d366" text="📱 Enviar informe por WhatsApp" style={{width:"100%",padding:11}}/>
             <Btn onClick={()=>generarPDF({...ot,total_final:totalOT},pendientes)} color="#dc2626" text="📄 Generar PDF / Imprimir" style={{width:"100%",padding:11}}/>
-            <Btn onClick={()=>actualizar({paso:8,entregado:true,fecha_entrega:hoy(),entregado_por:usuario.nombre,total_final:totalOT})} color="#16a34a" text="🚗 CONFIRMAR ENTREGA AL CLIENTE" style={{width:"100%",padding:13,fontSize:14,fontWeight:900}}/>
+            {pendientes.filter(p=>p.estado==="Pendiente").length>0
+              ?<div style={{background:"#fef2f2",border:"2px solid #dc2626",borderRadius:10,padding:"12px",textAlign:"center"}}>
+                <div style={{fontWeight:800,color:"#dc2626",fontSize:13,marginBottom:6}}>❌ NO se puede entregar todavía</div>
+                <div style={{fontSize:12,color:"#64748b",marginBottom:8}}>Faltan repuestos por llegar:</div>
+                {pendientes.filter(p=>p.estado==="Pendiente").map((p,i)=><div key={i} style={{color:"#dc2626",fontSize:12,fontWeight:700}}>🔍 {p.nombre} x{p.cantidad||1}</div>)}
+                <div style={{fontSize:11,color:"#64748b",marginTop:8}}>Ve a 💰 Cotización y marca cada repuesto como "✅ Llegó" antes de entregar.</div>
+              </div>
+              :<Btn onClick={()=>actualizar({paso:8,entregado:true,fecha_entrega:hoy(),entregado_por:usuario.nombre,total_final:totalOT})} color="#16a34a" text="🚗 CONFIRMAR ENTREGA AL CLIENTE" style={{width:"100%",padding:13,fontSize:14,fontWeight:900}}/>
+            }
           </div>
         </div>
       </>:paso===8?<div style={{background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:8,padding:"14px",textAlign:"center"}}>
