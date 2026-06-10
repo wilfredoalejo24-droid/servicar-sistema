@@ -32,8 +32,8 @@ const Tit=({text})=>
   <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",color:"#64748b",marginBottom:8,paddingBottom:4,borderBottom:"2px solid #fbbf24",display:"inline-block"}}>{text}</div>;
 const Campo=({label,children})=>
   <div><div style={{fontSize:10,color:"#94a3b8",fontWeight:700,textTransform:"uppercase",marginBottom:3}}>{label}</div>{children}</div>;
-const Inp=({value,onChange,type="text",placeholder,style={}})=>
-  <input type={type} value={value} onChange={e=>onChange&&onChange(e.target.value)} placeholder={placeholder}
+const Inp=({value,onChange,type="text",placeholder,readOnly,style={}})=>
+  <input type={type} value={value} onChange={e=>onChange&&onChange(e.target.value)} placeholder={placeholder} readOnly={readOnly}
     style={{width:"100%",padding:"7px 10px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:13,boxSizing:"border-box",...style}}/>;
 const Sel=({value,onChange,options,style={}})=>
   <select value={value} onChange={e=>onChange(e.target.value)}
@@ -42,7 +42,6 @@ const Sel=({value,onChange,options,style={}})=>
     {options.map(o=><option key={o.v||o} value={o.v||o}>{o.l||o}</option>)}
   </select>;
 
-// Comprimir foto
 const comprimirFoto=(file,cb)=>{
   const r=new FileReader();
   r.onload=ev=>{
@@ -72,14 +71,13 @@ function FotoUpload({fotos,setFotos,label="📷 Agregar fotos"}){
   </div>;
 }
 
-// Búsqueda inteligente de clientes
 function BuscadorCliente({onSelect}){
   const [q,setQ]=React.useState("");
   const [resultados,setResultados]=React.useState([]);
   const [open,setOpen]=React.useState(false);
 
   React.useEffect(()=>{
-    if(q.length<2){setResultados([]);return;}
+    if(q.length<2){setResultados([]);setOpen(false);return;}
     const t=setTimeout(async()=>{
       const{data}=await sb.from("crm").select("placa,cliente,tel,vehiculo").or(`placa.ilike.%${q}%,cliente.ilike.%${q}%,tel.ilike.%${q}%`).limit(8);
       const unicos=[];const placas=new Set();
@@ -108,15 +106,16 @@ function BuscadorCliente({onSelect}){
   </div>;
 }
 
-// LOGIN
 function Login({onLogin}){
   const [u,setU]=React.useState("");const [p,setP]=React.useState("");const [err,setErr]=React.useState("");const [loading,setLoading]=React.useState(false);
   const ok=async()=>{
     setLoading(true);
     const{data}=await sb.from("usuarios").select("*").eq("user_name",u.toLowerCase()).eq("pass",p).single();
     setLoading(false);
-    if(data){if(data.rol==="mecanico"){alert(`❌ Acceso denegado\n${data.nombre}, tu acceso es solo para Órdenes de Trabajo.`);window.location.href="/ot.html";return;}onLogin(data);}
-    else setErr("Usuario o contraseña incorrectos");
+    if(data){
+      if(data.rol==="mecanico"){alert(`❌ Acceso denegado\n${data.nombre}, tu acceso es solo para Órdenes de Trabajo.`);window.location.href="/ot.html";return;}
+      onLogin(data);
+    } else setErr("Usuario o contraseña incorrectos");
   };
   return <div style={{minHeight:"100vh",background:"#0f172a",display:"flex",alignItems:"center",justifyContent:"center"}}>
     <div style={{background:"#1e293b",borderRadius:16,padding:32,width:300,boxShadow:"0 20px 60px rgba(0,0,0,.5)"}}>
@@ -137,31 +136,44 @@ function Login({onLogin}){
   </div>;
 }
 
-// CAMBIO DE ACEITE
 function CambioAceite({usuario,inv}){
   const [plan,setPlan]=React.useState("");
-  const [form,setForm]=React.useState({nombre:"",tel:"",placa:"",modelo:"",tec:usuario.nombre});
-  const [kmIn,setKmIn]=React.useState("");const [kmInt,setKmInt]=React.useState(10000);
-  const [acSel,setAcSel]=React.useState(null);const [acLit,setAcLit]=React.useState(4);const [acPv,setAcPv]=React.useState(45);
-  const [filtro,setFiltro]=React.useState(null);const [fiPv,setFiPv]=React.useState(0);
-  const [faSel,setFaSel]=React.useState(null);const [fa,setFa]=React.useState(false);const [faPv,setFaPv]=React.useState(0);
-  const [lfSel,setLfSel]=React.useState(null);const [lf,setLf]=React.useState(false);const [lfPv,setLfPv]=React.useState(0);
-  const [adSel,setAdSel]=React.useState(null);const [ad,setAd]=React.useState(false);const [adPv,setAdPv]=React.useState(0);
+  const [nombre,setNombre]=React.useState("");
+  const [tel,setTel]=React.useState("");
+  const [placa,setPlaca]=React.useState("");
+  const [modelo,setModelo]=React.useState("");
+  const [tec,setTec]=React.useState(usuario.nombre);
+  const [kmIn,setKmIn]=React.useState("");
+  const [kmInt,setKmInt]=React.useState(10000);
+  // ✅ FIX: kmOut calculado correctamente como número
+  const kmOut=React.useMemo(()=>{
+    const k=parseInt(kmIn);
+    if(!isNaN(k)&&k>0) return k+parseInt(kmInt);
+    return null;
+  },[kmIn,kmInt]);
+
+  const [acSel,setAcSel]=React.useState(null);
+  const [acLit,setAcLit]=React.useState(4);
+  const [acPv,setAcPv]=React.useState(45);
+  const [filtro,setFiltro]=React.useState(null);
+  const [fiPv,setFiPv]=React.useState(0);
+  const [fa,setFa]=React.useState(false);const [faSel,setFaSel]=React.useState(null);const [faPv,setFaPv]=React.useState(0);
+  const [lf,setLf]=React.useState(false);const [lfSel,setLfSel]=React.useState(null);const [lfPv,setLfPv]=React.useState(0);
+  const [ad,setAd]=React.useState(false);const [adSel,setAdSel]=React.useState(null);const [adPv,setAdPv]=React.useState(0);
   const [cj,setCj]=React.useState(false);const [cjTipo,setCjTipo]=React.useState("85W/140");const [cjPv,setCjPv]=React.useState(58);const [cjLit,setCjLit]=React.useState(2);
   const [desc,setDesc]=React.useState(0);
   const [fotos,setFotos]=React.useState([]);
   const tallerDef=usuario.taller==="ambos"?"":usuario.taller;
   const [tallerSel,setTallerSel]=React.useState(tallerDef);
 
-  const kmOut=kmIn?parseInt(kmIn)+kmInt:"";
-  const aceitesInv=inv.filter(i=>i.cat==="Aceites"||i.nom?.toLowerCase().includes("aceite")&&!i.nom?.toLowerCase().includes("freno")&&!i.nom?.toLowerCase().includes("caja")&&!i.nom?.toLowerCase().includes("direc"));
+  const aceitesInv=inv.filter(i=>i.cat==="Aceites"||(i.nom?.toLowerCase().includes("aceite")&&!i.nom?.toLowerCase().includes("freno")&&!i.nom?.toLowerCase().includes("caja")&&!i.nom?.toLowerCase().includes("direc")));
   const filtrosAceite=inv.filter(i=>i.cat==="Filtros"&&(i.nom?.toLowerCase().includes("aceite")||i.cod?.startsWith("FI")));
   const filtrosAire=inv.filter(i=>i.cat==="Filtros"&&i.nom?.toLowerCase().includes("aire"));
   const liquidosFreno=inv.filter(i=>i.cat==="Líquidos");
-  const aceitesDir=inv.filter(i=>i.nom?.toLowerCase().includes("direc")||i.nom?.toLowerCase().includes("culite"));
+  const aceitesDir=inv.filter(i=>i.nom?.toLowerCase().includes("direc")||i.nom?.toLowerCase().includes("hidra"));
 
   const items=[
-    {d:`🛢️ ${acSel?acSel.nom:`Aceite ${kmInt>0?"":" "}`} x${acLit}L`,p:acLit*acPv},
+    {d:`🛢️ ${acSel?acSel.nom:"Aceite motor"} x${acLit}L`,p:acLit*acPv},
     ...(filtro?[{d:`🔘 ${filtro.nom}`,p:fiPv}]:[]),
     ...(plan?[{d:"🚿 Lavado ext+int",p:20}]:[]),
     ...(plan==="premium"?[{d:"⭐ Mano de obra premium",p:100}]:[]),
@@ -174,52 +186,62 @@ function CambioAceite({usuario,inv}){
   const total=sub-(parseFloat(desc)||0);
 
   const guardar=async()=>{
-    if(!form.placa||!plan||!tallerSel){alert("Completa placa, plan y taller.");return;}
-    await sb.from("caja").insert({fecha:hoy(),taller:tallerSel,concepto:`Cambio aceite — ${form.placa}`,tipo:"ingreso",monto:total,user_name:usuario.nombre});
-    await sb.from("crm").insert({fecha:hoy(),num:"CA",placa:form.placa,cliente:form.nombre,tel:form.tel,vehiculo:form.modelo,taller:tallerSel,tecnico:form.tec,total:fmt(total),tipo:"Cambio aceite"});
-    alert(`✅ Guardado en CRM\n🚗 ${form.placa} — ${fmt(total)}`);
+    if(!placa||!plan||!tallerSel){alert("Completa placa, plan y taller.");return;}
+    await sb.from("caja").insert({fecha:hoy(),taller:tallerSel,concepto:`Cambio aceite — ${placa}`,tipo:"ingreso",monto:total,user_name:usuario.nombre});
+    await sb.from("crm").insert({fecha:hoy(),num:"CA",placa,cliente:nombre,tel,vehiculo:modelo,taller:tallerSel,tecnico:tec,total:fmt(total),tipo:"Cambio aceite"});
+    alert(`✅ Guardado en CRM\n🚗 ${placa} — ${fmt(total)}`);
+    // Limpiar formulario
+    setPlan("");setNombre("");setTel("");setPlaca("");setModelo("");setKmIn("");setAcSel(null);setAcPv(45);setFiltro(null);setFiPv(0);
+    setFa(false);setFaSel(null);setLf(false);setLfSel(null);setCj(false);setAd(false);setAdSel(null);setDesc(0);setFotos([]);
   };
 
   const enviarWA=()=>{
-    const msg=`🚗 *${EMPRESA.nombre}*\n━━━━━━━━━\n*CAMBIO DE ACEITE*\n🚗 Placa: *${form.placa}*\n👤 ${form.nombre||"Cliente"}\n\n${items.map(i=>`• ${i.d}: ${fmt(i.p)}`).join("\n")}\n${parseFloat(desc)>0?`\n💸 Descuento: -${fmt(desc)}`:""}\n\n💰 *TOTAL: ${fmt(total)}*\n${kmOut?`🔔 Próximo cambio: ${kmOut.toLocaleString()} km`:""}\n\n¡Gracias! 📞 ${EMPRESA.tel1}`;
-    if(form.tel) window.open(`https://wa.me/591${form.tel.replace(/\D/g,"")}?text=${encodeURIComponent(msg)}`,"_blank");
+    const msg=`🚗 *${EMPRESA.nombre}*\n━━━━━━━━━\n*CAMBIO DE ACEITE*\n🚗 Placa: *${placa}*\n👤 ${nombre||"Cliente"}\n\n${items.map(i=>`• ${i.d}: ${fmt(i.p)}`).join("\n")}${parseFloat(desc)>0?`\n\n💸 Descuento: -${fmt(desc)}`:""}\n\n💰 *TOTAL: ${fmt(total)}*\n${kmOut?`🔔 Próximo cambio: ${kmOut.toLocaleString()} km`:""}\n\n¡Gracias! 📞 ${EMPRESA.tel1}`;
+    if(tel) window.open(`https://wa.me/591${tel.replace(/\D/g,"")}?text=${encodeURIComponent(msg)}`,"_blank");
     else alert("Sin teléfono del cliente.");
   };
 
   return <div>
     {usuario.taller==="ambos"&&<Card><Tit text="🏢 Taller"/><Sel value={tallerSel} onChange={setTallerSel} options={TALLERES}/></Card>}
 
-    {/* Buscar cliente */}
     <Card>
       <Tit text="👤 Cliente — Busca o llena"/>
       <div style={{marginBottom:8}}>
         <div style={{fontSize:11,color:"#3b82f6",fontWeight:700,marginBottom:4}}>🔍 Buscar cliente existente:</div>
-        <BuscadorCliente onSelect={c=>{setForm(f=>({...f,nombre:c.cliente||"",tel:c.tel||"",placa:c.placa||"",modelo:c.vehiculo||""}));}}/>
+        <BuscadorCliente onSelect={c=>{setNombre(c.cliente||"");setTel(c.tel||"");setPlaca(c.placa||"");setModelo(c.vehiculo||"");}}/>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
-        <Campo label="Nombre"><Inp value={form.nombre} onChange={v=>setForm(f=>({...f,nombre:v}))} placeholder="Nombre completo"/></Campo>
-        <Campo label="Teléfono"><Inp value={form.tel} onChange={v=>setForm(f=>({...f,tel:v}))} placeholder="70000000"/></Campo>
-        <Campo label="Placa *"><Inp value={form.placa} onChange={v=>setForm(f=>({...f,placa:v}))} placeholder="1234ABC"/></Campo>
-        <Campo label="Modelo"><Inp value={form.modelo} onChange={v=>setForm(f=>({...f,modelo:v}))} placeholder="Toyota Corolla"/></Campo>
-        <Campo label="Técnico"><Inp value={form.tec} onChange={v=>setForm(f=>({...f,tec:v}))} placeholder={usuario.nombre}/></Campo>
+        <Campo label="Nombre"><Inp value={nombre} onChange={setNombre} placeholder="Nombre completo"/></Campo>
+        <Campo label="Teléfono"><Inp value={tel} onChange={setTel} placeholder="70000000"/></Campo>
+        <Campo label="Placa *"><Inp value={placa} onChange={setPlaca} placeholder="1234ABC"/></Campo>
+        <Campo label="Modelo"><Inp value={modelo} onChange={setModelo} placeholder="Toyota Corolla"/></Campo>
+        <Campo label="Técnico"><Inp value={tec} onChange={setTec} placeholder={usuario.nombre}/></Campo>
         <Campo label="Intervalo km">
           <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:4}}>
             {[5000,7500,10000,15000].map(v=><button key={v} onClick={()=>setKmInt(v)} style={{padding:"2px 7px",borderRadius:20,border:`1px solid ${kmInt===v?"#f59e0b":"#e2e8f0"}`,background:kmInt===v?"#fef3c7":"#f8fafc",fontWeight:700,fontSize:10,cursor:"pointer"}}>{v.toLocaleString()}</button>)}
           </div>
-          <input type="number" value={kmInt} onChange={e=>setKmInt(+e.target.value)} style={{width:"100%",padding:"6px 10px",border:"1px solid #86efac",borderRadius:8,fontSize:13,fontWeight:800,color:"#15803d",boxSizing:"border-box"}}/>
+          <input type="number" value={kmInt} onChange={e=>setKmInt(parseInt(e.target.value)||0)}
+            style={{width:"100%",padding:"6px 10px",border:"1px solid #86efac",borderRadius:8,fontSize:13,fontWeight:800,color:"#15803d",boxSizing:"border-box"}}/>
         </Campo>
       </div>
+      {/* ✅ FIX: Km Próximo ahora calcula correctamente */}
       <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:8,alignItems:"end",background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:8,padding:"10px 12px"}}>
-        <Campo label="🔢 Km ingreso"><Inp type="number" value={kmIn} onChange={setKmIn} placeholder="85000"/></Campo>
+        <Campo label="🔢 Km ingreso">
+          <input type="number" value={kmIn} onChange={e=>setKmIn(e.target.value)} placeholder="85000"
+            style={{width:"100%",padding:"7px 10px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:13,boxSizing:"border-box"}}/>
+        </Campo>
         <div style={{color:"#15803d",fontSize:20,paddingBottom:6}}>→</div>
-        <Campo label="📅 Km próximo"><Inp value={kmOut?kmOut.toLocaleString():""} readOnly placeholder="—" style={{fontWeight:800,color:"#f97316",background:"#fff7ed"}}/></Campo>
+        <Campo label="📅 Km próximo">
+          <input value={kmOut?kmOut.toLocaleString():"—"} readOnly
+            style={{width:"100%",padding:"7px 10px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:13,fontWeight:800,color:kmOut?"#f97316":"#94a3b8",background:"#fff7ed",boxSizing:"border-box"}}/>
+        </Campo>
       </div>
     </Card>
 
-    {/* Plan */}
     <Card><Tit text="⭐ Plan"/>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-        {[{k:"normal",l:"🔵 Normal",c:"#1d4ed8",it:["Aceite motor","Filtro aceite","Lavado Bs.20","Ambientador"]},{k:"premium",l:"⭐ Premium",c:"#d97706",it:["Todo Normal","+Bs.100 extra","Motor+chasis","Scanner Launch"]}].map(p=>
+        {[{k:"normal",l:"🔵 Normal",c:"#1d4ed8",it:["Aceite motor","Filtro aceite","Lavado Bs.20","Ambientador"]},
+          {k:"premium",l:"⭐ Premium",c:"#d97706",it:["Todo Normal","+Bs.100 extra","Motor+chasis","Scanner Launch"]}].map(p=>
           <div key={p.k} onClick={()=>setPlan(p.k)} style={{border:`2px solid ${plan===p.k?p.c:"#e2e8f0"}`,borderRadius:10,padding:12,cursor:"pointer",background:plan===p.k?(p.k==="normal"?"#eff6ff":"#fffbeb"):"#f8fafc"}}>
             <div style={{fontWeight:800,color:p.c,fontSize:13,marginBottom:3}}>{p.l}</div>
             <div style={{fontWeight:900,fontSize:15,color:p.c,marginBottom:4}}>{plan===p.k?fmt(total):"—"}</div>
@@ -228,51 +250,51 @@ function CambioAceite({usuario,inv}){
       </div>
     </Card>
 
-    {/* Aceite */}
     <Card><Tit text="🛢️ Aceite de Motor"/>
       <div style={{border:"1px solid #22c55e",borderRadius:10,padding:"10px 12px",background:"#f0fdf4"}}>
-        <div style={{marginBottom:8}}>
-          <div style={{fontSize:11,color:"#64748b",fontWeight:700,marginBottom:4}}>Seleccionar del inventario:</div>
-          <select value={acSel?.id||""} onChange={e=>{
-            const a=aceitesInv.find(x=>String(x.id)===e.target.value);
-            setAcSel(a||null);if(a)setAcPv(a.precio);
-          }} style={{width:"100%",padding:"7px 10px",border:"1px solid #22c55e",borderRadius:8,fontSize:13,marginBottom:8}}>
-            <option value="">Seleccionar aceite del inventario...</option>
-            {aceitesInv.length===0?<option disabled>Sin aceites en inventario</option>:aceitesInv.map(a=><option key={a.id} value={String(a.id)}>{a.nom} · Stock:{a.stock} · Bs.{a.precio}/L</option>)}
-          </select>
-          {!acSel&&<div style={{marginBottom:6}}><Campo label="O escribe el tipo manualmente">
-            <Sel value={""} onChange={v=>{}} options={["20W-50 Mineral","10W-40 Semi-sint.","5W-30 Sintético","15W-40 Mineral"]}/>
-          </Campo></div>}
-        </div>
+        <select value={acSel?.id||""} onChange={e=>{
+          const a=aceitesInv.find(x=>String(x.id)===e.target.value);
+          setAcSel(a||null);if(a)setAcPv(parseFloat(a.precio)||45);
+        }} style={{width:"100%",padding:"7px 10px",border:"1px solid #22c55e",borderRadius:8,fontSize:13,marginBottom:8}}>
+          <option value="">Seleccionar aceite del inventario...</option>
+          {aceitesInv.length===0?<option disabled>Sin aceites en inventario</option>:
+            aceitesInv.map(a=><option key={a.id} value={String(a.id)}>{a.nom} · Stock:{a.stock} · Bs.{a.precio}/L</option>)}
+        </select>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:6}}>
-          <Campo label="Litros"><input type="number" value={acLit} min={1} max={10} onChange={e=>setAcLit(+e.target.value)} style={{width:"100%",padding:"7px 10px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:13,textAlign:"center",fontWeight:800,boxSizing:"border-box"}}/></Campo>
-          <Campo label="Precio/L Bs."><input type="number" value={acPv} onChange={e=>setAcPv(+e.target.value)} style={{width:"100%",padding:"7px 10px",border:"1px solid #fbbf24",borderRadius:8,fontSize:13,textAlign:"center",fontWeight:800,color:"#92400e",boxSizing:"border-box"}}/></Campo>
+          <Campo label="Litros">
+            <input type="number" value={acLit} min={1} max={10} onChange={e=>setAcLit(parseInt(e.target.value)||1)}
+              style={{width:"100%",padding:"7px 10px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:13,textAlign:"center",fontWeight:800,boxSizing:"border-box"}}/>
+          </Campo>
+          <Campo label="Precio/L Bs.">
+            <input type="number" value={acPv} onChange={e=>setAcPv(parseFloat(e.target.value)||0)}
+              style={{width:"100%",padding:"7px 10px",border:"1px solid #fbbf24",borderRadius:8,fontSize:13,textAlign:"center",fontWeight:800,color:"#92400e",boxSizing:"border-box"}}/>
+          </Campo>
         </div>
         <div style={{textAlign:"right",fontWeight:900,color:"#16a34a",fontSize:13}}>Total: {fmt(acLit*acPv)}</div>
       </div>
     </Card>
 
-    {/* Filtro aceite */}
     <Card><Tit text="🔘 Filtro de Aceite"/>
       <div style={{border:"1px solid #22c55e",borderRadius:10,padding:"10px 12px",background:"#f0fdf4"}}>
         <select value={filtro?.id||"sin"} onChange={e=>{
           if(e.target.value==="sin"){setFiltro(null);setFiPv(0);return;}
           const f=filtrosAceite.find(x=>String(x.id)===e.target.value);
-          setFiltro(f||null);if(f)setFiPv(f.precio);
+          setFiltro(f||null);if(f)setFiPv(parseFloat(f.precio)||0);
         }} style={{width:"100%",padding:"7px 10px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:13,marginBottom:8}}>
           <option value="sin">❌ Sin filtro (no se cambia)</option>
-          {filtrosAceite.length===0?<option disabled>Sin filtros en inventario</option>:filtrosAceite.map(f=><option key={f.id} value={String(f.id)}>{f.nom} · Stock:{f.stock} · Bs.{f.precio}</option>)}
+          {filtrosAceite.length===0?<option disabled>Sin filtros en inventario</option>:
+            filtrosAceite.map(f=><option key={f.id} value={String(f.id)}>{f.nom} · Stock:{f.stock} · Bs.{f.precio}</option>)}
         </select>
         {filtro&&<div style={{display:"flex",alignItems:"center",gap:8}}>
           <span style={{fontSize:11,color:"#64748b"}}>Precio Bs.:</span>
-          <input type="number" value={fiPv} onChange={e=>setFiPv(+e.target.value)} style={{width:80,padding:"5px 8px",border:"1px solid #fbbf24",borderRadius:6,fontSize:13,fontWeight:800,color:"#92400e",textAlign:"center"}}/>
+          <input type="number" value={fiPv} onChange={e=>setFiPv(parseFloat(e.target.value)||0)}
+            style={{width:80,padding:"5px 8px",border:"1px solid #fbbf24",borderRadius:6,fontSize:13,fontWeight:800,color:"#92400e",textAlign:"center"}}/>
           <span style={{fontSize:11,color:"#16a34a",fontWeight:700}}>= {fmt(fiPv)}</span>
         </div>}
         {!filtro&&<div style={{fontSize:11,color:"#94a3b8",fontStyle:"italic"}}>No se incluye filtro en este servicio</div>}
       </div>
     </Card>
 
-    {/* Opcionales */}
     <Card><Tit text="➕ Opcionales"/>
       {/* Filtro Aire */}
       <div style={{border:`1px solid ${fa?"#f59e0b":"#e2e8f0"}`,borderRadius:10,padding:"8px 12px",background:fa?"#fffbeb":"#f8fafc",marginBottom:6}}>
@@ -280,13 +302,14 @@ function CambioAceite({usuario,inv}){
           <input type="checkbox" checked={fa} onChange={e=>setFa(e.target.checked)} style={{width:15,height:15}}/>
           <span style={{fontWeight:700,fontSize:12}}>💨 Filtro de Aire</span>
         </div>
-        {fa&&<><select value={faSel?.id||""} onChange={e=>{const f=filtrosAire.find(x=>String(x.id)===e.target.value);setFaSel(f||null);if(f)setFaPv(f.precio);}} style={{width:"100%",padding:"6px 8px",border:"1px solid #e2e8f0",borderRadius:7,fontSize:12,marginBottom:6}}>
+        {fa&&<><select value={faSel?.id||""} onChange={e=>{const f=filtrosAire.find(x=>String(x.id)===e.target.value);setFaSel(f||null);if(f)setFaPv(parseFloat(f.precio)||0);}}
+          style={{width:"100%",padding:"6px 8px",border:"1px solid #e2e8f0",borderRadius:7,fontSize:12,marginBottom:6}}>
           <option value="">Seleccionar del inventario...</option>
-          {filtrosAire.length===0?<option disabled>Sin filtros de aire</option>:filtrosAire.map(f=><option key={f.id} value={String(f.id)}>{f.nom} · Stock:{f.stock} · Bs.{f.precio}</option>)}
+          {filtrosAire.length===0?<option disabled>Sin filtros de aire en inventario</option>:filtrosAire.map(f=><option key={f.id} value={String(f.id)}>{f.nom} · Stock:{f.stock} · Bs.{f.precio}</option>)}
         </select>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
           <span style={{fontSize:11,color:"#64748b"}}>Precio Bs.:</span>
-          <input type="number" value={faPv} onChange={e=>setFaPv(+e.target.value)} style={{width:75,padding:"4px 8px",border:"1px solid #fbbf24",borderRadius:6,fontSize:13,fontWeight:800,color:"#92400e",textAlign:"center"}}/>
+          <input type="number" value={faPv} onChange={e=>setFaPv(parseFloat(e.target.value)||0)} style={{width:75,padding:"4px 8px",border:"1px solid #fbbf24",borderRadius:6,fontSize:13,fontWeight:800,color:"#92400e",textAlign:"center"}}/>
           <span style={{color:"#16a34a",fontWeight:700,fontSize:12}}>= {fmt(faPv)}</span>
         </div></>}
       </div>
@@ -296,13 +319,14 @@ function CambioAceite({usuario,inv}){
           <input type="checkbox" checked={lf} onChange={e=>setLf(e.target.checked)} style={{width:15,height:15}}/>
           <span style={{fontWeight:700,fontSize:12}}>🔴 Líquido de Freno</span>
         </div>
-        {lf&&<><select value={lfSel?.id||""} onChange={e=>{const f=liquidosFreno.find(x=>String(x.id)===e.target.value);setLfSel(f||null);if(f)setLfPv(f.precio);}} style={{width:"100%",padding:"6px 8px",border:"1px solid #e2e8f0",borderRadius:7,fontSize:12,marginBottom:6}}>
+        {lf&&<><select value={lfSel?.id||""} onChange={e=>{const f=liquidosFreno.find(x=>String(x.id)===e.target.value);setLfSel(f||null);if(f)setLfPv(parseFloat(f.precio)||0);}}
+          style={{width:"100%",padding:"6px 8px",border:"1px solid #e2e8f0",borderRadius:7,fontSize:12,marginBottom:6}}>
           <option value="">Seleccionar del inventario...</option>
-          {liquidosFreno.length===0?<option disabled>Sin líquidos</option>:liquidosFreno.map(f=><option key={f.id} value={String(f.id)}>{f.nom} · Stock:{f.stock} · Bs.{f.precio}</option>)}
+          {liquidosFreno.length===0?<option disabled>Sin líquidos en inventario</option>:liquidosFreno.map(f=><option key={f.id} value={String(f.id)}>{f.nom} · Stock:{f.stock} · Bs.{f.precio}</option>)}
         </select>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
           <span style={{fontSize:11,color:"#64748b"}}>Precio Bs.:</span>
-          <input type="number" value={lfPv} onChange={e=>setLfPv(+e.target.value)} style={{width:75,padding:"4px 8px",border:"1px solid #fbbf24",borderRadius:6,fontSize:13,fontWeight:800,color:"#92400e",textAlign:"center"}}/>
+          <input type="number" value={lfPv} onChange={e=>setLfPv(parseFloat(e.target.value)||0)} style={{width:75,padding:"4px 8px",border:"1px solid #fbbf24",borderRadius:6,fontSize:13,fontWeight:800,color:"#92400e",textAlign:"center"}}/>
           <span style={{color:"#16a34a",fontWeight:700,fontSize:12}}>= {fmt(lfPv)}</span>
         </div></>}
       </div>
@@ -312,13 +336,14 @@ function CambioAceite({usuario,inv}){
           <input type="checkbox" checked={ad} onChange={e=>setAd(e.target.checked)} style={{width:15,height:15}}/>
           <span style={{fontWeight:700,fontSize:12}}>🔵 Aceite Dirección</span>
         </div>
-        {ad&&<><select value={adSel?.id||""} onChange={e=>{const f=aceitesDir.find(x=>String(x.id)===e.target.value);setAdSel(f||null);if(f)setAdPv(f.precio);}} style={{width:"100%",padding:"6px 8px",border:"1px solid #e2e8f0",borderRadius:7,fontSize:12,marginBottom:6}}>
+        {ad&&<><select value={adSel?.id||""} onChange={e=>{const f=aceitesDir.find(x=>String(x.id)===e.target.value);setAdSel(f||null);if(f)setAdPv(parseFloat(f.precio)||0);}}
+          style={{width:"100%",padding:"6px 8px",border:"1px solid #e2e8f0",borderRadius:7,fontSize:12,marginBottom:6}}>
           <option value="">Seleccionar del inventario...</option>
-          {aceitesDir.length===0?<option disabled>Sin aceite de dirección</option>:aceitesDir.map(f=><option key={f.id} value={String(f.id)}>{f.nom} · Stock:{f.stock} · Bs.{f.precio}</option>)}
+          {aceitesDir.length===0?<option disabled>Sin aceite de dirección en inventario</option>:aceitesDir.map(f=><option key={f.id} value={String(f.id)}>{f.nom} · Stock:{f.stock} · Bs.{f.precio}</option>)}
         </select>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
           <span style={{fontSize:11,color:"#64748b"}}>Precio Bs.:</span>
-          <input type="number" value={adPv} onChange={e=>setAdPv(+e.target.value)} style={{width:75,padding:"4px 8px",border:"1px solid #fbbf24",borderRadius:6,fontSize:13,fontWeight:800,color:"#92400e",textAlign:"center"}}/>
+          <input type="number" value={adPv} onChange={e=>setAdPv(parseFloat(e.target.value)||0)} style={{width:75,padding:"4px 8px",border:"1px solid #fbbf24",borderRadius:6,fontSize:13,fontWeight:800,color:"#92400e",textAlign:"center"}}/>
           <span style={{color:"#16a34a",fontWeight:700,fontSize:12}}>= {fmt(adPv)}</span>
         </div></>}
       </div>
@@ -330,31 +355,38 @@ function CambioAceite({usuario,inv}){
         </div>
         {cj&&<div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr",gap:6}}>
           <Campo label="Tipo"><Sel value={cjTipo} onChange={setCjTipo} options={["85W/140","80W/90","75W/90 Sint."]}/></Campo>
-          <Campo label="Litros"><input type="number" value={cjLit} min={1} onChange={e=>setCjLit(+e.target.value)} style={{width:"100%",padding:"7px 10px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:13,textAlign:"center",fontWeight:800,boxSizing:"border-box"}}/></Campo>
-          <Campo label="Bs./L"><input type="number" value={cjPv} onChange={e=>setCjPv(+e.target.value)} style={{width:"100%",padding:"7px 10px",border:"1px solid #fbbf24",borderRadius:8,fontSize:13,textAlign:"center",fontWeight:800,color:"#92400e",boxSizing:"border-box"}}/></Campo>
+          <Campo label="Litros"><input type="number" value={cjLit} min={1} onChange={e=>setCjLit(parseInt(e.target.value)||1)} style={{width:"100%",padding:"7px 10px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:13,textAlign:"center",fontWeight:800,boxSizing:"border-box"}}/></Campo>
+          <Campo label="Bs./L"><input type="number" value={cjPv} onChange={e=>setCjPv(parseFloat(e.target.value)||0)} style={{width:"100%",padding:"7px 10px",border:"1px solid #fbbf24",borderRadius:8,fontSize:13,textAlign:"center",fontWeight:800,color:"#92400e",boxSizing:"border-box"}}/></Campo>
         </div>}
       </div>
     </Card>
 
-    {/* Fotos */}
     <Card><Tit text="📷 Fotos del servicio"/>
       <FotoUpload fotos={fotos} setFotos={setFotos} label="📷 Fotografiar el vehículo / trabajo"/>
     </Card>
 
-    {/* Resumen */}
     <Card><Tit text="💰 Resumen"/>
       <div style={{border:"1px solid #e2e8f0",borderRadius:10,overflow:"hidden"}}>
-        {items.map((i,idx)=><div key={idx} style={{display:"flex",justifyContent:"space-between",padding:"7px 12px",borderBottom:"1px solid #f3f4f6",background:idx%2===0?"#fff":"#f8fafc",fontSize:13}}><span>{i.d}</span><span style={{fontWeight:700}}>{fmt(i.p)}</span></div>)}
-        <div style={{display:"flex",justifyContent:"space-between",padding:"7px 12px",background:"#fef9c3",borderBottom:"1px solid #fde68a",fontWeight:800,fontSize:13}}><span>Sub Total</span><span>{fmt(sub)}</span></div>
+        {items.map((i,idx)=><div key={idx} style={{display:"flex",justifyContent:"space-between",padding:"7px 12px",borderBottom:"1px solid #f3f4f6",background:idx%2===0?"#fff":"#f8fafc",fontSize:13}}>
+          <span>{i.d}</span><span style={{fontWeight:700}}>{fmt(i.p)}</span>
+        </div>)}
+        <div style={{display:"flex",justifyContent:"space-between",padding:"7px 12px",background:"#fef9c3",borderBottom:"1px solid #fde68a",fontWeight:800,fontSize:13}}>
+          <span>Sub Total</span><span>{fmt(sub)}</span>
+        </div>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"5px 12px",background:"#fef9c3",borderBottom:"1px solid #fde68a"}}>
           <span style={{fontSize:12}}>Descuento Bs.</span>
           <input type="number" value={desc} onChange={e=>setDesc(e.target.value)} style={{width:75,padding:"3px 8px",border:"1px solid #fde68a",borderRadius:6,fontSize:12,textAlign:"right"}}/>
         </div>
-        <div style={{display:"flex",justifyContent:"space-between",padding:"10px 12px",background:"#1e293b",fontSize:15,fontWeight:900,color:"#fbbf24"}}><span>💰 TOTAL</span><span>{fmt(total)}</span></div>
+        <div style={{display:"flex",justifyContent:"space-between",padding:"10px 12px",background:"#1e293b",fontSize:15,fontWeight:900,color:"#fbbf24"}}>
+          <span>💰 TOTAL</span><span>{fmt(total)}</span>
+        </div>
       </div>
-      {kmOut&&<div style={{marginTop:8,background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:8,padding:"7px 12px",fontSize:12,color:"#15803d",fontWeight:700}}>🔔 Próximo cambio: {kmOut.toLocaleString()} km</div>}
+      {kmOut&&<div style={{marginTop:8,background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:8,padding:"7px 12px",fontSize:12,color:"#15803d",fontWeight:700}}>
+        🔔 Próximo cambio: {kmOut.toLocaleString()} km
+      </div>}
     </Card>
-    <div style={{display:"grid",gap:7}}>
+
+    <div style={{display:"grid",gap:7,marginBottom:20}}>
       <Btn onClick={()=>window.print()} color="#dc2626" text="🖨️ Imprimir / PDF" style={{width:"100%",padding:11}}/>
       <Btn onClick={enviarWA} color="#25d366" text="📱 Enviar por WhatsApp" style={{width:"100%",padding:11}}/>
       <Btn onClick={guardar} color="#1d4ed8" text="💾 Guardar en CRM" style={{width:"100%",padding:11}}/>
@@ -362,11 +394,13 @@ function CambioAceite({usuario,inv}){
   </div>;
 }
 
-// LAVADO
 function Lavado({usuario}){
-  const [precio,setPrecio]=React.useState(20);const [obs,setObs]=React.useState("");const [pago,setPago]=React.useState("Efectivo");
+  const [precio,setPrecio]=React.useState(20);
+  const [obs,setObs]=React.useState("");
+  const [cliente,setCliente]=React.useState("");
+  const [placa,setPlaca]=React.useState("");
+  const [tel,setTel]=React.useState("");
   const [fotos,setFotos]=React.useState([]);
-  const [cliente,setCliente]=React.useState("");const [placa,setPlaca]=React.useState("");const [tel,setTel]=React.useState("");
   const tallerDef=usuario.taller==="ambos"?"":usuario.taller;
   const [tallerSel,setTallerSel]=React.useState(tallerDef);
 
@@ -395,7 +429,8 @@ function Lavado({usuario}){
       <div style={{fontSize:11,color:"#64748b",fontWeight:700,marginBottom:6}}>PRECIO Bs. (mínimo Bs. 5)</div>
       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
         <button onClick={()=>setPrecio(p=>Math.max(5,p-5))} style={{width:34,height:34,borderRadius:8,border:"1px solid #e2e8f0",background:"#f8fafc",fontSize:18,cursor:"pointer",fontWeight:700}}>−</button>
-        <input type="number" value={precio} min={5} onChange={e=>setPrecio(+e.target.value)} style={{width:85,padding:"7px",border:"2px solid #fbbf24",borderRadius:8,fontSize:20,fontWeight:900,textAlign:"center",color:"#92400e"}}/>
+        <input type="number" value={precio} min={5} onChange={e=>setPrecio(Math.max(5,parseFloat(e.target.value)||5))}
+          style={{width:85,padding:"7px",border:"2px solid #fbbf24",borderRadius:8,fontSize:20,fontWeight:900,textAlign:"center",color:"#92400e"}}/>
         <button onClick={()=>setPrecio(p=>p+5)} style={{width:34,height:34,borderRadius:8,border:"1px solid #e2e8f0",background:"#f8fafc",fontSize:18,cursor:"pointer",fontWeight:700}}>+</button>
       </div>
       <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
@@ -411,21 +446,23 @@ function Lavado({usuario}){
   </Card>;
 }
 
-// ALINEADO
 function Alineado({usuario}){
   const [tipo,setTipo]=React.useState("");
   const [precioAl,setPrecioAl]=React.useState(100);
   const [precioBalLlanta,setPrecioBalLlanta]=React.useState(35);
   const [llantas,setLlantas]=React.useState(4);
-  const [placa,setPlaca]=React.useState("");const [marca,setMarca]=React.useState("");const [color,setColor]=React.useState("");
-  const [cliente,setCliente]=React.useState("");const [tel,setTel]=React.useState("");
+  const [placa,setPlaca]=React.useState("");
+  const [marca,setMarca]=React.useState("");
+  const [color,setColor]=React.useState("");
+  const [cliente,setCliente]=React.useState("");
+  const [tel,setTel]=React.useState("");
   const [pago,setPago]=React.useState("Efectivo");
   const [fotos,setFotos]=React.useState([]);
   const tallerDef=usuario.taller==="ambos"?"":usuario.taller;
   const [tallerSel,setTallerSel]=React.useState(tallerDef);
 
-  const totalAl=tipo==="alineado"||tipo==="ambos"?precioAl:0;
-  const totalBal=tipo==="balanceado"||tipo==="ambos"?precioBalLlanta*llantas:0;
+  const totalAl=(tipo==="alineado"||tipo==="ambos")?precioAl:0;
+  const totalBal=(tipo==="balanceado"||tipo==="ambos")?precioBalLlanta*llantas:0;
   const total=totalAl+totalBal;
 
   const registrar=async()=>{
@@ -439,14 +476,14 @@ function Alineado({usuario}){
 
   return <Card>
     <Tit text="🎯 Alineado y Balanceado"/>
-    <Campo label="Taller *">{usuario.taller==="ambos"?<Sel value={tallerSel} onChange={setTallerSel} options={TALLERES}/>:<div style={{padding:"7px 10px",background:"#eff6ff",borderRadius:8,fontWeight:700,color:"#1d4ed8",fontSize:12}}>🔧 {tallerSel}</div>}</Campo>
+    {usuario.taller==="ambos"
+      ?<div style={{marginBottom:10}}><Campo label="Taller *"><Sel value={tallerSel} onChange={setTallerSel} options={TALLERES}/></Campo></div>
+      :<div style={{padding:"7px 10px",background:"#eff6ff",borderRadius:8,fontWeight:700,color:"#1d4ed8",fontSize:12,marginBottom:10}}>🔧 {tallerSel}</div>}
 
-    {/* Buscar cliente */}
-    <div style={{marginTop:10,marginBottom:8}}>
+    <div style={{marginBottom:8}}>
       <div style={{fontSize:11,color:"#3b82f6",fontWeight:700,marginBottom:4}}>🔍 Buscar cliente (opcional):</div>
       <BuscadorCliente onSelect={c=>{setCliente(c.cliente||"");setPlaca(c.placa||"");setTel(c.tel||"");setMarca(c.vehiculo||"");}}/>
     </div>
-
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7,marginBottom:10}}>
       <Campo label="Cliente"><Inp value={cliente} onChange={setCliente} placeholder="Nombre (opcional)"/></Campo>
       <Campo label="Teléfono"><Inp value={tel} onChange={setTel} placeholder="70000000"/></Campo>
@@ -464,22 +501,25 @@ function Alineado({usuario}){
     </div>
 
     {(tipo==="alineado"||tipo==="ambos")&&<div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,background:"#f8fafc",padding:"8px 10px",borderRadius:8}}>
-      <span style={{fontSize:12,color:"#64748b",minWidth:110}}>💰 Precio alineado Bs.:</span>
-      <input type="number" value={precioAl} onChange={e=>setPrecioAl(+e.target.value)} style={{width:90,padding:"5px 8px",border:"1px solid #fbbf24",borderRadius:6,fontSize:15,fontWeight:800,color:"#92400e",textAlign:"center"}}/>
+      <span style={{fontSize:12,color:"#64748b",minWidth:120}}>💰 Precio alineado Bs.:</span>
+      <input type="number" value={precioAl} onChange={e=>setPrecioAl(parseFloat(e.target.value)||0)}
+        style={{width:90,padding:"5px 8px",border:"1px solid #fbbf24",borderRadius:6,fontSize:15,fontWeight:800,color:"#92400e",textAlign:"center"}}/>
     </div>}
 
     {(tipo==="balanceado"||tipo==="ambos")&&<div style={{marginBottom:10,background:"#f8fafc",padding:"8px 10px",borderRadius:8}}>
       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
-        <span style={{fontSize:12,color:"#64748b",minWidth:110}}>💰 Precio/llanta Bs.:</span>
-        <input type="number" value={precioBalLlanta} onChange={e=>setPrecioBalLlanta(+e.target.value)} style={{width:90,padding:"5px 8px",border:"1px solid #fbbf24",borderRadius:6,fontSize:15,fontWeight:800,color:"#92400e",textAlign:"center"}}/>
+        <span style={{fontSize:12,color:"#64748b",minWidth:120}}>💰 Precio/llanta Bs.:</span>
+        <input type="number" value={precioBalLlanta} onChange={e=>setPrecioBalLlanta(parseFloat(e.target.value)||0)}
+          style={{width:90,padding:"5px 8px",border:"1px solid #fbbf24",borderRadius:6,fontSize:15,fontWeight:800,color:"#92400e",textAlign:"center"}}/>
       </div>
       <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
         {[1,2,4,5].map(n=><button key={n} onClick={()=>setLlantas(n)} style={{padding:"4px 10px",borderRadius:20,border:`1px solid ${llantas===n?"#f59e0b":"#e2e8f0"}`,background:llantas===n?"#fef3c7":"#f8fafc",fontWeight:700,fontSize:12,cursor:"pointer"}}>{n} llanta{n>1?"s":""}</button>)}
       </div>
     </div>}
 
-    {/* Fotos */}
-    <div style={{marginBottom:10}}><Tit text="📷 Fotos del vehículo"/><FotoUpload fotos={fotos} setFotos={setFotos} label="📷 Fotografiar llantas / trabajo"/></div>
+    <div style={{marginBottom:10}}><Tit text="📷 Fotos del vehículo"/>
+      <FotoUpload fotos={fotos} setFotos={setFotos} label="📷 Fotografiar llantas / trabajo"/>
+    </div>
 
     <div style={{background:"#1e293b",borderRadius:10,padding:"10px 14px",display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
       <div>
@@ -492,10 +532,15 @@ function Alineado({usuario}){
   </Card>;
 }
 
-// GRÚA
 function Grua({usuario}){
-  const [precio,setPrecio]=React.useState(100);const [cliente,setCliente]=React.useState("");const [tel,setTel]=React.useState("");
-  const [origen,setOrigen]=React.useState("");const [destino,setDestino]=React.useState("");const [placa,setPlaca]=React.useState("");const [obs,setObs]=React.useState("");const [pago,setPago]=React.useState("Efectivo");
+  const [precio,setPrecio]=React.useState(100);
+  const [cliente,setCliente]=React.useState("");
+  const [tel,setTel]=React.useState("");
+  const [origen,setOrigen]=React.useState("");
+  const [destino,setDestino]=React.useState("");
+  const [placa,setPlaca]=React.useState("");
+  const [obs,setObs]=React.useState("");
+  const [pago,setPago]=React.useState("Efectivo");
   const [fotos,setFotos]=React.useState([]);
   const tallerDef=usuario.taller==="ambos"?"":usuario.taller;
   const [tallerSel,setTallerSel]=React.useState(tallerDef);
@@ -509,8 +554,10 @@ function Grua({usuario}){
 
   return <Card>
     <Tit text="🚛 Servicio de Grúa"/>
-    <Campo label="Ganancia para taller *">{usuario.taller==="ambos"?<Sel value={tallerSel} onChange={setTallerSel} options={TALLERES}/>:<div style={{padding:"7px 10px",background:"#eff6ff",borderRadius:8,fontWeight:700,color:"#1d4ed8",fontSize:12}}>🔧 {tallerSel}</div>}</Campo>
-    <div style={{marginTop:8,marginBottom:8}}>
+    {usuario.taller==="ambos"
+      ?<div style={{marginBottom:10}}><Campo label="Ganancia para taller *"><Sel value={tallerSel} onChange={setTallerSel} options={TALLERES}/></Campo></div>
+      :<div style={{padding:"7px 10px",background:"#eff6ff",borderRadius:8,fontWeight:700,color:"#1d4ed8",fontSize:12,marginBottom:10}}>🔧 {tallerSel}</div>}
+    <div style={{marginBottom:8}}>
       <div style={{fontSize:11,color:"#3b82f6",fontWeight:700,marginBottom:4}}>🔍 Buscar cliente (opcional):</div>
       <BuscadorCliente onSelect={c=>{setCliente(c.cliente||"");setTel(c.tel||"");setPlaca(c.placa||"");}}/>
     </div>
@@ -527,14 +574,17 @@ function Grua({usuario}){
       <div style={{fontSize:11,color:"#64748b",fontWeight:700,marginBottom:5}}>PRECIO Bs. (base Bs. 100)</div>
       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:7}}>
         <button onClick={()=>setPrecio(p=>Math.max(50,p-10))} style={{width:34,height:34,borderRadius:8,border:"1px solid #e2e8f0",background:"#f8fafc",fontSize:18,cursor:"pointer",fontWeight:700}}>−</button>
-        <input type="number" value={precio} min={50} onChange={e=>setPrecio(+e.target.value)} style={{width:95,padding:"7px",border:"2px solid #fbbf24",borderRadius:8,fontSize:20,fontWeight:900,textAlign:"center",color:"#92400e"}}/>
+        <input type="number" value={precio} min={50} onChange={e=>setPrecio(Math.max(50,parseFloat(e.target.value)||50))}
+          style={{width:95,padding:"7px",border:"2px solid #fbbf24",borderRadius:8,fontSize:20,fontWeight:900,textAlign:"center",color:"#92400e"}}/>
         <button onClick={()=>setPrecio(p=>p+10)} style={{width:34,height:34,borderRadius:8,border:"1px solid #e2e8f0",background:"#f8fafc",fontSize:18,cursor:"pointer",fontWeight:700}}>+</button>
       </div>
       <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
         {[100,150,200,250,300,400].map(v=><button key={v} onClick={()=>setPrecio(v)} style={{padding:"4px 10px",borderRadius:20,border:`1px solid ${precio===v?"#f59e0b":"#e2e8f0"}`,background:precio===v?"#fef3c7":"#f8fafc",fontWeight:700,fontSize:12,cursor:"pointer"}}>Bs. {v}</button>)}
       </div>
     </div>
-    <div style={{marginBottom:10}}><Tit text="📷 Fotos del vehículo"/><FotoUpload fotos={fotos} setFotos={setFotos} label="📷 Fotografiar el vehículo"/></div>
+    <div style={{marginBottom:10}}><Tit text="📷 Fotos del vehículo"/>
+      <FotoUpload fotos={fotos} setFotos={setFotos} label="📷 Fotografiar el vehículo"/>
+    </div>
     <div style={{background:"#1e293b",borderRadius:10,padding:"10px 14px",display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
       <span style={{color:"#94a3b8",fontSize:12}}>Total grúa</span>
       <span style={{color:"#fbbf24",fontWeight:900,fontSize:18}}>{fmt(precio)}</span>
@@ -543,7 +593,6 @@ function Grua({usuario}){
   </Card>;
 }
 
-// APP
 function App(){
   const [usuario,setUsuario]=React.useState(null);
   const [tab,setTab]=React.useState("aceite");
@@ -571,7 +620,7 @@ function App(){
       </div>
       <div style={{textAlign:"right"}}>
         <div style={{fontSize:11,color:"#fbbf24",fontWeight:700}}>{usuario.nombre}</div>
-        <div style={{display:"flex",gap:5,marginTop:4,justifyContent:"flex-end"}}>
+        <div style={{display:"flex",gap:5,marginTop:4,justifyContent:"flex-end",flexWrap:"wrap"}}>
           <button onClick={()=>window.location.href="/"} style={{padding:"3px 8px",background:"#1d4ed8",color:"#fff",border:"none",borderRadius:6,fontSize:10,cursor:"pointer",fontWeight:700}}>🏠 Ventas</button>
           <button onClick={()=>window.location.href="/ot.html"} style={{padding:"3px 8px",background:"#16a34a",color:"#fff",border:"none",borderRadius:6,fontSize:10,cursor:"pointer",fontWeight:700}}>📋 OT</button>
           {esEnc&&<button onClick={()=>window.location.href="/admin.html"} style={{padding:"3px 8px",background:"#7c3aed",color:"#fff",border:"none",borderRadius:6,fontSize:10,cursor:"pointer",fontWeight:700}}>⚙️ Admin</button>}
