@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Servi Car Platinium</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:Arial,sans-serif;background:#0f172a;min-height:100vh}
+    #root{min-height:100vh}
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+
+const SUPA_URL="https://epirsbudngwbxgcsryvv.supabase.co";
+const SUPA_KEY="sb_publishable_zsqvMzJMc80Ypf3UQqs-SA_IrV-XIGc";
+const sb=window.supabase.createClient(SUPA_URL,SUPA_KEY);
+
+const EMPRESA={nombre:"SERVI CAR PLATINIUM",ciudad:"Viacha - La Paz",tel1:"68167264",tel2:"60574920"};
+
+// Módulos del sistema
+const MODULOS=[
+  {k:"ventas",    icon:"🏠", label:"Ventas",       desc:"Venta de productos de tienda",        url:"/ventas.html",     color:"#1d4ed8", roles:["admin","encargado","vendedor"]},
+  {k:"servicios", icon:"🔧", label:"Servicios",    desc:"Aceite · Lavado · Alineado · Grúa",   url:"/servicios.html",  color:"#16a34a", roles:["admin","encargado","vendedor"]},
+  {k:"ot",        icon:"📋", label:"Órdenes (OT)", desc:"Crear y gestionar órdenes de trabajo", url:"/ot.html",         color:"#0891b2", roles:["admin","encargado","vendedor","mecanico"]},
+  {k:"admin",     icon:"⚙️", label:"Administración",desc:"Inventario · Caja · CRM · Personal",  url:"/admin.html",      color:"#7c3aed", roles:["admin","encargado"]},
+  {k:"usuarios",  icon:"👥", label:"Usuarios",     desc:"Gestionar accesos y contraseñas",      url:"/usuarios.html",   color:"#be185d", roles:["admin"]},
+];
+
+function Login({onLogin}){
+  const [u,setU]=React.useState("");
+  const [p,setP]=React.useState("");
+  const [err,setErr]=React.useState("");
+  const [cargando,setCargando]=React.useState(false);
+
+  const ok=async()=>{
+    if(!u||!p){setErr("Ingresa usuario y contraseña");return;}
+    setCargando(true);
+    const{data}=await sb.from("usuarios").select("*").eq("user_name",u.toLowerCase().trim()).eq("pass",p).single();
+    setCargando(false);
+    if(data) onLogin(data);
+    else setErr("Usuario o contraseña incorrectos");
+  };
+
+  return <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#0f172a 0%,#1e293b 100%)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+    <div style={{width:"100%",maxWidth:340}}>
+      {/* Logo */}
+      <div style={{textAlign:"center",marginBottom:32}}>
+        <div style={{fontSize:56,marginBottom:8}}>🔧</div>
+        <div style={{color:"#fbbf24",fontWeight:900,fontSize:22,letterSpacing:1}}>{EMPRESA.nombre}</div>
+        <div style={{color:"#64748b",fontSize:12,marginTop:4}}>{EMPRESA.ciudad}</div>
+        <div style={{color:"#475569",fontSize:11,marginTop:2}}>📞 {EMPRESA.tel1} · {EMPRESA.tel2}</div>
+      </div>
+
+      {/* Formulario */}
+      <div style={{background:"#1e293b",borderRadius:16,padding:24,boxShadow:"0 24px 48px rgba(0,0,0,.5)"}}>
+        <div style={{color:"#94a3b8",fontSize:12,textAlign:"center",marginBottom:20,fontWeight:700}}>INICIAR SESIÓN</div>
+        {[["👤 Usuario",u,setU,"text","tu usuario"],["🔑 Contraseña",p,setP,"password","tu contraseña"]].map(([l,v,s,t,ph])=>
+          <div key={l} style={{marginBottom:14}}>
+            <div style={{color:"#64748b",fontSize:11,marginBottom:5,fontWeight:700}}>{l}</div>
+            <input type={t} value={v} onChange={e=>s(e.target.value)} onKeyDown={e=>e.key==="Enter"&&ok()}
+              placeholder={ph} style={{width:"100%",padding:"11px 14px",background:"#0f172a",border:"1px solid #334155",borderRadius:10,color:"#fff",fontSize:14,boxSizing:"border-box",outline:"none"}}/>
+          </div>)}
+        {err&&<div style={{background:"#fef2f2",border:"1px solid #fca5a5",color:"#dc2626",fontSize:11,padding:"8px 12px",borderRadius:8,marginBottom:12,textAlign:"center",fontWeight:700}}>{err}</div>}
+        <button onClick={ok} disabled={cargando}
+          style={{width:"100%",padding:13,background:"#f59e0b",color:"#1e293b",border:"none",borderRadius:10,fontWeight:900,fontSize:15,cursor:"pointer",marginTop:4}}>
+          {cargando?"Verificando...":"Ingresar →"}
+        </button>
+      </div>
+    </div>
+  </div>;
+}
+
+function Inicio({usuario,onSalir}){
+  const modulosVisibles=MODULOS.filter(m=>m.roles.includes(usuario.rol));
+  const [hora,setHora]=React.useState(new Date().toLocaleTimeString("es-BO",{hour:"2-digit",minute:"2-digit"}));
+
+  React.useEffect(()=>{
+    const t=setInterval(()=>setHora(new Date().toLocaleTimeString("es-BO",{hour:"2-digit",minute:"2-digit"})),30000);
+    return()=>clearInterval(t);
+  },[]);
+
+  const saludos=["¡Buen día","¡Buenas tardes","¡Buenas noches"];
+  const h=new Date().getHours();
+  const saludo=h<12?saludos[0]:h<19?saludos[1]:saludos[2];
+
+  const coloresTaller={
+    "ambos":"#f59e0b",
+    "Taller 1 · Montes":"#3b82f6",
+    "Taller 2 · Bella Vista":"#10b981",
+  };
+  const colorTaller=coloresTaller[usuario.taller]||"#64748b";
+
+  return <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#0f172a 0%,#1e293b 50%,#0f172a 100%)"}}>
+    {/* Header */}
+    <div style={{background:"rgba(255,255,255,.03)",borderBottom:"1px solid rgba(255,255,255,.06)",padding:"14px 16px"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",maxWidth:500,margin:"0 auto"}}>
+        <div>
+          <div style={{color:"#fbbf24",fontWeight:900,fontSize:15}}>🔧 {EMPRESA.nombre}</div>
+          <div style={{color:"#475569",fontSize:10,marginTop:1}}>{EMPRESA.ciudad} · {hora}</div>
+        </div>
+        <button onClick={onSalir} style={{padding:"6px 14px",background:"#ef444420",color:"#ef4444",border:"1px solid #ef444440",borderRadius:8,fontWeight:700,fontSize:11,cursor:"pointer"}}>
+          Salir
+        </button>
+      </div>
+    </div>
+
+    <div style={{padding:"20px 16px",maxWidth:500,margin:"0 auto"}}>
+      {/* Bienvenida */}
+      <div style={{background:"linear-gradient(135deg,#1e293b,#0f172a)",border:"1px solid #334155",borderRadius:14,padding:"16px 18px",marginBottom:20}}>
+        <div style={{color:"#94a3b8",fontSize:11,marginBottom:4}}>{saludo}, 👋</div>
+        <div style={{color:"#fff",fontWeight:900,fontSize:18,marginBottom:6}}>{usuario.nombre}</div>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+          <span style={{padding:"3px 10px",background:`${colorTaller}20`,border:`1px solid ${colorTaller}40`,color:colorTaller,borderRadius:20,fontSize:10,fontWeight:700}}>
+            🏢 {usuario.taller==="ambos"?"Ambos talleres":usuario.taller}
+          </span>
+          <span style={{padding:"3px 10px",background:"#fbbf2420",border:"1px solid #fbbf2440",color:"#fbbf24",borderRadius:20,fontSize:10,fontWeight:700}}>
+            {usuario.rol==="admin"?"👑 Administrador":usuario.rol==="encargado"?"🔧 Encargado":usuario.rol==="vendedor"?"🛒 Vendedor":"⚙️ Mecánico"}
+          </span>
+        </div>
+      </div>
+
+      {/* Módulos */}
+      <div style={{color:"#475569",fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,marginBottom:12}}>
+        Mis módulos
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:20}}>
+        {modulosVisibles.map(m=><a key={m.k} href={m.url}
+          style={{textDecoration:"none",background:"#1e293b",border:`1px solid ${m.color}30`,borderRadius:14,padding:"16px 14px",cursor:"pointer",transition:"all .2s",display:"block"}}
+          onMouseEnter={e=>{e.currentTarget.style.background=`${m.color}15`;e.currentTarget.style.borderColor=`${m.color}60`;}}
+          onMouseLeave={e=>{e.currentTarget.style.background="#1e293b";e.currentTarget.style.borderColor=`${m.color}30`;}}>
+          <div style={{fontSize:28,marginBottom:8}}>{m.icon}</div>
+          <div style={{color:"#fff",fontWeight:800,fontSize:13,marginBottom:3}}>{m.label}</div>
+          <div style={{color:"#64748b",fontSize:10,lineHeight:1.4}}>{m.desc}</div>
+          <div style={{marginTop:8,display:"inline-block",padding:"2px 8px",background:`${m.color}20`,color:m.color,borderRadius:6,fontSize:9,fontWeight:700}}>
+            Abrir →
+          </div>
+        </a>)}
+      </div>
+
+      {/* Info sistema */}
+      <div style={{background:"#1e293b",border:"1px solid #1e293b",borderRadius:12,padding:"12px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <div>
+          <div style={{color:"#475569",fontSize:9,fontWeight:700,textTransform:"uppercase"}}>Link del sistema</div>
+          <div style={{color:"#64748b",fontSize:11,marginTop:2,fontWeight:700}}>servicar-sistema.vercel.app</div>
+        </div>
+        <button onClick={()=>{
+          if(navigator.share) navigator.share({title:"Servi Car Platinium",url:"https://servicar-sistema.vercel.app"});
+          else{navigator.clipboard.writeText("https://servicar-sistema.vercel.app");alert("✅ Link copiado");}
+        }} style={{padding:"7px 12px",background:"#25d366",color:"#fff",border:"none",borderRadius:8,fontWeight:700,fontSize:10,cursor:"pointer"}}>
+          📤 Compartir
+        </button>
+      </div>
+
+      <div style={{textAlign:"center",marginTop:16,color:"#1e3a5f",fontSize:9}}>
+        SERVI CAR PLATINIUM · Sistema de gestión v1.0
+      </div>
+    </div>
+  </div>;
+}
+
+function App(){
+  const [usuario,setUsuario]=React.useState(null);
+  return usuario
+    ?<Inicio usuario={usuario} onSalir={()=>setUsuario(null)}/>
+    :<Login onLogin={setUsuario}/>;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
