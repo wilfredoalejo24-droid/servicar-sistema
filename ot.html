@@ -8,16 +8,7 @@
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <style>
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:Arial,sans-serif;background:#f0f4f8}
-    #root{min-height:100vh}
-    @media print{
-      .noprint{display:none!important}
-      .printable{padding:16px;font-size:11px}
-      .print-foto{width:80px!important;height:80px!important}
-    }
-  </style>
+  <style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;background:#f0f4f8}#root{min-height:100vh}</style>
 </head>
 <body>
 <div id="root"></div>
@@ -26,19 +17,10 @@
 const SUPA_URL="https://epirsbudngwbxgcsryvv.supabase.co";
 const SUPA_KEY="sb_publishable_zsqvMzJMc80Ypf3UQqs-SA_IrV-XIGc";
 const sb=window.supabase.createClient(SUPA_URL,SUPA_KEY);
-
 const EMPRESA={nombre:"SERVI CAR PLATINIUM",ciudad:"Viacha - La Paz",tel1:"68167264",tel2:"60574920"};
 const fmt=n=>`Bs. ${parseFloat(n||0).toFixed(2)}`;
 const hoy=()=>new Date().toLocaleDateString("es-BO");
 const hora=()=>new Date().toLocaleTimeString("es-BO",{hour:"2-digit",minute:"2-digit"});
-
-const MANO_OBRA_OPCIONES=[
-  "🔧 Cambio de aceite","🚿 Lavado de motor","🎯 Alineado","⚖️ Balanceado",
-  "🔩 Reparación de motor","🔌 Diagnóstico eléctrico","⚡ Diagnóstico electrónico",
-  "🔧 Cambio de frenos","🔧 Cambio de embrague","🔧 Cambio de suspensión",
-  "🔧 Cambio de amortiguadores","🔧 Cambio de correa","🔧 Cambio de bujías",
-  "🔧 Cambio de filtros","🚗 Revisión general","✏️ Servicio personalizado"
-];
 
 const comprimirFoto=(file,cb)=>{
   const r=new FileReader();
@@ -57,26 +39,26 @@ const comprimirFoto=(file,cb)=>{
 function FotoUpload({fotos=[],setFotos,label="📷 Tomar foto"}){
   const add=e=>{Array.from(e.target.files).forEach(f=>comprimirFoto(f,url=>setFotos(p=>[...p,{url,hora:hora()}])));e.target.value="";};
   return <div>
-    <label style={{display:"inline-flex",alignItems:"center",gap:5,padding:"7px 12px",background:"#1e293b",border:"none",borderRadius:8,cursor:"pointer",fontSize:12,fontWeight:700,color:"#fbbf24"}}>
-      📷 {label}
-      <input type="file" accept="image/*" capture="environment" multiple onChange={add} style={{display:"none"}}/>
+    <label style={{display:"inline-flex",alignItems:"center",gap:5,padding:"7px 12px",background:"#1e293b",borderRadius:8,cursor:"pointer",fontSize:12,fontWeight:700,color:"#fbbf24"}}>
+      📷 {label}<input type="file" accept="image/*" capture="environment" multiple onChange={add} style={{display:"none"}}/>
     </label>
     {fotos.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:5,marginTop:7}}>
       {fotos.map((f,i)=><div key={i} style={{position:"relative"}}>
-        <img src={f.url} alt="" className="print-foto" style={{width:70,height:70,objectFit:"cover",borderRadius:7,border:"2px solid #e2e8f0"}}/>
-        <button onClick={()=>setFotos(p=>p.filter((_,j)=>j!==i))} className="noprint" style={{position:"absolute",top:-4,right:-4,background:"#ef4444",color:"#fff",border:"none",borderRadius:"50%",width:16,height:16,fontSize:9,cursor:"pointer",padding:0}}>✕</button>
+        <img src={f.url} alt="" style={{width:65,height:65,objectFit:"cover",borderRadius:7,border:"2px solid #e2e8f0"}}/>
+        <button onClick={()=>setFotos(p=>p.filter((_,j)=>j!==i))} style={{position:"absolute",top:-4,right:-4,background:"#ef4444",color:"#fff",border:"none",borderRadius:"50%",width:16,height:16,fontSize:9,cursor:"pointer",padding:0}}>✕</button>
       </div>)}
     </div>}
   </div>;
 }
 
 function Login({onLogin}){
-  const [u,setU]=React.useState("");const [p,setP]=React.useState("");const [err,setErr]=React.useState("");const [cargando,setCargando]=React.useState(false);
+  const [u,setU]=React.useState("");const [p,setP]=React.useState("");
+  const [err,setErr]=React.useState("");const [cargando,setCargando]=React.useState(false);
   const ok=async()=>{
     setCargando(true);
     const{data}=await sb.from("usuarios").select("*").eq("user_name",u.toLowerCase().trim()).eq("pass",p).single();
     setCargando(false);
-    if(data)onLogin(data);
+    if(data) onLogin(data);
     else setErr("Usuario o contraseña incorrectos");
   };
   return <div style={{minHeight:"100vh",background:"#0f172a",display:"flex",alignItems:"center",justifyContent:"center"}}>
@@ -98,10 +80,10 @@ function Login({onLogin}){
   </div>;
 }
 
-// LISTA DE OTs
-function ListaOTs({usuario,onNueva,onAbrir}){
+function ListaOTs({usuario,onNueva}){
   const [ots,setOts]=React.useState([]);
   const [cargando,setCargando]=React.useState(false);
+  const [filtro,setFiltro]=React.useState("todos");
   const esAdmin=["admin","encargado"].includes(usuario.rol)||["wilfredo","william"].includes(usuario.user_name);
 
   const cargar=async()=>{
@@ -109,44 +91,70 @@ function ListaOTs({usuario,onNueva,onAbrir}){
     let q=sb.from("ots").select("*").order("created_at",{ascending:false});
     if(!esAdmin) q=q.eq("tecnico",usuario.nombre);
     const{data}=await q;
-    setOts(data||[]);setCargando(false);
+    setOts(data||[]);
+    setCargando(false);
   };
 
   React.useEffect(()=>{cargar();},[]);
 
-  const borrar=async(ot)=>{
+  const borrar=async(ot,e)=>{
+    e.stopPropagation();
     if(usuario.user_name!=="wilfredo"){alert("❌ Solo Wilfredo puede borrar OTs.");return;}
     if(!window.confirm(`¿Borrar OT ${ot.num}?\nEsta acción NO se puede deshacer.`))return;
     await sb.from("ots").delete().eq("id",ot.id);
     cargar();
   };
 
+  const abrirDetalle=(ot)=>{
+    // Guardar OT en sessionStorage y abrir detalle
+    sessionStorage.setItem("ot_actual",JSON.stringify(ot));
+    sessionStorage.setItem("usuario_ot",JSON.stringify(usuario));
+    window.location.href="/ot-detalle.html";
+  };
+
   const estadoColor={1:"#94a3b8",2:"#3b82f6",3:"#f59e0b",4:"#8b5cf6",5:"#ec4899",6:"#14b8a6",7:"#22c55e",8:"#16a34a"};
-  const estadoLabel={1:"Recepción",2:"Diagnóstico",3:"Cotización",4:"Aprobado",5:"En trabajo",6:"Terminado",7:"Control calidad",8:"Entregado"};
+  const estadoLabel={1:"Recepción",2:"Diagnóstico",3:"Cotización",4:"Aprobado",5:"En trabajo",6:"Terminado",7:"Calidad",8:"Entregado"};
+
+  const otsFiltradas=ots.filter(o=>{
+    if(filtro==="activas") return o.paso<8;
+    if(filtro==="entregadas") return o.paso>=8;
+    return true;
+  });
 
   return <div>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
       <div style={{fontWeight:900,fontSize:14,color:"#1e293b"}}>📋 Órdenes de Trabajo</div>
       <button onClick={onNueva} style={{padding:"7px 14px",background:"#16a34a",color:"#fff",border:"none",borderRadius:8,fontWeight:700,fontSize:12,cursor:"pointer"}}>+ Nueva OT</button>
     </div>
+
+    {/* Filtros */}
+    <div style={{display:"flex",gap:5,marginBottom:10}}>
+      {[{k:"todos",l:"Todas"},${k:"activas",l:"🔄 Activas"},{k:"entregadas",l:"✅ Entregadas"}].map(f=>
+        <button key={f.k} onClick={()=>setFiltro(f.k)} style={{padding:"5px 10px",borderRadius:7,border:`1px solid ${filtro===f.k?"#fbbf24":"#e2e8f0"}`,background:filtro===f.k?"#fffbeb":"#fff",color:filtro===f.k?"#92400e":"#64748b",fontWeight:700,fontSize:10,cursor:"pointer"}}>{f.l}</button>)}
+    </div>
+
     {cargando?<div style={{textAlign:"center",padding:20,color:"#94a3b8"}}>Cargando...</div>:
-    ots.length===0?<div style={{textAlign:"center",padding:30,color:"#94a3b8",fontSize:12,background:"#fff",borderRadius:10}}>Sin órdenes de trabajo</div>:
+    otsFiltradas.length===0?<div style={{textAlign:"center",padding:30,color:"#94a3b8",fontSize:12,background:"#fff",borderRadius:10}}>Sin órdenes de trabajo</div>:
     <div style={{display:"grid",gap:8}}>
-      {ots.map(ot=><div key={ot.id} style={{background:"#fff",borderRadius:10,padding:"10px 12px",border:`2px solid ${estadoColor[ot.paso]||"#e2e8f0"}20`,cursor:"pointer"}}
-        onClick={()=>onAbrir(ot)}>
+      {otsFiltradas.map(ot=><div key={ot.id}
+        style={{background:"#fff",borderRadius:10,padding:"10px 12px",border:`2px solid ${estadoColor[ot.paso]||"#e2e8f0"}20`,cursor:"pointer"}}
+        onClick={()=>abrirDetalle(ot)}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:4}}>
           <div style={{flex:1}}>
-            <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+            <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginBottom:3}}>
               <span style={{fontWeight:900,fontSize:13}}>{ot.num}</span>
               <span style={{padding:"2px 7px",background:`${estadoColor[ot.paso]||"#94a3b8"}20`,color:estadoColor[ot.paso]||"#94a3b8",borderRadius:20,fontSize:9,fontWeight:700}}>{estadoLabel[ot.paso]||"—"}</span>
             </div>
-            <div style={{fontSize:12,color:"#374151",marginTop:2}}>🚗 {ot.placa} · {ot.marca} {ot.modelo}</div>
-            <div style={{fontSize:11,color:"#64748b"}}>👤 {ot.cliente} · 👨‍🔧 {ot.tecnico}</div>
+            <div style={{fontSize:12,color:"#374151"}}>🚗 {ot.placa} · {ot.marca} {ot.modelo}</div>
+            <div style={{fontSize:11,color:"#64748b"}}>👤 {ot.cliente||"—"} · 👨‍🔧 {ot.tecnico}</div>
             <div style={{fontSize:10,color:"#94a3b8"}}>📅 {ot.fecha} · 🏢 {ot.taller}</div>
           </div>
-          <div style={{display:"flex",gap:5,alignItems:"center"}}>
+          <div style={{display:"flex",gap:5,alignItems:"center",flexDirection:"column"}}>
             {ot.total>0&&<span style={{fontWeight:900,fontSize:13,color:"#16a34a"}}>{fmt(ot.total)}</span>}
-            {usuario.user_name==="wilfredo"&&<button onClick={e=>{e.stopPropagation();borrar(ot);}} style={{padding:"3px 7px",background:"#fee2e2",color:"#dc2626",border:"1px solid #fca5a5",borderRadius:6,fontSize:10,cursor:"pointer",fontWeight:700}}>🗑️</button>}
+            <div style={{display:"flex",gap:4}}>
+              <span style={{padding:"3px 8px",background:"#eff6ff",color:"#1d4ed8",borderRadius:6,fontSize:9,fontWeight:700}}>Ver →</span>
+              {usuario.user_name==="wilfredo"&&<button onClick={e=>borrar(ot,e)} style={{padding:"3px 7px",background:"#fee2e2",color:"#dc2626",border:"1px solid #fca5a5",borderRadius:6,fontSize:9,cursor:"pointer",fontWeight:700}}>🗑️</button>}
+            </div>
           </div>
         </div>
       </div>)}
@@ -154,10 +162,10 @@ function ListaOTs({usuario,onNueva,onAbrir}){
   </div>;
 }
 
-// FORMULARIO OT
 function FormOT({usuario,onGuardado,onCancelar}){
   const [form,setForm]=React.useState({
-    placa:"",cliente:"",tel:"",marca:"",modelo:"",color:"",km:"",combustible:"3/4",
+    placa:"",cliente:"",tel:"",marca:"",modelo:"",color:"",
+    km:"",combustible:"3/4",
     taller:usuario.taller==="ambos"?"":usuario.taller,
     tecnico:usuario.nombre,problema:""
   });
@@ -170,16 +178,14 @@ function FormOT({usuario,onGuardado,onCancelar}){
     sb.from("usuarios").select("nombre,rol,user_name").then(({data})=>setUsuarios(data||[]));
   },[]);
 
-  const tecnicos=usuarios.filter(u=>["wilfredo","william","adolfo","joel","diego","evo"].includes(u.user_name));
-
   const guardar=async()=>{
     if(!form.placa||!form.tecnico||!form.taller){alert("Completa placa, técnico y taller.");return;}
     setGuardando(true);
     const num=`OT-${Date.now().toString().slice(-5)}`;
     const{data,error}=await sb.from("ots").insert({
-      num,fecha:hoy(),placa:form.placa,cliente:form.cliente,tel:form.tel,
-      marca:form.marca,modelo:form.modelo,color:form.color,
-      km:form.km,combustible:form.combustible,
+      num,fecha:hoy(),placa:form.placa,cliente:form.cliente,
+      tel:form.tel,marca:form.marca,modelo:form.modelo,
+      color:form.color,km:form.km,combustible:form.combustible,
       taller:form.taller,tecnico:form.tecnico,
       problema:form.problema,paso:1,estado:"Recepción",
       fotos_recepcion:JSON.stringify(fotos),
@@ -187,7 +193,7 @@ function FormOT({usuario,onGuardado,onCancelar}){
     }).select().single();
     setGuardando(false);
     if(error){alert("Error: "+error.message);return;}
-    alert(`✅ OT creada: ${num}`);
+    alert(`✅ OT creada: ${num}\nToca la OT para continuar con el diagnóstico.`);
     onGuardado(data);
   };
 
@@ -199,27 +205,32 @@ function FormOT({usuario,onGuardado,onCancelar}){
 
     {/* Taller */}
     {usuario.taller==="ambos"&&<div style={{marginBottom:10}}>
-      <div style={{fontSize:10,color:"#94a3b8",fontWeight:700,marginBottom:3}}>TALLER *</div>
+      <div style={{fontSize:10,color:"#94a3b8",fontWeight:700,marginBottom:4}}>TALLER *</div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
-        {["Taller 1 · Montes","Taller 2 · Bella Vista"].map(t=><button key={t} onClick={()=>setForm(f=>({...f,taller:t}))}
-          style={{padding:"7px",border:`2px solid ${form.taller===t?"#f59e0b":"#e2e8f0"}`,borderRadius:8,background:form.taller===t?"#fffbeb":"#fff",fontWeight:700,fontSize:10,cursor:"pointer",color:form.taller===t?"#92400e":"#64748b"}}>{t.includes("Montes")?"🔧 Montes":"🔧 Bella Vista"}</button>)}
+        {["Taller 1 · Montes","Taller 2 · Bella Vista"].map(t=>
+          <button key={t} onClick={()=>setForm(f=>({...f,taller:t}))}
+            style={{padding:"8px",border:`2px solid ${form.taller===t?"#f59e0b":"#e2e8f0"}`,borderRadius:8,background:form.taller===t?"#fffbeb":"#fff",fontWeight:700,fontSize:10,cursor:"pointer",color:form.taller===t?"#92400e":"#64748b"}}>
+            {t.includes("Montes")?"🔧 Montes":"🔧 Bella Vista"}
+          </button>)}
       </div>
     </div>}
 
-    {/* Técnico asignado */}
+    {/* Técnico */}
     <div style={{marginBottom:10}}>
       <div style={{fontSize:10,color:"#94a3b8",fontWeight:700,marginBottom:3}}>TÉCNICO ASIGNADO *</div>
-      <select value={form.tecnico} onChange={e=>setForm(f=>({...f,tecnico:e.target.value}))}
-        style={{width:"100%",padding:"7px 10px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:13}}>
-        {esEncargado
-          ?tecnicos.map(t=><option key={t.user_name} value={t.nombre}>{t.nombre} ({t.rol})</option>)
-          :<option value={usuario.nombre}>{usuario.nombre}</option>}
-      </select>
+      {esEncargado
+        ?<select value={form.tecnico} onChange={e=>setForm(f=>({...f,tecnico:e.target.value}))}
+          style={{width:"100%",padding:"7px 10px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:13}}>
+          {usuarios.map(u=><option key={u.user_name} value={u.nombre}>{u.nombre}</option>)}
+        </select>
+        :<div style={{padding:"8px 10px",background:"#f0fdf4",borderRadius:8,fontWeight:700,fontSize:13,color:"#15803d"}}>👨‍🔧 {usuario.nombre}</div>}
     </div>
 
-    {/* Datos cliente */}
+    {/* Datos */}
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
-      {[["PLACA *","placa","1234ABC"],["CLIENTE","cliente","Nombre"],["TELÉFONO","tel","70000000"],["MARCA","marca","Toyota"],["MODELO","modelo","Corolla"],["COLOR","color","Blanco"]].map(([l,k,ph])=>
+      {[["PLACA *","placa","1234ABC"],["CLIENTE","cliente","Nombre completo"],
+        ["TELÉFONO","tel","70000000"],["MARCA","marca","Toyota"],
+        ["MODELO","modelo","Corolla"],["COLOR","color","Blanco"]].map(([l,k,ph])=>
         <div key={k}>
           <div style={{fontSize:10,color:"#94a3b8",fontWeight:700,marginBottom:3}}>{l}</div>
           <input value={form[k]} onChange={e=>setForm(f=>({...f,[k]:e.target.value}))} placeholder={ph}
@@ -238,7 +249,7 @@ function FormOT({usuario,onGuardado,onCancelar}){
         <div style={{fontSize:10,color:"#94a3b8",fontWeight:700,marginBottom:3}}>COMBUSTIBLE</div>
         <select value={form.combustible} onChange={e=>setForm(f=>({...f,combustible:e.target.value}))}
           style={{width:"100%",padding:"7px 10px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:13}}>
-          {["Vacío","1/4","1/2","3/4","Lleno"].map(v=><option key={v} value={v}>{v}</option>)}
+          {["Vacío","1/4","1/2","3/4","Lleno"].map(v=><option key={v}>{v}</option>)}
         </select>
       </div>
     </div>
@@ -246,486 +257,36 @@ function FormOT({usuario,onGuardado,onCancelar}){
     {/* Problema */}
     <div style={{marginBottom:10}}>
       <div style={{fontSize:10,color:"#94a3b8",fontWeight:700,marginBottom:3}}>PROBLEMA REPORTADO</div>
-      <textarea value={form.problema} onChange={e=>setForm(f=>({...f,problema:e.target.value}))} placeholder="Describe el problema..."
-        style={{width:"100%",padding:"7px 10px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:13,minHeight:70,resize:"none",boxSizing:"border-box"}}/>
+      <textarea value={form.problema} onChange={e=>setForm(f=>({...f,problema:e.target.value}))}
+        placeholder="Describe el problema reportado por el cliente..."
+        style={{width:"100%",padding:"7px 10px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:12,minHeight:70,resize:"none",boxSizing:"border-box"}}/>
     </div>
 
-    {/* Fotos recepción */}
+    {/* Fotos */}
     <div style={{marginBottom:12}}>
       <div style={{fontSize:10,color:"#94a3b8",fontWeight:700,marginBottom:5}}>📷 FOTOS AL INGRESO</div>
-      <FotoUpload fotos={fotos} setFotos={setFotos} label="Tomar foto del vehículo"/>
+      <FotoUpload fotos={fotos} setFotos={setFotos} label="Fotografiar el vehículo"/>
     </div>
 
-    <button onClick={guardar} disabled={guardando} style={{width:"100%",padding:12,background:"#16a34a",color:"#fff",border:"none",borderRadius:8,fontWeight:900,fontSize:14,cursor:"pointer"}}>
+    <button onClick={guardar} disabled={guardando}
+      style={{width:"100%",padding:12,background:"#16a34a",color:"#fff",border:"none",borderRadius:8,fontWeight:900,fontSize:14,cursor:"pointer"}}>
       {guardando?"Creando OT...":"✅ Crear OT"}
     </button>
   </div>;
 }
 
-// DETALLE OT
-function DetalleOT({ot,usuario,onVolver,onActualizado}){
-  const [datos,setDatos]=React.useState(ot);
-  const [inv,setInv]=React.useState([]);
-  const [guardando,setGuardando]=React.useState(false);
-
-  // Diagnóstico
-  const [diagnostico,setDiagnostico]=React.useState(datos.diagnostico||"");
-  const [servicios,setServicios]=React.useState(JSON.parse(datos.servicios||"[]"));
-  const [repuestos,setRepuestos]=React.useState(JSON.parse(datos.repuestos||"[]"));
-  const [fotosD,setFotosD]=React.useState(JSON.parse(datos.fotos_diagnostico||"[]"));
-  const [tiempoEst,setTiempoEst]=React.useState(datos.tiempo_est||"");
-
-  // Mano de obra
-  const [moNombre,setMoNombre]=React.useState("");
-  const [moPrecio,setMoPrecio]=React.useState("");
-  const [moPersonalizado,setMoPersonalizado]=React.useState("");
-
-  // Repuesto buscar
-  const [busqueda,setBusqueda]=React.useState("");
-  const [resultados,setResultados]=React.useState([]);
-  const [repPendiente,setRepPendiente]=React.useState({nombre:"",cantidad:1});
-
-  // Trabajo
-  const [fotosT,setFotosT]=React.useState(JSON.parse(datos.fotos_trabajo||"[]"));
-  const [obsAdicional,setObsAdicional]=React.useState(datos.trabajos_adicionales||"");
-
-  // Calidad
-  const [obsCalidad,setObsCalidad]=React.useState(datos.obs_calidad||"");
-  const [fotosC,setFotosC]=React.useState(JSON.parse(datos.fotos_adicionales||"[]"));
-
-  const esEncargado=["admin","encargado"].includes(usuario.rol)||["wilfredo","william"].includes(usuario.user_name);
-  const esMecanico=["adolfo","joel","diego","evo"].includes(usuario.user_name);
-  const esWilfredo=usuario.user_name==="wilfredo";
-
-  React.useEffect(()=>{
-    sb.from("inventario").select("*").gt("stock",0).then(({data})=>setInv(data||[]));
-  },[]);
-
-  const buscarRepuesto=async(q)=>{
-    setBusqueda(q);
-    if(q.length<2){setResultados([]);return;}
-    const{data}=await sb.from("inventario").select("*").ilike("nom",`%${q}%`).limit(8);
-    setResultados(data||[]);
-  };
-
-  const agregarManoObra=()=>{
-    const nombre=moNombre==="✏️ Servicio personalizado"?moPersonalizado:moNombre;
-    if(!nombre||!moPrecio){alert("Selecciona el servicio y pon el precio.");return;}
-    setServicios(p=>[...p,{nombre,precio:parseFloat(moPrecio),tipo:"mano_obra"}]);
-    setMoNombre("");setMoPrecio("");setMoPersonalizado("");
-  };
-
-  const agregarRepuestoInv=async(rep)=>{
-    if(rep.stock<=0){alert(`❌ Sin stock: ${rep.nom}\nAgrega stock al inventario primero.`);return;}
-    setRepuestos(p=>[...p,{id:rep.id,nombre:rep.nom,precio:rep.precio,cantidad:1,enStock:true,foto:rep.foto||""}]);
-    setBusqueda("");setResultados([]);
-  };
-
-  const agregarRepPendiente=()=>{
-    if(!repPendiente.nombre){alert("Escribe el nombre del repuesto.");return;}
-    setRepuestos(p=>[...p,{nombre:repPendiente.nombre,precio:0,cantidad:repPendiente.cantidad,enStock:false,pendiente:true}]);
-    setRepPendiente({nombre:"",cantidad:1});
-  };
-
-  const totalMO=servicios.filter(s=>s.tipo==="mano_obra").reduce((s,i)=>s+parseFloat(i.precio||0),0);
-  const totalRep=repuestos.reduce((s,r)=>s+(parseFloat(r.precio||0)*parseInt(r.cantidad||1)),0);
-  const total=totalMO+totalRep;
-  const repSinStock=repuestos.filter(r=>r.pendiente||r.enStock===false);
-
-  const guardarPaso=async(nuevoPaso,extra={})=>{
-    setGuardando(true);
-    const upd={
-      paso:nuevoPaso,diagnostico,
-      servicios:JSON.stringify(servicios),
-      repuestos:JSON.stringify(repuestos),
-      fotos_diagnostico:JSON.stringify(fotosD),
-      fotos_trabajo:JSON.stringify(fotosT),
-      fotos_adicionales:JSON.stringify(fotosC),
-      trabajos_adicionales:obsAdicional,
-      obs_calidad:obsCalidad,
-      tiempo_est:tiempoEst,
-      total,...extra
-    };
-    const{data,error}=await sb.from("ots").update(upd).eq("id",datos.id).select().single();
-    setGuardando(false);
-    if(error){alert("Error: "+error.message);return;}
-    setDatos(data);
-    onActualizado&&onActualizado(data);
-    return data;
-  };
-
-  const confirmarEntrega=async()=>{
-    if(repSinStock.length>0){
-      alert(`❌ No puedes entregar.\nFaltan repuestos en inventario:\n${repSinStock.map(r=>`• ${r.nombre}`).join("\n")}\n\nAgrega al inventario primero.`);
-      return;
-    }
-    if(!window.confirm("¿Confirmar entrega al cliente?"))return;
-    // Descontar inventario
-    for(const r of repuestos.filter(x=>x.enStock&&x.id)){
-      const{data:inv}=await sb.from("inventario").select("stock").eq("id",r.id).single();
-      if(inv) await sb.from("inventario").update({stock:Math.max(0,inv.stock-parseInt(r.cantidad||1))}).eq("id",r.id);
-    }
-    // Guardar en CRM con detalle completo
-    await sb.from("crm").insert({
-      fecha:hoy(),num:datos.num,placa:datos.placa,
-      cliente:datos.cliente,tel:datos.tel,
-      vehiculo:`${datos.marca} ${datos.modelo}`,
-      taller:datos.taller,tecnico:datos.tecnico,
-      total:fmt(total),tipo:"OT",
-      detalle:JSON.stringify({servicios,repuestos,totalMO,totalRep,fotos:fotosT})
-    });
-    // Guardar en caja
-    await sb.from("caja").insert({
-      fecha:hoy(),taller:datos.taller,
-      concepto:`OT ${datos.num} — ${datos.placa}`,
-      tipo:"ingreso",monto:total,user_name:usuario.nombre
-    });
-    const d=await guardarPaso(8,{entregado:true,fecha_entrega:hoy(),entregado_por:usuario.nombre});
-    alert(`✅ Vehículo entregado\nOT: ${datos.num}\nTotal: ${fmt(total)}`);
-  };
-
-  const generarPDF=()=>{
-    const win=window.open("","_blank");
-    const fotosRecep=JSON.parse(datos.fotos_recepcion||"[]");
-    win.document.write(`
-      <html><head><title>OT ${datos.num} — ${EMPRESA.nombre}</title>
-      <style>
-        body{font-family:Arial,sans-serif;padding:20px;font-size:11px;color:#1e293b}
-        .header{text-align:center;border-bottom:2px solid #fbbf24;padding-bottom:10px;margin-bottom:14px}
-        .titulo{font-size:16px;font-weight:900;color:#1e293b}
-        .sub{font-size:10px;color:#64748b}
-        .seccion{margin-bottom:12px;border:1px solid #e2e8f0;border-radius:6px;padding:8px}
-        .seccion-titulo{font-weight:700;font-size:10px;text-transform:uppercase;color:#64748b;margin-bottom:6px;border-bottom:1px solid #f3f4f6;padding-bottom:3px}
-        .fila{display:flex;justify-content:space-between;padding:3px 0;font-size:11px;border-bottom:1px solid #f8fafc}
-        .fotos{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}
-        .foto{width:80px;height:80px;object-fit:cover;border-radius:5px;border:1px solid #e2e8f0}
-        .total-box{background:#1e293b;color:#fbbf24;padding:10px;border-radius:6px;display:flex;justify-content:space-between;font-size:14px;font-weight:900;margin-top:10px}
-        .tag{display:inline-block;padding:2px 6px;border-radius:10px;font-size:9px;font-weight:700}
-        .verde{background:#dcfce7;color:#15803d}
-        .azul{background:#dbeafe;color:#1d4ed8}
-        .firma{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:20px}
-        .firma-box{border-top:1px solid #1e293b;padding-top:4px;text-align:center;font-size:10px;color:#64748b}
-      </style></head><body>
-      <div class="header">
-        <div class="titulo">🔧 ${EMPRESA.nombre}</div>
-        <div class="sub">${EMPRESA.ciudad} · 📞 ${EMPRESA.tel1} · ${EMPRESA.tel2}</div>
-        <div style="margin-top:5px"><strong>ORDEN DE TRABAJO ${datos.num}</strong> · ${datos.fecha}</div>
-      </div>
-      <div class="seccion">
-        <div class="seccion-titulo">🚗 DATOS DEL VEHÍCULO Y CLIENTE</div>
-        <div class="fila"><span>Placa:</span><strong>${datos.placa}</strong></div>
-        <div class="fila"><span>Vehículo:</span><span>${datos.marca} ${datos.modelo} ${datos.color}</span></div>
-        <div class="fila"><span>Cliente:</span><span>${datos.cliente||"—"}</span></div>
-        <div class="fila"><span>Teléfono:</span><span>${datos.tel||"—"}</span></div>
-        <div class="fila"><span>Km ingreso:</span><span>${datos.km||"—"}</span></div>
-        <div class="fila"><span>Combustible:</span><span>${datos.combustible||"—"}</span></div>
-        <div class="fila"><span>Taller:</span><span>${datos.taller}</span></div>
-        <div class="fila"><span>Técnico:</span><span>${datos.tecnico}</span></div>
-      </div>
-      ${fotosRecep.length>0?`<div class="seccion"><div class="seccion-titulo">📷 FOTOS DE RECEPCIÓN</div><div class="fotos">${fotosRecep.map(f=>`<img src="${f.url}" class="foto"/>`).join("")}</div></div>`:""}
-      <div class="seccion">
-        <div class="seccion-titulo">🔍 DIAGNÓSTICO</div>
-        <p style="font-size:11px;color:#374151">${diagnostico||datos.diagnostico||"—"}</p>
-      </div>
-      ${servicios.length>0?`<div class="seccion">
-        <div class="seccion-titulo">🔧 MANO DE OBRA <span class="tag verde">Ganancia neta</span></div>
-        ${servicios.map(s=>`<div class="fila"><span>${s.nombre}</span><strong>${fmt(s.precio)}</strong></div>`).join("")}
-        <div class="fila" style="font-weight:700"><span>Subtotal mano de obra:</span><span>${fmt(totalMO)}</span></div>
-      </div>`:""}
-      ${repuestos.length>0?`<div class="seccion">
-        <div class="seccion-titulo">📦 REPUESTOS <span class="tag azul">Capital</span></div>
-        ${repuestos.map(r=>`<div class="fila"><span>${r.nombre} x${r.cantidad}</span><strong>${fmt(parseFloat(r.precio||0)*parseInt(r.cantidad||1))}</strong></div>`).join("")}
-        <div class="fila" style="font-weight:700"><span>Subtotal repuestos:</span><span>${fmt(totalRep)}</span></div>
-      </div>`:""}
-      ${fotosT.length>0?`<div class="seccion"><div class="seccion-titulo">📷 EVIDENCIA DEL TRABAJO</div><div class="fotos">${fotosT.map(f=>`<img src="${f.url}" class="foto"/>`).join("")}</div></div>`:""}
-      <div class="total-box">
-        <div>
-          <div style="font-size:9px;color:#94a3b8">Mano de obra: ${fmt(totalMO)} | Repuestos: ${fmt(totalRep)}</div>
-          <div>💰 TOTAL COBRADO</div>
-        </div>
-        <div style="font-size:18px">${fmt(total)}</div>
-      </div>
-      <div style="margin-top:8px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:5px;padding:6px;font-size:10px;color:#15803d;font-weight:700">
-        ✅ Garantía: 30 días en mano de obra
-      </div>
-      <div class="firma">
-        <div class="firma-box">Firma del cliente</div>
-        <div class="firma-box">Firma del técnico</div>
-      </div>
-      </body></html>
-    `);
-    win.document.close();
-    setTimeout(()=>win.print(),500);
-  };
-
-  const paso=datos.paso||1;
-
-  return <div style={{background:"#f0f4f8",minHeight:"100vh",padding:10}}>
-    {/* Header OT */}
-    <div style={{background:"#1e293b",borderRadius:10,padding:"10px 14px",marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}} className="noprint">
-      <div>
-        <div style={{color:"#fbbf24",fontWeight:900,fontSize:14}}>{datos.num}</div>
-        <div style={{color:"#94a3b8",fontSize:10}}>🚗 {datos.placa} · {datos.marca} {datos.modelo} · {datos.taller}</div>
-        <div style={{color:"#94a3b8",fontSize:10}}>👨‍🔧 {datos.tecnico} · 📅 {datos.fecha}</div>
-      </div>
-      <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-        {datos.tel&&<a href={`https://wa.me/591${datos.tel.replace(/\D/g,"")}`} target="_blank" style={{padding:"3px 8px",background:"#25d366",color:"#fff",border:"none",borderRadius:6,fontSize:10,cursor:"pointer",fontWeight:700,textDecoration:"none"}}>📱 Cliente</a>}
-        <button onClick={generarPDF} style={{padding:"3px 8px",background:"#dc2626",color:"#fff",border:"none",borderRadius:6,fontSize:10,cursor:"pointer",fontWeight:700}}>📄 PDF</button>
-        <button onClick={onVolver} style={{padding:"3px 8px",background:"#64748b",color:"#fff",border:"none",borderRadius:6,fontSize:10,cursor:"pointer",fontWeight:700}}>← Volver</button>
-      </div>
-    </div>
-
-    {/* Progreso */}
-    <div style={{background:"#fff",borderRadius:10,padding:"8px 12px",marginBottom:10,overflowX:"auto"}} className="noprint">
-      <div style={{display:"flex",gap:3,minWidth:"max-content"}}>
-        {[{n:1,l:"Recep."},{n:2,l:"Diagnóst."},{n:3,l:"Cotiz."},{n:4,l:"Aprobado"},{n:5,l:"Trabajo"},{n:6,l:"Terminado"},{n:7,l:"Calidad"},{n:8,l:"Entregado"}].map(s=>
-          <div key={s.n} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
-            <div style={{width:22,height:22,borderRadius:"50%",background:paso>=s.n?"#16a34a":"#e2e8f0",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:700,color:paso>=s.n?"#fff":"#94a3b8"}}>{s.n}</div>
-            <div style={{fontSize:8,color:paso>=s.n?"#16a34a":"#94a3b8",fontWeight:paso===s.n?700:400}}>{s.l}</div>
-          </div>)}
-      </div>
-    </div>
-
-    {/* PASO 2 — DIAGNÓSTICO */}
-    {(paso>=1)&&<div style={{background:"#fff",borderRadius:10,padding:14,marginBottom:10,border:"1px solid #e2e8f0"}}>
-      <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",color:"#64748b",marginBottom:8,paddingBottom:4,borderBottom:"2px solid #fbbf24",display:"inline-block"}}>🔍 Diagnóstico y servicios</div>
-
-      <textarea value={diagnostico} onChange={e=>setDiagnostico(e.target.value)}
-        placeholder="Describe el diagnóstico detallado..."
-        style={{width:"100%",padding:"8px 10px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:12,minHeight:70,resize:"none",marginBottom:10,boxSizing:"border-box"}}/>
-
-      {/* Mano de obra */}
-      <div style={{background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:8,padding:10,marginBottom:10}}>
-        <div style={{fontSize:10,fontWeight:700,color:"#15803d",marginBottom:6}}>🔧 MANO DE OBRA <span style={{fontSize:9,background:"#dcfce7",padding:"1px 5px",borderRadius:4}}>Ganancia neta</span></div>
-        <select value={moNombre} onChange={e=>setMoNombre(e.target.value)} style={{width:"100%",padding:"6px 8px",border:"1px solid #e2e8f0",borderRadius:7,fontSize:12,marginBottom:6}}>
-          <option value="">Seleccionar servicio...</option>
-          {MANO_OBRA_OPCIONES.map(o=><option key={o} value={o}>{o}</option>)}
-        </select>
-        {moNombre==="✏️ Servicio personalizado"&&<input value={moPersonalizado} onChange={e=>setMoPersonalizado(e.target.value)} placeholder="Nombre del servicio..." style={{width:"100%",padding:"6px 8px",border:"1px solid #e2e8f0",borderRadius:7,fontSize:12,marginBottom:6,boxSizing:"border-box"}}/>}
-        <div style={{display:"flex",gap:6}}>
-          <input type="number" value={moPrecio} onChange={e=>setMoPrecio(e.target.value)} placeholder="Precio Bs."
-            style={{flex:1,padding:"6px 8px",border:"1px solid #fbbf24",borderRadius:7,fontSize:13,fontWeight:800,color:"#92400e",boxSizing:"border-box"}}/>
-          <button onClick={agregarManoObra} style={{padding:"6px 12px",background:"#16a34a",color:"#fff",border:"none",borderRadius:7,fontWeight:700,fontSize:11,cursor:"pointer"}}>+ Agregar</button>
-        </div>
-        {servicios.length>0&&<div style={{marginTop:8}}>
-          {servicios.map((s,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"4px 6px",background:"#fff",borderRadius:5,marginBottom:3,fontSize:11}}>
-            <span>{s.nombre}</span>
-            <div style={{display:"flex",gap:5,alignItems:"center"}}>
-              <span style={{fontWeight:700,color:"#16a34a"}}>{fmt(s.precio)}</span>
-              <button onClick={()=>setServicios(p=>p.filter((_,j)=>j!==i))} style={{padding:"1px 5px",background:"#fee2e2",color:"#dc2626",border:"none",borderRadius:4,fontSize:9,cursor:"pointer"}}>✕</button>
-            </div>
-          </div>)}
-          <div style={{textAlign:"right",fontWeight:800,color:"#15803d",fontSize:12,marginTop:4}}>Subtotal MO: {fmt(totalMO)}</div>
-        </div>}
-      </div>
-
-      {/* Repuestos del inventario */}
-      <div style={{background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:8,padding:10,marginBottom:10}}>
-        <div style={{fontSize:10,fontWeight:700,color:"#1d4ed8",marginBottom:6}}>📦 REPUESTOS <span style={{fontSize:9,background:"#dbeafe",padding:"1px 5px",borderRadius:4}}>Capital</span></div>
-        <input value={busqueda} onChange={e=>buscarRepuesto(e.target.value)} placeholder="🔍 Buscar repuesto en inventario..."
-          style={{width:"100%",padding:"6px 8px",border:"1px solid #bfdbfe",borderRadius:7,fontSize:12,marginBottom:6,boxSizing:"border-box"}}/>
-        {resultados.length>0&&<div style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:7,marginBottom:6,maxHeight:150,overflowY:"auto"}}>
-          {resultados.map(r=><div key={r.id} onClick={()=>agregarRepuestoInv(r)}
-            style={{display:"flex",alignItems:"center",gap:6,padding:"6px 10px",cursor:"pointer",borderBottom:"1px solid #f3f4f6"}}
-            onMouseEnter={e=>e.currentTarget.style.background="#eff6ff"}
-            onMouseLeave={e=>e.currentTarget.style.background="#fff"}>
-            {r.foto&&<img src={r.foto} style={{width:32,height:32,objectFit:"cover",borderRadius:4}}/>}
-            <div style={{flex:1}}>
-              <div style={{fontSize:11,fontWeight:700}}>{r.nom}</div>
-              <div style={{fontSize:10,color:r.stock>0?"#16a34a":"#dc2626",fontWeight:700}}>Stock: {r.stock} · {fmt(r.precio)}</div>
-            </div>
-            {r.stock<=0&&<span style={{fontSize:9,background:"#fee2e2",color:"#dc2626",padding:"1px 5px",borderRadius:4,fontWeight:700}}>SIN STOCK</span>}
-          </div>)}
-        </div>}
-
-        {/* Repuesto a conseguir */}
-        <div style={{background:"#fff7ed",border:"1px solid #fed7aa",borderRadius:7,padding:8,marginBottom:6}}>
-          <div style={{fontSize:10,color:"#c2410c",fontWeight:700,marginBottom:4}}>🔍 Repuesto a conseguir (no está en tienda)</div>
-          <div style={{display:"flex",gap:5}}>
-            <input value={repPendiente.nombre} onChange={e=>setRepPendiente(p=>({...p,nombre:e.target.value}))} placeholder="Nombre del repuesto..."
-              style={{flex:1,padding:"5px 8px",border:"1px solid #fed7aa",borderRadius:6,fontSize:12,boxSizing:"border-box"}}/>
-            <input type="number" value={repPendiente.cantidad} onChange={e=>setRepPendiente(p=>({...p,cantidad:e.target.value}))} min={1}
-              style={{width:50,padding:"5px",border:"1px solid #fed7aa",borderRadius:6,fontSize:12,textAlign:"center"}}/>
-            <button onClick={agregarRepPendiente} style={{padding:"5px 10px",background:"#f97316",color:"#fff",border:"none",borderRadius:6,fontSize:11,cursor:"pointer",fontWeight:700}}>+</button>
-          </div>
-        </div>
-
-        {/* Lista de repuestos */}
-        {repuestos.length>0&&<div>
-          {repuestos.map((r,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"5px 8px",background:r.pendiente?"#fff7ed":"#fff",border:`1px solid ${r.pendiente?"#fed7aa":"#e2e8f0"}`,borderRadius:6,marginBottom:3}}>
-            <div style={{flex:1,display:"flex",alignItems:"center",gap:5}}>
-              {r.foto&&<img src={r.foto} style={{width:24,height:24,objectFit:"cover",borderRadius:3}}/>}
-              <div>
-                <div style={{fontSize:11,fontWeight:700}}>{r.nombre}</div>
-                {r.pendiente&&<div style={{fontSize:9,color:"#c2410c",fontWeight:700}}>⚠️ Pendiente de conseguir</div>}
-              </div>
-            </div>
-            <div style={{display:"flex",gap:4,alignItems:"center"}}>
-              <input type="number" value={r.cantidad} min={1} onChange={e=>setRepuestos(p=>p.map((x,j)=>j===i?{...x,cantidad:parseInt(e.target.value)||1}:x))}
-                style={{width:38,padding:"2px 4px",border:"1px solid #e2e8f0",borderRadius:4,fontSize:11,textAlign:"center"}}/>
-              {esEncargado&&!r.pendiente&&<input type="number" value={r.precio} onChange={e=>setRepuestos(p=>p.map((x,j)=>j===i?{...x,precio:parseFloat(e.target.value)||0}:x))}
-                placeholder="Bs." style={{width:55,padding:"2px 4px",border:"1px solid #fbbf24",borderRadius:4,fontSize:11,textAlign:"center",color:"#92400e"}}/>}
-              <button onClick={()=>setRepuestos(p=>p.filter((_,j)=>j!==i))} style={{padding:"1px 5px",background:"#fee2e2",color:"#dc2626",border:"none",borderRadius:4,fontSize:9,cursor:"pointer"}}>✕</button>
-            </div>
-          </div>)}
-          <div style={{textAlign:"right",fontWeight:800,color:"#1d4ed8",fontSize:12,marginTop:4}}>Subtotal repuestos: {fmt(totalRep)}</div>
-        </div>}
-      </div>
-
-      {/* Alerta repuestos sin stock */}
-      {repSinStock.length>0&&<div style={{background:"#fef2f2",border:"2px solid #fca5a5",borderRadius:8,padding:"8px 12px",marginBottom:10}}>
-        <div style={{fontWeight:700,color:"#dc2626",fontSize:12,marginBottom:4}}>🔴 REPUESTOS SIN STOCK — Agregar al inventario antes de entregar:</div>
-        {repSinStock.map((r,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:11,padding:"2px 0"}}>
-          <span style={{color:"#dc2626",fontWeight:700}}>❌ {r.nombre}</span>
-          <a href="/admin.html" style={{fontSize:9,padding:"2px 7px",background:"#dc2626",color:"#fff",borderRadius:4,textDecoration:"none",fontWeight:700}}>📦 Ir a inventario</a>
-        </div>)}
-      </div>}
-
-      {/* Tiempo estimado */}
-      <div style={{marginBottom:10}}>
-        <div style={{fontSize:10,color:"#94a3b8",fontWeight:700,marginBottom:3}}>⏱️ TIEMPO ESTIMADO</div>
-        <select value={tiempoEst} onChange={e=>setTiempoEst(e.target.value)} style={{width:"100%",padding:"6px 8px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:12}}>
-          <option value="">Seleccionar...</option>
-          {["30 minutos","1 hora","2 horas","3 horas","Medio día","1 día","2 días","3 días o más"].map(t=><option key={t} value={t}>{t}</option>)}
-        </select>
-      </div>
-
-      <div style={{marginBottom:10}}><FotoUpload fotos={fotosD} setFotos={setFotosD} label="Fotos del diagnóstico"/></div>
-
-      {/* Resumen financiero */}
-      <div style={{background:"#1e293b",borderRadius:8,padding:"8px 12px",marginBottom:10}}>
-        <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:2}}>
-          <span style={{color:"#4ade80"}}>💰 Mano de obra (ganancia):</span>
-          <span style={{color:"#4ade80",fontWeight:700}}>{fmt(totalMO)}</span>
-        </div>
-        <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:4}}>
-          <span style={{color:"#60a5fa"}}>📦 Repuestos (capital):</span>
-          <span style={{color:"#60a5fa",fontWeight:700}}>{fmt(totalRep)}</span>
-        </div>
-        <div style={{display:"flex",justifyContent:"space-between",fontSize:14,fontWeight:900,paddingTop:4,borderTop:"1px solid #334155"}}>
-          <span style={{color:"#fbbf24"}}>💰 TOTAL:</span>
-          <span style={{color:"#fbbf24"}}>{fmt(total)}</span>
-        </div>
-      </div>
-
-      <div style={{display:"grid",gap:6}}>
-        <button onClick={()=>guardarPaso(paso<3?3:paso)} disabled={guardando}
-          style={{width:"100%",padding:10,background:"#1d4ed8",color:"#fff",border:"none",borderRadius:8,fontWeight:700,fontSize:13,cursor:"pointer"}}>
-          {guardando?"Guardando...":"💾 Guardar diagnóstico"}
-        </button>
-        {esEncargado&&paso<=3&&<button onClick={()=>{guardarPaso(3);alert("✅ Enviado a cotización");}}
-          style={{width:"100%",padding:10,background:"#f59e0b",color:"#1e293b",border:"none",borderRadius:8,fontWeight:700,fontSize:13,cursor:"pointer"}}>
-          💰 Enviar a cotización
-        </button>}
-      </div>
-    </div>}
-
-    {/* PASO 3 — COTIZACIÓN (solo encargados) */}
-    {esEncargado&&paso>=3&&paso<8&&<div style={{background:"#fff",borderRadius:10,padding:14,marginBottom:10,border:"1px solid #fbbf24"}}>
-      <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",color:"#92400e",marginBottom:8}}>💰 Cotización al cliente</div>
-      <div style={{background:"#fffbeb",border:"1px solid #fde68a",borderRadius:8,padding:10,marginBottom:10}}>
-        <div style={{fontWeight:800,fontSize:13,marginBottom:6}}>Resumen para el cliente:</div>
-        {servicios.map((s,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"2px 0"}}><span>🔧 {s.nombre}</span><span style={{fontWeight:700}}>{fmt(s.precio)}</span></div>)}
-        {repuestos.filter(r=>!r.pendiente).map((r,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"2px 0"}}><span>📦 {r.nombre} x{r.cantidad}</span><span style={{fontWeight:700}}>{fmt(parseFloat(r.precio||0)*parseInt(r.cantidad||1))}</span></div>)}
-        {repSinStock.length>0&&<div style={{marginTop:6,fontSize:11,color:"#c2410c",fontWeight:700}}>🔍 Por conseguir: {repSinStock.map(r=>r.nombre).join(", ")}</div>}
-        <div style={{marginTop:8,paddingTop:6,borderTop:"1px solid #fde68a",display:"flex",justifyContent:"space-between",fontWeight:900,fontSize:14}}>
-          <span>TOTAL COTIZACIÓN:</span><span style={{color:"#92400e"}}>{fmt(total)}</span>
-        </div>
-      </div>
-      <div style={{display:"grid",gap:6}}>
-        <button onClick={()=>{
-          const msg=`🚗 *${EMPRESA.nombre}*\n━━━━━━━━━\n*COTIZACIÓN OT ${datos.num}*\n🚗 ${datos.placa} — ${datos.marca} ${datos.modelo}\n\n${servicios.map(s=>`🔧 ${s.nombre}: ${fmt(s.precio)}`).join("\n")}${repuestos.length>0?"\n"+repuestos.filter(r=>!r.pendiente).map(r=>`📦 ${r.nombre} x${r.cantidad}: ${fmt(parseFloat(r.precio||0)*parseInt(r.cantidad||1))}`).join("\n"):""}${repSinStock.length>0?"\n🔍 Por conseguir: "+repSinStock.map(r=>r.nombre).join(", "):""}\n\n💰 *TOTAL: ${fmt(total)}*\n\n¿Aprueba el servicio?`;
-          if(datos.tel) window.open(`https://wa.me/591${datos.tel.replace(/\D/g,"")}?text=${encodeURIComponent(msg)}`,"_blank");
-          else alert("Sin teléfono del cliente.");
-        }} style={{width:"100%",padding:10,background:"#25d366",color:"#fff",border:"none",borderRadius:8,fontWeight:700,fontSize:12,cursor:"pointer"}}>📱 Enviar cotización por WhatsApp</button>
-        <button onClick={generarPDF} style={{width:"100%",padding:10,background:"#dc2626",color:"#fff",border:"none",borderRadius:8,fontWeight:700,fontSize:12,cursor:"pointer"}}>📄 Generar PDF cotización</button>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
-          <button onClick={()=>{guardarPaso(5);alert("✅ Cliente aprobó — técnico puede proceder");}} style={{padding:10,background:"#16a34a",color:"#fff",border:"none",borderRadius:8,fontWeight:700,fontSize:12,cursor:"pointer"}}>✅ Cliente aprobó</button>
-          <button onClick={()=>{guardarPaso(1);alert("❌ Cliente rechazó la cotización");}} style={{padding:10,background:"#ef4444",color:"#fff",border:"none",borderRadius:8,fontWeight:700,fontSize:12,cursor:"pointer"}}>❌ Cliente rechazó</button>
-        </div>
-      </div>
-    </div>}
-
-    {/* PASO 5 — TRABAJO */}
-    {paso>=5&&paso<8&&<div style={{background:"#fff",borderRadius:10,padding:14,marginBottom:10,border:"1px solid #e2e8f0"}}>
-      <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",color:"#64748b",marginBottom:8}}>🔧 Ejecución del trabajo</div>
-      <textarea value={obsAdicional} onChange={e=>setObsAdicional(e.target.value)} placeholder="Observaciones del trabajo, problemas encontrados..."
-        style={{width:"100%",padding:"7px 10px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:12,minHeight:60,resize:"none",marginBottom:8,boxSizing:"border-box"}}/>
-      <div style={{marginBottom:10}}><FotoUpload fotos={fotosT} setFotos={setFotosT} label="Fotos del trabajo realizado"/></div>
-      <button onClick={()=>{guardarPaso(6);alert("✅ Trabajo marcado como terminado — esperando control de calidad");}}
-        style={{width:"100%",padding:10,background:"#0891b2",color:"#fff",border:"none",borderRadius:8,fontWeight:700,fontSize:13,cursor:"pointer"}}>
-        ✅ Marcar trabajo TERMINADO
-      </button>
-    </div>}
-
-    {/* PASO 7 — CONTROL DE CALIDAD */}
-    {esEncargado&&paso>=6&&paso<8&&<div style={{background:"#fff",borderRadius:10,padding:14,marginBottom:10,border:"1px solid #14b8a6"}}>
-      <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",color:"#0f766e",marginBottom:8}}>🔎 Control de calidad</div>
-      <textarea value={obsCalidad} onChange={e=>setObsCalidad(e.target.value)} placeholder="Observaciones de calidad..."
-        style={{width:"100%",padding:"7px 10px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:12,minHeight:60,resize:"none",marginBottom:8,boxSizing:"border-box"}}/>
-      <div style={{marginBottom:10}}><FotoUpload fotos={fotosC} setFotos={setFotosC} label="Fotos del control de calidad"/></div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
-        <button onClick={()=>{guardarPaso(5);alert("⚠️ Fallas enviadas al técnico para corrección");}} style={{padding:10,background:"#f59e0b",color:"#1e293b",border:"none",borderRadius:8,fontWeight:700,fontSize:12,cursor:"pointer"}}>⚠️ Enviar fallas al técnico</button>
-        <button onClick={()=>guardarPaso(7)} style={{padding:10,background:"#14b8a6",color:"#fff",border:"none",borderRadius:8,fontWeight:700,fontSize:12,cursor:"pointer"}}>✅ Aprobado — listo para entregar</button>
-      </div>
-    </div>}
-
-    {/* PASO 8 — ENTREGA */}
-    {esEncargado&&paso>=7&&paso<8&&<div style={{background:"#fff",borderRadius:10,padding:14,marginBottom:10,border:"2px solid #22c55e"}}>
-      <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",color:"#15803d",marginBottom:8}}>🚗 Entrega al cliente</div>
-
-      {/* Alerta repuestos pendientes */}
-      {repSinStock.length>0&&<div style={{background:"#fef2f2",border:"2px solid #dc2626",borderRadius:8,padding:"8px 12px",marginBottom:10}}>
-        <div style={{fontWeight:900,color:"#dc2626",fontSize:12}}>🔴 NO PUEDES ENTREGAR</div>
-        <div style={{fontSize:11,color:"#dc2626",marginTop:3}}>Faltan estos repuestos en inventario:</div>
-        {repSinStock.map((r,i)=><div key={i} style={{fontSize:11,fontWeight:700,color:"#dc2626"}}>❌ {r.nombre}</div>)}
-        <a href="/admin.html" style={{display:"inline-block",marginTop:6,padding:"4px 10px",background:"#dc2626",color:"#fff",borderRadius:6,fontSize:10,textDecoration:"none",fontWeight:700}}>📦 Ir a agregar al inventario</a>
-      </div>}
-
-      <div style={{background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:8,padding:10,marginBottom:10}}>
-        <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:2}}><span>💰 Mano de obra:</span><span style={{fontWeight:700,color:"#16a34a"}}>{fmt(totalMO)}</span></div>
-        <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:6}}><span>📦 Repuestos:</span><span style={{fontWeight:700,color:"#1d4ed8"}}>{fmt(totalRep)}</span></div>
-        <div style={{display:"flex",justifyContent:"space-between",fontSize:15,fontWeight:900,paddingTop:6,borderTop:"1px solid #bbf7d0"}}><span>💰 TOTAL:</span><span style={{color:"#15803d"}}>{fmt(total)}</span></div>
-      </div>
-
-      <div style={{display:"grid",gap:6}}>
-        <button onClick={generarPDF} style={{width:"100%",padding:10,background:"#dc2626",color:"#fff",border:"none",borderRadius:8,fontWeight:700,fontSize:12,cursor:"pointer"}}>📄 Generar informe PDF para cliente</button>
-        <button onClick={()=>{
-          const msg=`🚗 *${EMPRESA.nombre}*\n✅ *Su vehículo está listo*\n\nOT: ${datos.num}\n🚗 ${datos.placa} — ${datos.marca} ${datos.modelo}\n\n💰 *TOTAL: ${fmt(total)}*\n\n¡Gracias por su confianza! 📞 ${EMPRESA.tel1}`;
-          if(datos.tel) window.open(`https://wa.me/591${datos.tel.replace(/\D/g,"")}?text=${encodeURIComponent(msg)}`,"_blank");
-        }} style={{width:"100%",padding:10,background:"#25d366",color:"#fff",border:"none",borderRadius:8,fontWeight:700,fontSize:12,cursor:"pointer"}}>📱 Avisar al cliente que está listo</button>
-        {repSinStock.length===0&&<button onClick={confirmarEntrega} style={{width:"100%",padding:12,background:"#16a34a",color:"#fff",border:"none",borderRadius:8,fontWeight:900,fontSize:14,cursor:"pointer"}}>🚗 CONFIRMAR ENTREGA AL CLIENTE</button>}
-      </div>
-    </div>}
-
-    {/* OT ENTREGADA */}
-    {paso>=8&&<div style={{background:"#f0fdf4",border:"2px solid #22c55e",borderRadius:10,padding:14,marginBottom:10,textAlign:"center"}}>
-      <div style={{fontSize:24,marginBottom:4}}>✅</div>
-      <div style={{fontWeight:900,fontSize:14,color:"#15803d"}}>Vehículo entregado</div>
-      <div style={{fontSize:11,color:"#64748b",marginTop:3}}>Entregado por: {datos.entregado_por} · {datos.fecha_entrega}</div>
-      <div style={{fontSize:16,fontWeight:900,color:"#16a34a",marginTop:6}}>{fmt(total)}</div>
-      <div style={{display:"flex",gap:6,justifyContent:"center",marginTop:10}}>
-        <button onClick={generarPDF} style={{padding:"7px 14px",background:"#dc2626",color:"#fff",border:"none",borderRadius:8,fontWeight:700,fontSize:11,cursor:"pointer"}}>📄 PDF informe</button>
-        <button onClick={()=>{
-          const msg=`🚗 *${EMPRESA.nombre}*\n\n*RECIBO OT ${datos.num}*\n🚗 ${datos.placa}\n💰 Total pagado: ${fmt(total)}\n✅ Garantía 30 días\n\n¡Gracias! 📞 ${EMPRESA.tel1}`;
-          if(datos.tel) window.open(`https://wa.me/591${datos.tel.replace(/\D/g,"")}?text=${encodeURIComponent(msg)}`,"_blank");
-        }} style={{padding:"7px 14px",background:"#25d366",color:"#fff",border:"none",borderRadius:8,fontWeight:700,fontSize:11,cursor:"pointer"}}>📱 WhatsApp</button>
-      </div>
-    </div>}
-  </div>;
-}
-
-// APP
 function App(){
   const [usuario,setUsuario]=React.useState(null);
   const [vista,setVista]=React.useState("lista");
-  const [otActual,setOtActual]=React.useState(null);
 
-  if(!usuario) return <Login onLogin={setUsuario}/>;
+  if(!usuario) return <Login onLogin={u=>{
+    sessionStorage.setItem("usuario_ot",JSON.stringify(u));
+    setUsuario(u);
+  }}/>;
 
   return <div style={{padding:10,background:"#f0f4f8",minHeight:"100vh"}}>
     {/* Header */}
-    <div style={{background:"#1e293b",color:"#fbbf24",padding:"10px 14px",borderRadius:10,marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}} className="noprint">
+    <div style={{background:"#1e293b",color:"#fbbf24",padding:"10px 14px",borderRadius:10,marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}}>
       <div>
         <div style={{fontSize:14,fontWeight:900}}>📋 {EMPRESA.nombre}</div>
         <div style={{fontSize:9,color:"#94a3b8"}}>Órdenes de Trabajo · {usuario.nombre}</div>
@@ -738,9 +299,8 @@ function App(){
       </div>
     </div>
 
-    {vista==="lista"&&<ListaOTs usuario={usuario} onNueva={()=>setVista("nueva")} onAbrir={ot=>{setOtActual(ot);setVista("detalle");}}/>}
-    {vista==="nueva"&&<FormOT usuario={usuario} onGuardado={ot=>{setOtActual(ot);setVista("detalle");}} onCancelar={()=>setVista("lista")}/>}
-    {vista==="detalle"&&otActual&&<DetalleOT ot={otActual} usuario={usuario} onVolver={()=>setVista("lista")} onActualizado={ot=>setOtActual(ot)}/>}
+    {vista==="lista"&&<ListaOTs usuario={usuario} onNueva={()=>setVista("nueva")}/>}
+    {vista==="nueva"&&<FormOT usuario={usuario} onGuardado={()=>setVista("lista")} onCancelar={()=>setVista("lista")}/>}
   </div>;
 }
 
@@ -748,3 +308,4 @@ ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
 </script>
 </body>
 </html>
+  
