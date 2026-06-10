@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Caja — Servi Car Platinium</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;background:#f0f4f8}#root{min-height:100vh}
+  @media print{.noprint{display:none!important}.printable{padding:20px}}
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+
+const SUPA_URL="https://epirsbudngwbxgcsryvv.supabase.co";
+const SUPA_KEY="sb_publishable_zsqvMzJMc80Ypf3UQqs-SA_IrV-XIGc";
+const sb=window.supabase.createClient(SUPA_URL,SUPA_KEY);
+
+const EMPRESA={nombre:"SERVI CAR PLATINIUM",ciudad:"Viacha - La Paz",tel1:"68167264",tel2:"60574920"};
+const TALLERES=["Taller 1 · Montes","Taller 2 · Bella Vista"];
+const fmt=n=>`Bs. ${parseFloat(n||0).toFixed(2)}`;
+const hoy=()=>new Date().toLocaleDateString("es-BO");
+const horaActual=()=>new Date().toLocaleTimeString("es-BO",{hour:"2-digit",minute:"2-digit"});
+const semanaActual=()=>{const d=new Date();const s=Math.ceil(d.getDate()/7);return `Semana ${s} — ${d.toLocaleDateString("es-BO",{month:"long",year:"numeric"})}`};
+
+const Card=({children,style={}})=><div style={{background:"#fff",borderRadius:10,padding:14,marginBottom:10,border:"1px solid #e2e8f0",...style}}>{children}</div>;
+const Tit=({text})=><div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",color:"#64748b",marginBottom:8,paddingBottom:4,borderBottom:"2px solid #fbbf24",display:"inline-block"}}>{text}</div>;
+const Btn=({onClick,color,text,style={}})=><button onClick={onClick} style={{padding:"8px 14px",background:color,color:"#fff",border:"none",borderRadius:8,fontWeight:700,fontSize:12,cursor:"pointer",...style}}>{text}</button>;
+
+// LOGIN
+function Login({onLogin}){
+  const [u,setU]=React.useState("");const [p,setP]=React.useState("");const [err,setErr]=React.useState("");const [cargando,setCargando]=React.useState(false);
+  const ok=async()=>{
+    setCargando(true);
+    const{data}=await sb.from("usuarios").select("*").eq("user_name",u.toLowerCase().trim()).eq("pass",p).single();
+    setCargando(false);
+    if(!data){setErr("Usuario o contraseña incorrectos");return;}
+    const rolesPermitidos=["admin","encargado","vanesa","finanzas"];
+    if(!rolesPermitidos.includes(data.rol)&&data.user_name!=="vanesa"&&data.user_name!=="william"&&data.user_name!=="wilfredo"){
+      alert("❌ No tienes acceso a la caja.");window.location.href="/";return;
+    }
+    onLogin(data);
+  };
+  return <div style={{minHeight:"100vh",background:"#0f172a",display:"flex",alignItems:"center",justifyContent:"center"}}>
+    <div style={{background:"#1e293b",borderRadius:16,padding:32,width:300,boxShadow:"0 20px 60px rgba(0,0,0,.5)"}}>
+      <div style={{textAlign:"center",marginBottom:24}}>
+        <div style={{fontSize:40}}>💵</div>
+        <div style={{color:"#fbbf24",fontWeight:900,fontSize:16}}>{EMPRESA.nombre}</div>
+        <div style={{color:"#64748b",fontSize:11,marginTop:4}}>Control de Caja</div>
+      </div>
+      {[["USUARIO",u,setU,"text"],["CONTRASEÑA",p,setP,"password"]].map(([l,v,s,t])=>
+        <div key={l} style={{marginBottom:12}}>
+          <div style={{color:"#94a3b8",fontSize:11,marginBottom:4,fontWeight:700}}>{l}</div>
+          <input type={t} value={v} onChange={e=>s(e.target.value)} onKeyDown={e=>e.key==="Enter"&&ok()}
+            style={{width:"100%",padding:"10px 12px",background:"#0f172a",border:"1px solid #334155",borderRadius:8,color:"#fff",fontSize:13,boxSizing:"border-box"}}/>
+        </div>)}
+      {err&&<div style={{color:"#ef4444",fontSize:11,marginBottom:10,textAlign:"center"}}>{err}</div>}
+      <button onClick={ok} disabled={cargando} style={{width:"100%",padding:11,background:"#f59e0b",color:"#1e293b",border:"none",borderRadius:8,fontWeight:900,fontSize:14,cursor:"pointer"}}>{cargando?"Verificando...":"Ingresar →"}</button>
+    </div>
+  </div>;
+}
+
+// APERTURA DE CAJA
+function AperturaCaja({usuario,onAbierta}){
+  const [taller,setTaller]=React.useState(usuario.taller==="ambos"?"":usuario.taller);
+  const [monto,setMonto]=React.useState(0);
+  const [guardando,setGuardando]=React.useState(false);
+  const [cajaExistente,setCajaExistente]=React.useState(null);
+  const [verificando,setVerificando]=React.useState(false);
+
+  const verificarCaja=async(t)=>{
+    if(!t)return;
+    setVerificando(true);
+    const{data}=await sb.from("caja_sesiones").select("*").eq("fecha",hoy()).eq("taller",t).eq("estado","Abierta").single();
+    setVerificando(false);
+    if(data){setCajaExistente(data);onAbierta(data);}
+    else setCajaExistente(null);
+  };
+
+  React.useEffect(()=>{if(taller)verificarCaja(taller);},[taller]);
+
+  const abrir=async()=>{
+    if(!taller){alert("Selecciona el taller.");return;}
+    setGuardando(true);
+    const{data,error}=await sb.from("caja_sesiones").insert({
+      fecha:hoy(),taller,apertura_hora:horaActual(),
+      apertura_monto:parseFloat(monto)||0,
+      estado:"Abierta",usuario:usuario.nombre
+    }).select().single();
+    setGuardando(false);
+    if(error){alert("Error: "+error.message);return;}
+    alert(`✅ Caja abierta — ${taller}\n🕐 ${horaActual()}`);
+    onAbierta(data);
+  };
+
+  return <Card>
+    <Tit text="🌅 Abrir Caja"/>
+    <div style={{marginBottom:10}}>
+      <div style={{fontSize:10,color:"#94a3b8",fontWeight:700,textTransform:"uppercase",marginBottom:4}}>Taller *</div>
+      {usuario.taller==="ambos"
+        ?<select value={taller} onChange={e=>setTaller(e.target.value)} style={{width:"100%",padding:"8px 10px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:13}}>
+          <option value="">Seleccionar taller...</option>
+          {TALLERES.map(t=><option key={t} value={t}>{t}</option>)}
+        </select>
+        :<div style={{padding:"8px 10px",background:"#eff6ff",borderRadius:8,fontWeight:700,color:"#1d4ed8",fontSize:12}}>🔧 {taller}</div>}
+    </div>
+    {verificando&&<div style={{textAlign:"center",padding:10,color:"#94a3b8",fontSize:12}}>Verificando caja...</div>}
+    {!verificando&&<>
+      <div style={{marginBottom:14}}>
+        <div style={{fontSize:10,color:"#94a3b8",fontWeight:700,textTransform:"uppercase",marginBottom:4}}>💰 Efectivo inicial en caja Bs.</div>
+        <input type="number" value={monto} onChange={e=>setMonto(e.target.value)} placeholder="0"
+          style={{width:"100%",padding:"10px 12px",border:"2px solid #fbbf24",borderRadius:8,fontSize:18,fontWeight:900,textAlign:"center",color:"#92400e",boxSizing:"border-box"}}/>
+        <div style={{fontSize:10,color:"#94a3b8",marginTop:4}}>Dinero con el que abre la caja hoy</div>
+      </div>
+      <div style={{background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:8,padding:"8px 12px",marginBottom:12,fontSize:11}}>
+        <div style={{fontWeight:700,color:"#15803d"}}>📅 {hoy()} · 🕐 {horaActual()}</div>
+        <div style={{color:"#64748b",marginTop:2}}>Responsable: {usuario.nombre}</div>
+      </div>
+      <Btn onClick={abrir} color="#16a34a" text="🌅 Abrir caja ahora" style={{width:"100%",padding:12,fontSize:14}}/>
+    </>}
+  </Card>;
+}
+
+// RESUMEN DEL DÍA
+function ResumenDia({sesion,usuario}){
+  const [movimientos,setMovimientos]=React.useState([]);
+  const [gastos,setGastos]=React.useState([]);
+  const [nuevoGasto,setNuevoGasto]=React.useState({concepto:"",monto:0,metodo:"Efectivo"});
+  const [agregandoGasto,setAgregandoGasto]=React.useState(false);
+  const [guardandoGasto,setGuardandoGasto]=React.useState(false);
+
+  const cargar=async()=>{
+    const{data:mov}=await sb.from("caja").select("*").eq("fecha",hoy()).eq("taller",sesion.taller).order("created_at");
+    setMovimientos(mov||[]);
+    const{data:gas}=await sb.from("caja").select("*").eq("fecha",hoy()).eq("taller",sesion.taller).eq("tipo","egreso").order("created_at");
+    setGastos(gas||[]);
+  };
+
+  React.useEffect(()=>{cargar();const t=setInterval(cargar,30000);return()=>clearInterval(t);},[]);
+
+  const totalEfectivo=movimientos.filter(m=>m.tipo==="ingreso"&&(m.metodo==="Efectivo"||!m.metodo)).reduce((s,m)=>s+parseFloat(m.monto||0),0);
+  const totalQR=movimientos.filter(m=>m.tipo==="ingreso"&&m.metodo==="QR").reduce((s,m)=>s+parseFloat(m.monto||0),0);
+  const totalIngresos=movimientos.filter(m=>m.tipo==="ingreso").reduce((s,m)=>s+parseFloat(m.monto||0),0);
+  const totalEgresos=movimientos.filter(m=>m.tipo==="egreso").reduce((s,m)=>s+parseFloat(m.monto||0),0);
+  const totalNeto=totalIngresos-totalEgresos;
+
+  const guardarGasto=async()=>{
+    if(!nuevoGasto.concepto||!nuevoGasto.monto){alert("Completa concepto y monto.");return;}
+    setGuardandoGasto(true);
+    await sb.from("caja").insert({fecha:hoy(),taller:sesion.taller,concepto:nuevoGasto.concepto,tipo:"egreso",monto:parseFloat(nuevoGasto.monto),metodo:nuevoGasto.metodo,user_name:usuario.nombre});
+    setGuardandoGasto(false);
+    setNuevoGasto({concepto:"",monto:0,metodo:"Efectivo"});
+    setAgregandoGasto(false);
+    cargar();
+  };
+
+  return <div>
+    {/* Resumen */}
+    <Card>
+      <Tit text="📊 Resumen del día"/>
+      <div style={{fontSize:11,color:"#64748b",marginBottom:10}}>🏢 {sesion.taller} · 📅 {hoy()} · Abierta a las {sesion.apertura_hora}</div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
+        {[
+          {l:"💵 Efectivo",v:totalEfectivo,c:"#16a34a"},
+          {l:"📱 QR",v:totalQR,c:"#1d4ed8"},
+          {l:"📈 Total ingresos",v:totalIngresos,c:"#0891b2"},
+          {l:"📉 Total gastos",v:totalEgresos,c:"#dc2626"},
+        ].map(x=><div key={x.l} style={{background:"#f8fafc",border:`1px solid ${x.c}20`,borderRadius:8,padding:"8px 10px"}}>
+          <div style={{fontSize:10,color:"#94a3b8",fontWeight:700}}>{x.l}</div>
+          <div style={{fontSize:16,fontWeight:900,color:x.c,marginTop:2}}>{fmt(x.v)}</div>
+        </div>)}
+      </div>
+      <div style={{background:"#1e293b",borderRadius:8,padding:"10px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <span style={{color:"#94a3b8",fontSize:12,fontWeight:700}}>💰 NETO DEL DÍA</span>
+        <span style={{color:"#fbbf24",fontWeight:900,fontSize:18}}>{fmt(totalNeto)}</span>
+      </div>
+    </Card>
+
+    {/* Gastos */}
+    <Card>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+        <Tit text="📉 Registrar gasto"/>
+        <button onClick={()=>setAgregandoGasto(!agregandoGasto)} style={{padding:"4px 10px",background:"#ef4444",color:"#fff",border:"none",borderRadius:6,fontWeight:700,fontSize:11,cursor:"pointer"}}>
+          {agregandoGasto?"Cancelar":"+ Gasto"}
+        </button>
+      </div>
+      {agregandoGasto&&<div style={{background:"#fff5f5",border:"1px solid #fca5a5",borderRadius:8,padding:10,marginBottom:8}}>
+        <div style={{display:"grid",gap:6}}>
+          <div>
+            <div style={{fontSize:10,color:"#94a3b8",fontWeight:700,marginBottom:3}}>CONCEPTO *</div>
+            <input value={nuevoGasto.concepto} onChange={e=>setNuevoGasto(p=>({...p,concepto:e.target.value}))} placeholder="Ej: Gasolina, limpieza, etc."
+              style={{width:"100%",padding:"7px 10px",border:"1px solid #e2e8f0",borderRadius:7,fontSize:12,boxSizing:"border-box"}}/>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+            <div>
+              <div style={{fontSize:10,color:"#94a3b8",fontWeight:700,marginBottom:3}}>MONTO Bs. *</div>
+              <input type="number" value={nuevoGasto.monto} onChange={e=>setNuevoGasto(p=>({...p,monto:e.target.value}))}
+                style={{width:"100%",padding:"7px 10px",border:"1px solid #e2e8f0",borderRadius:7,fontSize:12,boxSizing:"border-box"}}/>
+            </div>
+            <div>
+              <div style={{fontSize:10,color:"#94a3b8",fontWeight:700,marginBottom:3}}>MÉTODO</div>
+              <select value={nuevoGasto.metodo} onChange={e=>setNuevoGasto(p=>({...p,metodo:e.target.value}))}
+                style={{width:"100%",padding:"7px 10px",border:"1px solid #e2e8f0",borderRadius:7,fontSize:12}}>
+                <option>Efectivo</option><option>QR</option><option>Transferencia</option>
+              </select>
+            </div>
+          </div>
+          <Btn onClick={guardarGasto} color="#ef4444" text={guardandoGasto?"Guardando...":"💾 Registrar gasto"} style={{width:"100%"}}/>
+        </div>
+      </div>}
+      {gastos.length>0&&<div>
+        {gastos.map((g,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",padding:"5px 8px",background:i%2===0?"#fff5f5":"#fff",borderRadius:6,fontSize:11,marginBottom:2}}>
+          <span style={{color:"#374151"}}>{g.concepto}</span>
+          <span style={{color:"#dc2626",fontWeight:700}}>{fmt(g.monto)}</span>
+        </div>)}
+      </div>}
+    </Card>
+
+    {/* Movimientos del día */}
+    <Card>
+      <Tit text="📋 Movimientos del día"/>
+      {movimientos.length===0
+        ?<div style={{textAlign:"center",padding:15,color:"#94a3b8",fontSize:12}}>Sin movimientos aún</div>
+        :<div style={{maxHeight:200,overflowY:"auto"}}>
+          {movimientos.map((m,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",padding:"5px 8px",background:i%2===0?"#f8fafc":"#fff",borderRadius:6,marginBottom:2,fontSize:11}}>
+            <span style={{color:"#374151",flex:1}}>{m.concepto}</span>
+            <span style={{color:m.tipo==="ingreso"?"#16a34a":"#dc2626",fontWeight:700,marginLeft:8}}>{m.tipo==="egreso"?"-":""}{fmt(m.monto)}</span>
+          </div>)}
+        </div>}
+    </Card>
+  </div>;
+}
+
+// CIERRE DE CAJA
+function CierreCaja({sesion,usuario,onCerrada}){
+  const [efectivo,setEfectivo]=React.useState(0);
+  const [qr,setQr]=React.useState(0);
+  const [obs,setObs]=React.useState("");
+  const [cerrando,setCerrando]=React.useState(false);
+  const [movimientos,setMovimientos]=React.useState([]);
+
+  React.useEffect(()=>{
+    sb.from("caja").select("*").eq("fecha",hoy()).eq("taller",sesion.taller).then(({data})=>setMovimientos(data||[]));
+  },[]);
+
+  const totalSistema=movimientos.filter(m=>m.tipo==="ingreso").reduce((s,m)=>s+parseFloat(m.monto||0),0);
+  const totalGastos=movimientos.filter(m=>m.tipo==="egreso").reduce((s,m)=>s+parseFloat(m.monto||0),0);
+  const totalEfectivoContado=parseFloat(efectivo||0);
+  const totalQRContado=parseFloat(qr||0);
+  const totalContado=totalEfectivoContado+totalQRContado;
+  const diferencia=totalContado-(totalSistema-totalGastos);
+
+  const cerrar=async()=>{
+    if(!window.confirm(`¿Cerrar caja de ${sesion.taller}?\n\nEfectivo: ${fmt(efectivo)}\nQR: ${fmt(qr)}\nTotal: ${fmt(totalContado)}\n\nEsta acción no se puede deshacer.`))return;
+    setCerrando(true);
+    await sb.from("caja_sesiones").update({
+      cierre_hora:horaActual(),
+      cierre_efectivo:parseFloat(efectivo)||0,
+      cierre_qr:parseFloat(qr)||0,
+      cierre_total:totalContado,
+      diferencia,
+      estado:"Cerrada",
+      obs_cierre:obs
+    }).eq("id",sesion.id);
+    setCerrando(false);
+    alert(`✅ Caja cerrada exitosamente\n💰 Total: ${fmt(totalContado)}`);
+    onCerrada();
+  };
+
+  return <Card>
+    <Tit text="🌆 Cerrar Caja"/>
+    <div style={{fontSize:11,color:"#64748b",marginBottom:10}}>🏢 {sesion.taller} · Abierta: {sesion.apertura_hora}</div>
+
+    <div style={{background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:8,padding:10,marginBottom:10}}>
+      <div style={{fontSize:10,color:"#64748b",fontWeight:700,marginBottom:6}}>📊 SEGÚN EL SISTEMA</div>
+      <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:3}}>
+        <span>Total ingresos:</span><span style={{fontWeight:700,color:"#16a34a"}}>{fmt(totalSistema)}</span>
+      </div>
+      <div style={{display:"flex",justifyContent:"space-between",fontSize:12}}>
+        <span>Total gastos:</span><span style={{fontWeight:700,color:"#dc2626"}}>{fmt(totalGastos)}</span>
+      </div>
+      <div style={{display:"flex",justifyContent:"space-between",fontSize:13,fontWeight:900,marginTop:6,paddingTop:6,borderTop:"1px solid #bbf7d0"}}>
+        <span>Neto esperado:</span><span style={{color:"#15803d"}}>{fmt(totalSistema-totalGastos)}</span>
+      </div>
+    </div>
+
+    <div style={{marginBottom:10}}>
+      <div style={{fontSize:10,color:"#94a3b8",fontWeight:700,marginBottom:6}}>💵 CONTEO REAL DE CAJA</div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+        <div>
+          <div style={{fontSize:10,color:"#64748b",marginBottom:3}}>Efectivo contado Bs.</div>
+          <input type="number" value={efectivo} onChange={e=>setEfectivo(e.target.value)}
+            style={{width:"100%",padding:"8px 10px",border:"2px solid #22c55e",borderRadius:8,fontSize:15,fontWeight:800,textAlign:"center",color:"#15803d",boxSizing:"border-box"}}/>
+        </div>
+        <div>
+          <div style={{fontSize:10,color:"#64748b",marginBottom:3}}>QR recibido Bs.</div>
+          <input type="number" value={qr} onChange={e=>setQr(e.target.value)}
+            style={{width:"100%",padding:"8px 10px",border:"2px solid #3b82f6",borderRadius:8,fontSize:15,fontWeight:800,textAlign:"center",color:"#1d4ed8",boxSizing:"border-box"}}/>
+        </div>
+      </div>
+    </div>
+
+    <div style={{background:Math.abs(diferencia)<1?"#f0fdf4":diferencia>0?"#fffbeb":"#fff5f5",border:`1px solid ${Math.abs(diferencia)<1?"#bbf7d0":diferencia>0?"#fde68a":"#fca5a5"}`,borderRadius:8,padding:10,marginBottom:10}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <span style={{fontSize:12,fontWeight:700}}>
+          {Math.abs(diferencia)<1?"✅ Cuadra perfectamente":diferencia>0?"⚠️ Sobra":"❌ Falta"}
+        </span>
+        <span style={{fontSize:16,fontWeight:900,color:Math.abs(diferencia)<1?"#16a34a":diferencia>0?"#d97706":"#dc2626"}}>
+          {diferencia>0?"+":""}{fmt(diferencia)}
+        </span>
+      </div>
+    </div>
+
+    {Math.abs(diferencia)>=1&&<div style={{marginBottom:10}}>
+      <div style={{fontSize:10,color:"#94a3b8",fontWeight:700,marginBottom:3}}>OBSERVACIÓN (motivo de diferencia)</div>
+      <input value={obs} onChange={e=>setObs(e.target.value)} placeholder="Explica la diferencia..."
+        style={{width:"100%",padding:"7px 10px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:12,boxSizing:"border-box"}}/>
+    </div>}
+
+    <Btn onClick={cerrar} color="#dc2626" text={cerrando?"Cerrando...":"🌆 Cerrar caja ahora"} style={{width:"100%",padding:12,fontSize:14}}/>
+  </Card>;
+}
+
+// INFORME SEMANAL
+function InformeSemanal({usuario}){
+  const [taller,setTaller]=React.useState(usuario.taller==="ambos"?"ambos":usuario.taller);
+  const [semana,setSemana]=React.useState(0);
+  const [datos,setDatos]=React.useState(null);
+  const [cargando,setCargando]=React.useState(false);
+
+  const getFechasSemana=(offset)=>{
+    const hoyD=new Date();
+    const diaSemana=hoyD.getDay();
+    const lunes=new Date(hoyD);
+    lunes.setDate(hoyD.getDate()-diaSemana+1+(offset*7));
+    const domingo=new Date(lunes);
+    domingo.setDate(lunes.getDate()+6);
+    const fechas=[];
+    for(let i=0;i<7;i++){
+      const d=new Date(lunes);
+      d.setDate(lunes.getDate()+i);
+      fechas.push(d.toLocaleDateString("es-BO"));
+    }
+    return{fechas,inicio:lunes.toLocaleDateString("es-BO"),fin:domingo.toLocaleDateString("es-BO")};
+  };
+
+  const cargar=async()=>{
+    setCargando(true);
+    const{fechas,inicio,fin}=getFechasSemana(semana);
+    let query=sb.from("caja").select("*").in("fecha",fechas);
+    if(taller!=="ambos") query=query.eq("taller",taller);
+    const{data}=await query;
+    const movs=data||[];
+
+    const resumen={
+      periodo:`${inicio} al ${fin}`,
+      talleres:{},
+      totalIngresos:0,
+      totalGastos:0,
+      neto:0,
+    };
+
+    TALLERES.forEach(t=>{
+      const movT=movs.filter(m=>m.taller===t);
+      const ing=movT.filter(m=>m.tipo==="ingreso").reduce((s,m)=>s+parseFloat(m.monto||0),0);
+      const gas=movT.filter(m=>m.tipo==="egreso").reduce((s,m)=>s+parseFloat(m.monto||0),0);
+      const ef=movT.filter(m=>m.tipo==="ingreso"&&(!m.metodo||m.metodo==="Efectivo")).reduce((s,m)=>s+parseFloat(m.monto||0),0);
+      const qr=movT.filter(m=>m.tipo==="ingreso"&&m.metodo==="QR").reduce((s,m)=>s+parseFloat(m.monto||0),0);
+      resumen.talleres[t]={ingresos:ing,gastos:gas,neto:ing-gas,efectivo:ef,qr};
+      resumen.totalIngresos+=ing;
+      resumen.totalGastos+=gas;
+    });
+    resumen.neto=resumen.totalIngresos-resumen.totalGastos;
+
+    // Cierres de caja de la semana
+    let qCierres=sb.from("caja_sesiones").select("*").in("fecha",fechas).eq("estado","Cerrada");
+    if(taller!=="ambos") qCierres=qCierres.eq("taller",taller);
+    const{data:cierres}=await qCierres;
+    resumen.cierres=cierres||[];
+
+    setDatos(resumen);
+    setCargando(false);
+  };
+
+  React.useEffect(()=>{cargar();},[taller,semana]);
+
+  const imprimirInforme=()=>window.print();
+
+  const enviarWA=()=>{
+    if(!datos)return;
+    const msg=`📊 *INFORME SEMANAL — ${EMPRESA.nombre}*\n${datos.periodo}\n━━━━━━━━━━━━━━━━\n\n${
+      Object.entries(datos.talleres).map(([t,d])=>`🏢 *${t}*\n💵 Efectivo: ${fmt(d.efectivo)}\n📱 QR: ${fmt(d.qr)}\n📈 Ingresos: ${fmt(d.ingresos)}\n📉 Gastos: ${fmt(d.gastos)}\n💰 Neto: ${fmt(d.neto)}`).join("\n\n")
+    }\n\n━━━━━━━━━━━━━━━━\n💰 *TOTAL GENERAL: ${fmt(datos.neto)}*\n\nGenerado: ${hoy()}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`,"_blank");
+  };
+
+  return <div>
+    <Card>
+      <Tit text="📅 Informe Semanal"/>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
+        <div>
+          <div style={{fontSize:10,color:"#94a3b8",fontWeight:700,marginBottom:3}}>TALLER</div>
+          <select value={taller} onChange={e=>setTaller(e.target.value)} style={{width:"100%",padding:"7px 10px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:12}}>
+            <option value="ambos">🏢 Ambos talleres</option>
+            {TALLERES.map(t=><option key={t} value={t}>{t}</option>)}
+          </select>
+        </div>
+        <div>
+          <div style={{fontSize:10,color:"#94a3b8",fontWeight:700,marginBottom:3}}>SEMANA</div>
+          <select value={semana} onChange={e=>setSemana(parseInt(e.target.value))} style={{width:"100%",padding:"7px 10px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:12}}>
+            <option value={0}>Esta semana</option>
+            <option value={-1}>Semana pasada</option>
+            <option value={-2}>Hace 2 semanas</option>
+            <option value={-3}>Hace 3 semanas</option>
+          </select>
+        </div>
+      </div>
+
+      {cargando&&<div style={{textAlign:"center",padding:15,color:"#94a3b8"}}>Cargando...</div>}
+
+      {datos&&!cargando&&<div className="printable">
+        <div style={{textAlign:"center",marginBottom:10,paddingBottom:8,borderBottom:"2px solid #fbbf24"}}>
+          <div style={{fontWeight:900,fontSize:14}}>{EMPRESA.nombre}</div>
+          <div style={{fontSize:11,color:"#64748b"}}>Informe Semanal · {datos.periodo}</div>
+        </div>
+
+        {Object.entries(datos.talleres).map(([t,d])=>(taller==="ambos"||taller===t)&&
+          <div key={t} style={{marginBottom:12,background:"#f8fafc",borderRadius:8,padding:10}}>
+            <div style={{fontWeight:800,fontSize:12,color:"#1e293b",marginBottom:6}}>🏢 {t}</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+              {[
+                {l:"💵 Efectivo",v:d.efectivo,c:"#16a34a"},
+                {l:"📱 QR",v:d.qr,c:"#1d4ed8"},
+                {l:"📈 Ingresos",v:d.ingresos,c:"#0891b2"},
+                {l:"📉 Gastos",v:d.gastos,c:"#dc2626"},
+              ].map(x=><div key={x.l} style={{background:"#fff",borderRadius:6,padding:"6px 8px",border:`1px solid ${x.c}20`}}>
+                <div style={{fontSize:9,color:"#94a3b8",fontWeight:700}}>{x.l}</div>
+                <div style={{fontSize:13,fontWeight:900,color:x.c}}>{fmt(x.v)}</div>
+              </div>)}
+            </div>
+            <div style={{marginTop:6,background:"#1e293b",borderRadius:6,padding:"6px 10px",display:"flex",justifyContent:"space-between"}}>
+              <span style={{color:"#94a3b8",fontSize:11}}>💰 Neto {t.includes("Montes")?"T1":"T2"}:</span>
+              <span style={{color:"#fbbf24",fontWeight:900}}>{fmt(d.neto)}</span>
+            </div>
+          </div>)}
+
+        <div style={{background:"#1e293b",borderRadius:8,padding:"10px 14px",marginBottom:10}}>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+            <span style={{color:"#94a3b8",fontSize:11}}>Total ingresos:</span>
+            <span style={{color:"#4ade80",fontWeight:700}}>{fmt(datos.totalIngresos)}</span>
+          </div>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
+            <span style={{color:"#94a3b8",fontSize:11}}>Total gastos:</span>
+            <span style={{color:"#f87171",fontWeight:700}}>{fmt(datos.totalGastos)}</span>
+          </div>
+          <div style={{display:"flex",justifyContent:"space-between",paddingTop:6,borderTop:"1px solid #334155"}}>
+            <span style={{color:"#fff",fontSize:13,fontWeight:900}}>💰 NETO TOTAL:</span>
+            <span style={{color:"#fbbf24",fontSize:16,fontWeight:900}}>{fmt(datos.neto)}</span>
+          </div>
+        </div>
+
+        {/* Historial de cierres */}
+        {datos.cierres.length>0&&<div style={{marginBottom:10}}>
+          <div style={{fontSize:10,fontWeight:700,color:"#64748b",marginBottom:6,textTransform:"uppercase"}}>📋 Cierres de caja</div>
+          {datos.cierres.map((c,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",padding:"5px 8px",background:i%2===0?"#f8fafc":"#fff",borderRadius:6,fontSize:11,marginBottom:2}}>
+            <span>{c.fecha} · {c.taller.includes("Montes")?"T1":"T2"} · {c.usuario}</span>
+            <span style={{fontWeight:700,color:"#16a34a"}}>{fmt(c.cierre_total)}</span>
+          </div>)}
+        </div>}
+
+        <div style={{display:"grid",gap:6}} className="noprint">
+          <Btn onClick={imprimirInforme} color="#dc2626" text="🖨️ Imprimir informe" style={{width:"100%",padding:10}}/>
+          <Btn onClick={enviarWA} color="#25d366" text="📱 Enviar por WhatsApp a Vanesa" style={{width:"100%",padding:10}}/>
+        </div>
+      </div>}
+    </Card>
+  </div>;
+}
+
+// APP PRINCIPAL
+function App(){
+  const [usuario,setUsuario]=React.useState(null);
+  const [tab,setTab]=React.useState("caja");
+  const [sesionActiva,setSesionActiva]=React.useState(null);
+  const [cajaAbierta,setCajaAbierta]=React.useState(false);
+
+  const esAdmin=usuario&&(usuario.rol==="admin"||usuario.user_name==="wilfredo"||usuario.user_name==="vanesa");
+
+  if(!usuario) return <Login onLogin={u=>{setUsuario(u);}}/>;
+
+  const TABS=[
+    {k:"caja",l:"💵 Caja"},
+    ...(esAdmin?[{k:"informe",l:"📊 Informe semanal"}]:[]),
+  ];
+
+  return <div style={{padding:10,background:"#f0f4f8",minHeight:"100vh"}}>
+    {/* Header */}
+    <div style={{background:"#1e293b",color:"#fbbf24",padding:"10px 14px",borderRadius:10,marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}} className="noprint">
+      <div>
+        <div style={{fontSize:14,fontWeight:900}}>💵 {EMPRESA.nombre}</div>
+        <div style={{fontSize:9,color:"#94a3b8"}}>Control de Caja · {hoy()}</div>
+      </div>
+      <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+        <button onClick={()=>window.location.href="/"} style={{padding:"3px 8px",background:"#1d4ed8",color:"#fff",border:"none",borderRadius:6,fontSize:10,cursor:"pointer",fontWeight:700}}>🏠 Inicio</button>
+        {esAdmin&&<button onClick={()=>window.location.href="/admin.html"} style={{padding:"3px 8px",background:"#7c3aed",color:"#fff",border:"none",borderRadius:6,fontSize:10,cursor:"pointer",fontWeight:700}}>⚙️ Admin</button>}
+        <button onClick={()=>setUsuario(null)} style={{padding:"3px 8px",background:"#ef4444",color:"#fff",border:"none",borderRadius:6,fontSize:10,cursor:"pointer",fontWeight:700}}>Salir</button>
+      </div>
+    </div>
+
+    {/* Tabs */}
+    <div style={{display:"flex",gap:4,marginBottom:10,flexWrap:"wrap"}} className="noprint">
+      {TABS.map(t=><button key={t.k} onClick={()=>setTab(t.k)} style={{padding:"6px 12px",borderRadius:8,border:`1px solid ${tab===t.k?"#fbbf24":"#e2e8f0"}`,background:tab===t.k?"#fffbeb":"#fff",color:tab===t.k?"#92400e":"#64748b",fontWeight:700,fontSize:11,cursor:"pointer"}}>{t.l}</button>)}
+    </div>
+
+    {tab==="caja"&&<div>
+      {!cajaAbierta&&<AperturaCaja usuario={usuario} onAbierta={s=>{setSesionActiva(s);setCajaAbierta(true);}}/>}
+      {cajaAbierta&&sesionActiva&&<div>
+        <ResumenDia sesion={sesionActiva} usuario={usuario}/>
+        <CierreCaja sesion={sesionActiva} usuario={usuario} onCerrada={()=>{setCajaAbierta(false);setSesionActiva(null);}}/>
+      </div>}
+    </div>}
+
+    {tab==="informe"&&esAdmin&&<InformeSemanal usuario={usuario}/>}
+  </div>;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
