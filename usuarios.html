@@ -18,93 +18,110 @@ const SUPA_URL="https://epirsbudngwbxgcsryvv.supabase.co";
 const SUPA_KEY="sb_publishable_zsqvMzJMc80Ypf3UQqs-SA_IrV-XIGc";
 const sb=window.supabase.createClient(SUPA_URL,SUPA_KEY);
 
-// Permisos por rol
-const PERMISOS={
-  admin:{
-    label:"👑 Administrador",
-    color:"#7c3aed",
-    bg:"#f5f3ff",
-    permisos:[
-      "🏠 Ventas de tienda",
-      "🛢️ Cambio de aceite",
-      "🚿 Lavado",
-      "🎯 Alineado y balanceado",
-      "🚛 Grúa",
-      "📋 Crear y ver todas las OTs",
-      "💰 Ver precios y cotizaciones",
-      "📄 Generar PDF e informes",
-      "🚗 Entregar vehículos",
-      "🔎 Control de calidad",
-      "📦 Inventario completo con costos",
-      "➕ Agregar productos al inventario",
-      "💵 Caja diaria ambos talleres",
-      "📊 Cierre de caja",
-      "👥 CRM completo",
-      "👨‍🔧 Personal y herramientas",
-      "🏖️ Aprobar vacaciones",
-      "⚙️ Gestionar usuarios",
-    ]
-  },
-  encargado:{
-    label:"🔧 Encargado",
-    color:"#1d4ed8",
-    bg:"#eff6ff",
-    permisos:[
-      "🏠 Ventas de tienda",
-      "🛢️ Cambio de aceite",
-      "🚿 Lavado",
-      "🎯 Alineado y balanceado",
-      "🚛 Grúa",
-      "📋 Crear y ver todas las OTs",
-      "💰 Ver precios y cotizaciones",
-      "📄 Generar PDF e informes",
-      "🚗 Entregar vehículos",
-      "🔎 Control de calidad",
-      "📦 Inventario completo con costos",
-      "➕ Agregar productos al inventario",
-      "💵 Caja diaria su taller",
-      "📊 Cierre de caja su taller",
-      "👥 CRM completo",
-      "👨‍🔧 Personal y herramientas (ver)",
-    ]
-  },
-  vendedor:{
-    label:"🛒 Vendedor",
-    color:"#16a34a",
-    bg:"#f0fdf4",
-    permisos:[
-      "🏠 Ventas de tienda",
-      "🛢️ Cambio de aceite",
-      "🚿 Lavado",
-      "🎯 Alineado y balanceado",
-      "📋 Crear OTs (sin precios)",
-      "🔧 Diagnóstico y ejecución",
-      "✅ Marcar trabajo terminado",
-    ]
-  },
-  mecanico:{
-    label:"⚙️ Mecánico",
-    color:"#92400e",
-    bg:"#fffbeb",
-    permisos:[
-      "📋 Crear sus propias OTs",
-      "🔍 Ver solo sus OTs",
-      "🔧 Diagnóstico y ejecución",
-      "✅ Marcar trabajo terminado",
-    ]
-  }
-};
-
 const TALLERES=["Taller 1 · Montes","Taller 2 · Bella Vista","ambos"];
 
+// Todos los permisos disponibles agrupados
+const GRUPOS=[
+  {g:"🏠 Ventas y Tienda",permisos:[
+    {k:"ventas_vender",l:"Vender productos de tienda"},
+    {k:"ventas_ver_costos",l:"Ver costos de productos"},
+    {k:"ventas_historial",l:"Ver historial de ventas"},
+    {k:"inventario_agregar",l:"Agregar productos al inventario"},
+    {k:"inventario_ver_costos",l:"Ver costos en inventario"},
+  ]},
+  {g:"🔧 Servicios Rápidos",permisos:[
+    {k:"serv_aceite",l:"Cambio de aceite"},
+    {k:"serv_lavado",l:"Lavado"},
+    {k:"serv_alineado",l:"Alineado y balanceado"},
+    {k:"serv_grua",l:"Grúa (solo enc./admin)"},
+  ]},
+  {g:"📋 Órdenes de Trabajo",permisos:[
+    {k:"ot_crear",l:"Crear OTs"},
+    {k:"ot_ver_todas",l:"Ver todas las OTs"},
+    {k:"ot_ver_solo_suyas",l:"Ver solo sus propias OTs"},
+    {k:"ot_diagnostico",l:"Diagnóstico y ejecución"},
+    {k:"ot_precios",l:"Ver precios y totales"},
+    {k:"ot_cotizacion",l:"Enviar cotización al cliente"},
+    {k:"ot_aprobar",l:"Registrar aprobación cliente"},
+    {k:"ot_calidad",l:"Control de calidad"},
+    {k:"ot_entregar",l:"Entregar vehículo al cliente"},
+    {k:"ot_pdf",l:"Generar PDF e informes"},
+  ]},
+  {g:"💵 Caja y Finanzas",permisos:[
+    {k:"caja_ver",l:"Ver caja diaria"},
+    {k:"caja_cierre",l:"Hacer cierre de caja"},
+    {k:"caja_ambos_talleres",l:"Ver caja ambos talleres"},
+    {k:"reportes",l:"Ver reportes y estadísticas"},
+  ]},
+  {g:"👥 CRM y Clientes",permisos:[
+    {k:"crm_ver",l:"Ver CRM de clientes"},
+    {k:"crm_exportar",l:"Exportar CRM a Excel"},
+  ]},
+  {g:"👨‍🔧 Administración",permisos:[
+    {k:"personal_ver",l:"Ver personal y herramientas"},
+    {k:"personal_editar",l:"Editar personal y herramientas"},
+    {k:"vacaciones_ver",l:"Ver vacaciones del equipo"},
+    {k:"vacaciones_aprobar",l:"Aprobar/rechazar vacaciones"},
+    {k:"usuarios_gestionar",l:"Gestionar usuarios (solo admin)"},
+  ]},
+];
+
+// Permisos predeterminados por rol
+const PLANTILLAS={
+  admin:{
+    ventas_vender:true,ventas_ver_costos:true,ventas_historial:true,
+    inventario_agregar:true,inventario_ver_costos:true,
+    serv_aceite:true,serv_lavado:true,serv_alineado:true,serv_grua:true,
+    ot_crear:true,ot_ver_todas:true,ot_diagnostico:true,ot_precios:true,
+    ot_cotizacion:true,ot_aprobar:true,ot_calidad:true,ot_entregar:true,ot_pdf:true,
+    caja_ver:true,caja_cierre:true,caja_ambos_talleres:true,reportes:true,
+    crm_ver:true,crm_exportar:true,
+    personal_ver:true,personal_editar:true,vacaciones_ver:true,vacaciones_aprobar:true,usuarios_gestionar:true,
+  },
+  encargado:{
+    ventas_vender:true,ventas_ver_costos:true,ventas_historial:true,
+    inventario_agregar:true,inventario_ver_costos:true,
+    serv_aceite:true,serv_lavado:true,serv_alineado:true,serv_grua:true,
+    ot_crear:true,ot_ver_todas:true,ot_diagnostico:true,ot_precios:true,
+    ot_cotizacion:true,ot_aprobar:true,ot_calidad:true,ot_entregar:true,ot_pdf:true,
+    caja_ver:true,caja_cierre:true,caja_ambos_talleres:false,reportes:false,
+    crm_ver:true,crm_exportar:true,
+    personal_ver:true,personal_editar:false,vacaciones_ver:false,vacaciones_aprobar:false,usuarios_gestionar:false,
+  },
+  vendedor:{
+    ventas_vender:true,ventas_ver_costos:false,ventas_historial:true,
+    inventario_agregar:false,inventario_ver_costos:false,
+    serv_aceite:true,serv_lavado:true,serv_alineado:true,serv_grua:false,
+    ot_crear:true,ot_ver_todas:false,ot_ver_solo_suyas:true,ot_diagnostico:true,ot_precios:false,
+    ot_cotizacion:false,ot_aprobar:false,ot_calidad:false,ot_entregar:false,ot_pdf:false,
+    caja_ver:false,caja_cierre:false,caja_ambos_talleres:false,reportes:false,
+    crm_ver:true,crm_exportar:false,
+    personal_ver:false,personal_editar:false,vacaciones_ver:false,vacaciones_aprobar:false,usuarios_gestionar:false,
+  },
+  mecanico:{
+    ventas_vender:false,ventas_ver_costos:false,ventas_historial:false,
+    inventario_agregar:false,inventario_ver_costos:false,
+    serv_aceite:false,serv_lavado:false,serv_alineado:false,serv_grua:false,
+    ot_crear:true,ot_ver_todas:false,ot_ver_solo_suyas:true,ot_diagnostico:true,ot_precios:false,
+    ot_cotizacion:false,ot_aprobar:false,ot_calidad:false,ot_entregar:false,ot_pdf:false,
+    caja_ver:false,caja_cierre:false,caja_ambos_talleres:false,reportes:false,
+    crm_ver:false,crm_exportar:false,
+    personal_ver:false,personal_editar:false,vacaciones_ver:false,vacaciones_aprobar:false,usuarios_gestionar:false,
+  },
+};
+
+const todosLosPermisos=()=>GRUPOS.flatMap(g=>g.permisos.map(p=>p.k));
+const permisosVacios=()=>Object.fromEntries(todosLosPermisos().map(k=>[k,false]));
+
 function Login({onLogin}){
-  const [u,setU]=React.useState("");const [p,setP]=React.useState("");const [err,setErr]=React.useState("");const [cargando,setCargando]=React.useState(false);
+  const [u,setU]=React.useState("");const [p,setP]=React.useState("");
+  const [err,setErr]=React.useState("");const [cargando,setCargando]=React.useState(false);
   const ok=async()=>{
     setCargando(true);
     const{data}=await sb.from("usuarios").select("*").eq("user_name",u.toLowerCase()).eq("pass",p).single();
     setCargando(false);
     if(!data){setErr("Usuario o contraseña incorrectos");return;}
-    if(data.rol!=="admin"){alert(`❌ Acceso denegado\nSolo Wilfredo puede gestionar usuarios.`);window.location.href="/admin.html";return;}
+    if(data.rol!=="admin"){alert("❌ Solo Wilfredo puede gestionar usuarios.");window.location.href="/admin.html";return;}
     onLogin(data);
   };
   return <div style={{minHeight:"100vh",background:"#0f172a",display:"flex",alignItems:"center",justifyContent:"center"}}>
@@ -113,7 +130,7 @@ function Login({onLogin}){
         <div style={{fontSize:36}}>⚙️</div>
         <div style={{color:"#fbbf24",fontWeight:900,fontSize:16}}>SERVI CAR PLATINIUM</div>
         <div style={{color:"#64748b",fontSize:11,marginTop:4}}>Gestión de Usuarios</div>
-        <div style={{color:"#ef4444",fontSize:10,marginTop:4,fontWeight:700}}>🔒 Solo acceso administrador</div>
+        <div style={{color:"#ef4444",fontSize:10,marginTop:6,fontWeight:700,background:"#fef2f2",padding:"4px 8px",borderRadius:6}}>🔒 Solo acceso administrador</div>
       </div>
       {[["USUARIO",u,setU,"text"],["CONTRASEÑA",p,setP,"password"]].map(([l,v,s,t])=>
         <div key={l} style={{marginBottom:12}}>
@@ -127,66 +144,168 @@ function Login({onLogin}){
   </div>;
 }
 
+function ModalUsuario({modal,onClose,onGuardado}){
+  const u=modal.user;
+  const [form,setForm]=React.useState({
+    user_name:u?.user_name||"",
+    nombre:u?.nombre||"",
+    pass:u?.pass||"",
+    taller:u?.taller||"Taller 1 · Montes",
+    rol:u?.rol||"vendedor",
+  });
+  const [perms,setPerms]=React.useState(()=>{
+    if(u?.permisos_custom) try{return JSON.parse(u.permisos_custom);}catch{}
+    if(u?.rol) return {...permisosVacios(),...PLANTILLAS[u.rol]};
+    return {...permisosVacios(),...PLANTILLAS.vendedor};
+  });
+  const [guardando,setGuardando]=React.useState(false);
+  const [mostrarPass,setMostrarPass]=React.useState(false);
+
+  const aplicarPlantilla=(rol)=>{
+    setForm(f=>({...f,rol}));
+    setPerms({...permisosVacios(),...PLANTILLAS[rol]});
+  };
+
+  const togglePerm=(k)=>setPerms(p=>({...p,[k]:!p[k]}));
+
+  const countActivos=()=>Object.values(perms).filter(Boolean).length;
+
+  const guardar=async()=>{
+    if(!form.user_name||!form.nombre||!form.pass||!form.taller){alert("Completa todos los campos.");return;}
+    setGuardando(true);
+    const datos={user_name:form.user_name.toLowerCase().trim(),nombre:form.nombre.trim(),pass:form.pass,taller:form.taller,rol:form.rol,permisos_custom:JSON.stringify(perms)};
+    let error;
+    if(modal.modo==="nuevo") ({error}=await sb.from("usuarios").insert(datos));
+    else ({error}=await sb.from("usuarios").update(datos).eq("id",u.id));
+    setGuardando(false);
+    if(error){alert("Error: "+error.message);return;}
+    onGuardado(modal.modo==="nuevo"?"creado":"actualizado");
+  };
+
+  return <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,.65)",zIndex:500,display:"flex",alignItems:"flex-start",justifyContent:"center",padding:10,overflowY:"auto"}}>
+    <div style={{background:"#fff",borderRadius:14,padding:18,width:"100%",maxWidth:420,marginTop:10,marginBottom:10}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+        <div style={{fontWeight:900,fontSize:14,color:"#1e293b"}}>{modal.modo==="nuevo"?"➕ Nuevo usuario":"✏️ Editar: "+u.nombre}</div>
+        <button onClick={onClose} style={{background:"#f1f5f9",border:"none",borderRadius:6,padding:"4px 8px",cursor:"pointer",fontSize:12}}>✕ Cerrar</button>
+      </div>
+
+      {/* Datos básicos */}
+      <div style={{background:"#f8fafc",borderRadius:10,padding:12,marginBottom:12}}>
+        <div style={{fontSize:10,fontWeight:700,color:"#64748b",textTransform:"uppercase",marginBottom:8}}>Datos del usuario</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+          {[{l:"Nombre completo *",k:"nombre",ph:"Ej: Carlos Mamani"},{l:"Usuario (login) *",k:"user_name",ph:"Ej: carlos"}].map(f=>
+            <div key={f.k}>
+              <div style={{fontSize:9,color:"#94a3b8",fontWeight:700,textTransform:"uppercase",marginBottom:3}}>{f.l}</div>
+              <input value={form[f.k]} onChange={e=>setForm(p=>({...p,[f.k]:e.target.value}))} placeholder={f.ph}
+                style={{width:"100%",padding:"7px 10px",border:"1px solid #e2e8f0",borderRadius:7,fontSize:12,boxSizing:"border-box"}}/>
+            </div>)}
+        </div>
+        <div style={{marginBottom:8}}>
+          <div style={{fontSize:9,color:"#94a3b8",fontWeight:700,textTransform:"uppercase",marginBottom:3}}>Contraseña *</div>
+          <div style={{display:"flex",gap:6}}>
+            <input type={mostrarPass?"text":"password"} value={form.pass} onChange={e=>setForm(p=>({...p,pass:e.target.value}))} placeholder="Contraseña"
+              style={{flex:1,padding:"7px 10px",border:"1px solid #e2e8f0",borderRadius:7,fontSize:12,boxSizing:"border-box"}}/>
+            <button onClick={()=>setMostrarPass(!mostrarPass)} style={{padding:"5px 10px",background:"#f1f5f9",border:"1px solid #e2e8f0",borderRadius:7,fontSize:11,cursor:"pointer"}}>{mostrarPass?"🙈":"👁️"}</button>
+          </div>
+        </div>
+        <div>
+          <div style={{fontSize:9,color:"#94a3b8",fontWeight:700,textTransform:"uppercase",marginBottom:4}}>Taller asignado *</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:5}}>
+            {TALLERES.map(t=><div key={t} onClick={()=>setForm(p=>({...p,taller:t}))}
+              style={{border:`2px solid ${form.taller===t?"#f59e0b":"#e2e8f0"}`,borderRadius:7,padding:"5px 3px",cursor:"pointer",textAlign:"center",background:form.taller===t?"#fffbeb":"#f8fafc"}}>
+              <div style={{fontSize:9,fontWeight:700,color:form.taller===t?"#92400e":"#64748b"}}>{t==="ambos"?"🏢 Ambos":t.includes("Montes")?"🔧 Montes":"🔧 Bella Vista"}</div>
+            </div>)}
+          </div>
+        </div>
+      </div>
+
+      {/* Plantillas rápidas */}
+      <div style={{background:"#f8fafc",borderRadius:10,padding:12,marginBottom:12}}>
+        <div style={{fontSize:10,fontWeight:700,color:"#64748b",textTransform:"uppercase",marginBottom:8}}>⚡ Aplicar plantilla rápida</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+          {[{k:"admin",l:"👑 Administrador",c:"#7c3aed"},{k:"encargado",l:"🔧 Encargado",c:"#1d4ed8"},
+            {k:"vendedor",l:"🛒 Vendedor",c:"#16a34a"},{k:"mecanico",l:"⚙️ Mecánico",c:"#92400e"}].map(r=>
+            <button key={r.k} onClick={()=>aplicarPlantilla(r.k)}
+              style={{padding:"6px 8px",background:form.rol===r.k?r.c:"#fff",color:form.rol===r.k?"#fff":r.c,border:`2px solid ${r.c}`,borderRadius:8,fontWeight:700,fontSize:10,cursor:"pointer"}}>
+              {r.l}
+            </button>)}
+        </div>
+        <div style={{fontSize:9,color:"#94a3b8",marginTop:6,textAlign:"center"}}>Toca una plantilla para cargar permisos base, luego personaliza abajo</div>
+      </div>
+
+      {/* Permisos individuales */}
+      <div style={{background:"#f8fafc",borderRadius:10,padding:12,marginBottom:14}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+          <div style={{fontSize:10,fontWeight:700,color:"#64748b",textTransform:"uppercase"}}>✅ Permisos individuales</div>
+          <div style={{fontSize:10,fontWeight:700,color:"#16a34a"}}>{countActivos()} activos</div>
+        </div>
+        <div style={{display:"flex",gap:5,marginBottom:10,flexWrap:"wrap"}}>
+          <button onClick={()=>setPerms(Object.fromEntries(todosLosPermisos().map(k=>[k,true])))}
+            style={{padding:"3px 8px",background:"#dcfce7",border:"1px solid #86efac",borderRadius:6,fontSize:10,fontWeight:700,cursor:"pointer",color:"#15803d"}}>✅ Marcar todos</button>
+          <button onClick={()=>setPerms(permisosVacios())}
+            style={{padding:"3px 8px",background:"#fee2e2",border:"1px solid #fca5a5",borderRadius:6,fontSize:10,fontWeight:700,cursor:"pointer",color:"#dc2626"}}>❌ Desmarcar todos</button>
+        </div>
+
+        {GRUPOS.map(grupo=><div key={grupo.g} style={{marginBottom:10}}>
+          <div style={{fontSize:10,fontWeight:800,color:"#374151",marginBottom:4,background:"#e2e8f0",padding:"3px 8px",borderRadius:5}}>{grupo.g}</div>
+          <div style={{display:"grid",gap:4}}>
+            {grupo.permisos.map(p=>{
+              const activo=perms[p.k]||false;
+              return <div key={p.k} onClick={()=>togglePerm(p.k)}
+                style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",borderRadius:8,cursor:"pointer",
+                  background:activo?"#f0fdf4":"#fff",border:`1px solid ${activo?"#86efac":"#e2e8f0"}`}}>
+                <div style={{width:18,height:18,borderRadius:5,border:`2px solid ${activo?"#16a34a":"#d1d5db"}`,
+                  background:activo?"#16a34a":"#fff",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                  {activo&&<span style={{color:"#fff",fontSize:11,fontWeight:900}}>✓</span>}
+                </div>
+                <span style={{fontSize:12,color:activo?"#15803d":"#6b7280",fontWeight:activo?700:400}}>{p.l}</span>
+              </div>;
+            })}
+          </div>
+        </div>)}
+      </div>
+
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+        <button onClick={onClose} style={{padding:11,background:"#f1f5f9",border:"1px solid #e2e8f0",borderRadius:8,fontWeight:700,fontSize:12,cursor:"pointer"}}>Cancelar</button>
+        <button onClick={guardar} disabled={guardando} style={{padding:11,background:"#16a34a",color:"#fff",border:"none",borderRadius:8,fontWeight:700,fontSize:12,cursor:"pointer"}}>{guardando?"Guardando...":"💾 Guardar"}</button>
+      </div>
+    </div>
+  </div>;
+}
+
 function App(){
   const [usuario,setUsuario]=React.useState(null);
   const [usuarios,setUsuarios]=React.useState([]);
   const [cargando,setCargando]=React.useState(false);
-  const [modal,setModal]=React.useState(null); // null | {modo:'nuevo'} | {modo:'editar', user}
-  const [verPermisos,setVerPermisos]=React.useState(null);
-  const [form,setForm]=React.useState({user_name:"",nombre:"",pass:"",rol:"vendedor",taller:"Taller 1 · Montes"});
+  const [modal,setModal]=React.useState(null);
   const [mostrarPass,setMostrarPass]=React.useState({});
-  const [guardando,setGuardando]=React.useState(false);
 
   const cargar=async()=>{
     setCargando(true);
     const{data}=await sb.from("usuarios").select("*").order("id");
-    setUsuarios(data||[]);
-    setCargando(false);
+    setUsuarios(data||[]);setCargando(false);
   };
 
   React.useEffect(()=>{if(usuario)cargar();},[usuario]);
 
-  const abrirNuevo=()=>{
-    setForm({user_name:"",nombre:"",pass:"",rol:"vendedor",taller:"Taller 1 · Montes"});
-    setModal({modo:"nuevo"});
-  };
-
-  const abrirEditar=(u)=>{
-    setForm({user_name:u.user_name,nombre:u.nombre,pass:u.pass,rol:u.rol,taller:u.taller});
-    setModal({modo:"editar",user:u});
-  };
-
-  const guardar=async()=>{
-    if(!form.user_name||!form.nombre||!form.pass||!form.rol||!form.taller){alert("Completa todos los campos.");return;}
-    setGuardando(true);
-    if(modal.modo==="nuevo"){
-      const{error}=await sb.from("usuarios").insert({user_name:form.user_name.toLowerCase(),nombre:form.nombre,pass:form.pass,rol:form.rol,taller:form.taller});
-      if(error){alert("Error: "+error.message);setGuardando(false);return;}
-    } else {
-      const{error}=await sb.from("usuarios").update({user_name:form.user_name.toLowerCase(),nombre:form.nombre,pass:form.pass,rol:form.rol,taller:form.taller}).eq("id",modal.user.id);
-      if(error){alert("Error: "+error.message);setGuardando(false);return;}
-    }
-    setGuardando(false);
-    setModal(null);
-    cargar();
-    alert(`✅ Usuario ${modal.modo==="nuevo"?"creado":"actualizado"} correctamente`);
-  };
-
   const eliminar=async(u)=>{
     if(u.rol==="admin"){alert("❌ No puedes eliminar al administrador.");return;}
-    if(!window.confirm(`¿Eliminar a ${u.nombre}?\nEsta acción no se puede deshacer.`))return;
+    if(!window.confirm(`¿Eliminar a ${u.nombre}?`))return;
     await sb.from("usuarios").delete().eq("id",u.id);
     cargar();
   };
 
+  const onGuardado=(msg)=>{setModal(null);cargar();alert(`✅ Usuario ${msg} correctamente`);};
+
   const togglePass=(id)=>setMostrarPass(p=>({...p,[id]:!p[id]}));
+
+  const permCount=(u)=>{
+    try{const p=JSON.parse(u.permisos_custom||"{}");return Object.values(p).filter(Boolean).length;}catch{return "—";}
+  };
 
   if(!usuario) return <Login onLogin={setUsuario}/>;
 
-  const rolInfo=r=>PERMISOS[r]||PERMISOS.vendedor;
-
   return <div style={{padding:10,background:"#f0f4f8",minHeight:"100vh"}}>
-    {/* Header */}
     <div style={{background:"#1e293b",color:"#fbbf24",padding:"10px 14px",borderRadius:10,marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}}>
       <div>
         <div style={{fontSize:14,fontWeight:900}}>🔧 SERVI CAR PLATINIUM</div>
@@ -198,58 +317,36 @@ function App(){
       </div>
     </div>
 
-    {/* Resumen de roles */}
-    <div style={{background:"#fff",borderRadius:10,padding:14,marginBottom:10,border:"1px solid #e2e8f0"}}>
-      <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",color:"#64748b",marginBottom:10,paddingBottom:4,borderBottom:"2px solid #fbbf24",display:"inline-block"}}>📋 Roles disponibles</div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-        {Object.entries(PERMISOS).map(([k,v])=>
-          <div key={k} onClick={()=>setVerPermisos(verPermisos===k?null:k)}
-            style={{border:`2px solid ${verPermisos===k?v.color:"#e2e8f0"}`,borderRadius:10,padding:"8px 10px",cursor:"pointer",background:verPermisos===k?v.bg:"#f8fafc"}}>
-            <div style={{fontWeight:800,color:v.color,fontSize:12}}>{v.label}</div>
-            <div style={{fontSize:10,color:"#94a3b8",marginTop:2}}>{v.permisos.length} permisos · Toca para ver</div>
-            {verPermisos===k&&<div style={{marginTop:8,borderTop:"1px solid #e2e8f0",paddingTop:6}}>
-              {v.permisos.map(p=><div key={p} style={{fontSize:10,color:"#374151",lineHeight:1.9}}>✅ {p}</div>)}
-              <div style={{marginTop:6,padding:"4px 8px",background:"#fee2e2",borderRadius:6,fontSize:10,color:"#991b1b",fontWeight:700}}>
-                ❌ Todo lo demás está bloqueado
-              </div>
-            </div>}
-          </div>)}
-      </div>
-    </div>
-
-    {/* Lista de usuarios */}
-    <div style={{background:"#fff",borderRadius:10,padding:14,marginBottom:10,border:"1px solid #e2e8f0"}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+    <div style={{background:"#fff",borderRadius:10,padding:14,border:"1px solid #e2e8f0"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
         <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",color:"#64748b",paddingBottom:4,borderBottom:"2px solid #fbbf24"}}>👥 Usuarios del sistema</div>
-        <button onClick={abrirNuevo} style={{padding:"6px 12px",background:"#16a34a",color:"#fff",border:"none",borderRadius:8,fontWeight:700,fontSize:11,cursor:"pointer"}}>+ Nuevo usuario</button>
+        <button onClick={()=>setModal({modo:"nuevo"})} style={{padding:"6px 14px",background:"#16a34a",color:"#fff",border:"none",borderRadius:8,fontWeight:700,fontSize:11,cursor:"pointer"}}>+ Nuevo usuario</button>
       </div>
 
       {cargando?<div style={{textAlign:"center",padding:20,color:"#94a3b8"}}>Cargando...</div>:
       <div style={{display:"grid",gap:8}}>
         {usuarios.map(u=>{
-          const ri=rolInfo(u.rol);
-          return <div key={u.id} style={{border:`1px solid ${ri.color}33`,borderRadius:10,padding:"10px 12px",background:ri.bg}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:6}}>
+          const colores={admin:"#7c3aed",encargado:"#1d4ed8",vendedor:"#16a34a",mecanico:"#92400e"};
+          const c=colores[u.rol]||"#64748b";
+          return <div key={u.id} style={{border:`1px solid ${c}33`,borderRadius:10,padding:"10px 12px",background:`${c}08`}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:6,flexWrap:"wrap"}}>
               <div style={{flex:1}}>
-                <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
-                  <span style={{fontWeight:900,fontSize:13}}>{u.nombre}</span>
-                  <span style={{padding:"2px 7px",background:ri.color,color:"#fff",borderRadius:20,fontSize:9,fontWeight:700}}>{ri.label}</span>
+                <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4,flexWrap:"wrap"}}>
+                  <span style={{fontWeight:900,fontSize:14}}>{u.nombre}</span>
+                  <span style={{padding:"2px 8px",background:c,color:"#fff",borderRadius:20,fontSize:9,fontWeight:700,textTransform:"uppercase"}}>{u.rol}</span>
+                  <span style={{padding:"2px 6px",background:"#f0fdf4",border:"1px solid #86efac",color:"#15803d",borderRadius:6,fontSize:9,fontWeight:700}}>{permCount(u)} permisos activos</span>
                 </div>
-                <div style={{fontSize:11,color:"#64748b",marginBottom:2}}>👤 Usuario: <strong>{u.user_name}</strong></div>
-                <div style={{fontSize:11,color:"#64748b",marginBottom:2}}>🏢 Taller: <strong>{u.taller}</strong></div>
+                <div style={{fontSize:11,color:"#64748b",marginBottom:2}}>👤 <strong>{u.user_name}</strong> · 🏢 {u.taller}</div>
                 <div style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:"#64748b"}}>
-                  🔑 Contraseña: <strong>{mostrarPass[u.id]?u.pass:"••••••••"}</strong>
+                  🔑 <span>{mostrarPass[u.id]?u.pass:"••••••••"}</span>
                   <button onClick={()=>togglePass(u.id)} style={{padding:"1px 6px",background:"#f1f5f9",border:"1px solid #e2e8f0",borderRadius:4,fontSize:9,cursor:"pointer"}}>{mostrarPass[u.id]?"Ocultar":"Ver"}</button>
                 </div>
-                {/* Permisos resumidos */}
-                <div style={{marginTop:6,display:"flex",flexWrap:"wrap",gap:3}}>
-                  {PERMISOS[u.rol]?.permisos.slice(0,4).map(p=><span key={p} style={{fontSize:9,background:"#fff",border:"1px solid #e2e8f0",borderRadius:4,padding:"1px 5px",color:"#374151"}}>{p}</span>)}
-                  {PERMISOS[u.rol]?.permisos.length>4&&<span style={{fontSize:9,color:"#94a3b8"}}>+{PERMISOS[u.rol].permisos.length-4} más</span>}
-                </div>
               </div>
-              <div style={{display:"flex",flexDirection:"column",gap:5}}>
-                <button onClick={()=>abrirEditar(u)} style={{padding:"5px 10px",background:"#1d4ed8",color:"#fff",border:"none",borderRadius:7,fontWeight:700,fontSize:10,cursor:"pointer"}}>✏️ Editar</button>
-                {u.rol!=="admin"&&<button onClick={()=>eliminar(u)} style={{padding:"5px 10px",background:"#ef4444",color:"#fff",border:"none",borderRadius:7,fontWeight:700,fontSize:10,cursor:"pointer"}}>🗑️ Eliminar</button>}
+              <div style={{display:"flex",gap:5}}>
+                <button onClick={()=>setModal({modo:"editar",user:u})}
+                  style={{padding:"6px 10px",background:"#1d4ed8",color:"#fff",border:"none",borderRadius:7,fontWeight:700,fontSize:10,cursor:"pointer"}}>✏️ Editar</button>
+                {u.rol!=="admin"&&<button onClick={()=>eliminar(u)}
+                  style={{padding:"6px 10px",background:"#ef4444",color:"#fff",border:"none",borderRadius:7,fontWeight:700,fontSize:10,cursor:"pointer"}}>🗑️</button>}
               </div>
             </div>
           </div>;
@@ -257,56 +354,7 @@ function App(){
       </div>}
     </div>
 
-    {/* Modal crear/editar */}
-    {modal&&<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,.6)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
-      <div style={{background:"#fff",borderRadius:14,padding:20,width:"100%",maxWidth:380,maxHeight:"90vh",overflowY:"auto"}}>
-        <div style={{fontWeight:900,fontSize:15,marginBottom:14,color:"#1e293b"}}>
-          {modal.modo==="nuevo"?"➕ Nuevo usuario":"✏️ Editar usuario"}
-        </div>
-
-        {[
-          {l:"Nombre completo *",k:"nombre",ph:"Ej: Carlos Mamani"},
-          {l:"Usuario (sin espacios) *",k:"user_name",ph:"Ej: carlos"},
-          {l:"Contraseña *",k:"pass",ph:"Ej: carlos123"},
-        ].map(f=><div key={f.k} style={{marginBottom:10}}>
-          <div style={{fontSize:10,color:"#94a3b8",fontWeight:700,textTransform:"uppercase",marginBottom:3}}>{f.l}</div>
-          <input value={form[f.k]} onChange={e=>setForm(p=>({...p,[f.k]:e.target.value}))} placeholder={f.ph}
-            style={{width:"100%",padding:"8px 10px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:13,boxSizing:"border-box"}}/>
-        </div>)}
-
-        {/* Selector de rol con permisos visibles */}
-        <div style={{marginBottom:10}}>
-          <div style={{fontSize:10,color:"#94a3b8",fontWeight:700,textTransform:"uppercase",marginBottom:6}}>Rol y permisos *</div>
-          <div style={{display:"grid",gap:6}}>
-            {Object.entries(PERMISOS).map(([k,v])=>
-              <div key={k} onClick={()=>setForm(p=>({...p,rol:k}))}
-                style={{border:`2px solid ${form.rol===k?v.color:"#e2e8f0"}`,borderRadius:10,padding:"8px 10px",cursor:"pointer",background:form.rol===k?v.bg:"#f8fafc"}}>
-                <div style={{fontWeight:800,color:v.color,fontSize:12,marginBottom:3}}>{v.label}</div>
-                <div style={{display:"flex",flexWrap:"wrap",gap:3}}>
-                  {v.permisos.map(p=><span key={p} style={{fontSize:9,background:"#fff",border:"1px solid #e2e8f0",borderRadius:4,padding:"1px 5px",color:"#374151"}}>{p}</span>)}
-                </div>
-                <div style={{marginTop:4,fontSize:9,color:"#ef4444",fontWeight:700}}>❌ Sin acceso a todo lo demás</div>
-              </div>)}
-          </div>
-        </div>
-
-        {/* Taller */}
-        <div style={{marginBottom:14}}>
-          <div style={{fontSize:10,color:"#94a3b8",fontWeight:700,textTransform:"uppercase",marginBottom:6}}>Taller asignado *</div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6}}>
-            {TALLERES.map(t=><div key={t} onClick={()=>setForm(p=>({...p,taller:t}))}
-              style={{border:`2px solid ${form.taller===t?"#f59e0b":"#e2e8f0"}`,borderRadius:8,padding:"6px 4px",cursor:"pointer",textAlign:"center",background:form.taller===t?"#fffbeb":"#f8fafc"}}>
-              <div style={{fontSize:9,fontWeight:700,color:form.taller===t?"#92400e":"#64748b"}}>{t==="ambos"?"🏢 Ambos":t.includes("Montes")?"🔧 Montes":"🔧 Bella Vista"}</div>
-            </div>)}
-          </div>
-        </div>
-
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-          <button onClick={()=>setModal(null)} style={{padding:10,background:"#f1f5f9",border:"1px solid #e2e8f0",borderRadius:8,fontWeight:700,fontSize:12,cursor:"pointer"}}>Cancelar</button>
-          <button onClick={guardar} disabled={guardando} style={{padding:10,background:"#16a34a",color:"#fff",border:"none",borderRadius:8,fontWeight:700,fontSize:12,cursor:"pointer"}}>{guardando?"Guardando...":"💾 Guardar"}</button>
-        </div>
-      </div>
-    </div>}
+    {modal&&<ModalUsuario modal={modal} onClose={()=>setModal(null)} onGuardado={onGuardado}/>}
   </div>;
 }
 
