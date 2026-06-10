@@ -508,7 +508,62 @@ function DetalleOT({ot:otInit,usuario,onVolver,onUpdate}){
     {/* CALIDAD Y ENTREGA */}
     {sec==="calidad"&&<Card>
       <Tit text="🔎 Control de calidad y entrega"/>
-      {esEnc&&paso===6?<>
+      {esEnc&&(paso===6||paso===7)?<>
+        {/* AGREGAR SERVICIOS Y REPUESTOS EXTRA */}
+        <div style={{border:"1px solid #e2e8f0",borderRadius:10,padding:"10px 12px",background:"#f8fafc",marginBottom:10}}>
+          <div style={{fontWeight:700,fontSize:12,color:"#1d4ed8",marginBottom:8}}>➕ Agregar servicio o repuesto olvidado</div>
+          <div style={{display:"flex",gap:6,marginBottom:6}}>
+            <input value={nuevoSvc} onChange={e=>setNuevoSvc(e.target.value)} placeholder="Nombre del servicio..."
+              style={{flex:1,padding:"6px 8px",border:"1px solid #e2e8f0",borderRadius:7,fontSize:12}}/>
+            <Btn onClick={()=>{
+              if(!nuevoSvc){alert("Escribe el nombre del servicio.");return;}
+              const nuevosServs=[...(ot.servicios||[]),{id:Date.now(),nombre:nuevoSvc,precio:0}];
+              setServicios(nuevosServs);
+              actualizar({servicios:nuevosServs});
+              setNuevoSvc("");
+              alert(`✅ "${nuevoSvc}" agregado`);
+            }} color="#1d4ed8" text="+ Servicio"/>
+          </div>
+          <div style={{maxHeight:100,overflowY:"auto",border:"1px solid #f3f4f6",borderRadius:7,marginBottom:6}}>
+            {inv.slice(0,20).map(i=><div key={i.id} onClick={()=>{
+              const nuevosReps=[...(ot.repuestos||[]),{...i,qty:1}];
+              setRepuestos(nuevosReps);
+              actualizar({repuestos:nuevosReps});
+              alert(`✅ "${i.nom}" agregado`);
+            }} style={{padding:"5px 10px",cursor:"pointer",borderBottom:"1px solid #f8fafc",display:"flex",justifyContent:"space-between",fontSize:11}}
+              onMouseEnter={e=>e.currentTarget.style.background="#fffbeb"}
+              onMouseLeave={e=>e.currentTarget.style.background="#fff"}>
+              <span>📦 {i.nom}</span>
+              <span style={{fontWeight:700,color:"#f59e0b"}}>{fmt(i.precio)}</span>
+            </div>)}
+          </div>
+          {/* Lista servicios y repuestos actuales con precio editable */}
+          {(ot.servicios||[]).length>0&&<div style={{marginTop:8}}>
+            <div style={{fontSize:10,color:"#64748b",fontWeight:700,marginBottom:4}}>SERVICIOS ACTUALES:</div>
+            {(ot.servicios||[]).map((s,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"4px 6px",background:"#f0fdf4",borderRadius:6,marginBottom:3,fontSize:11}}>
+              <span style={{flex:1}}>🔧 {s.nombre}</span>
+              <input type="number" value={s.precio} onChange={e=>{
+                const nuevos=(ot.servicios||[]).map((x,j)=>j===i?{...x,precio:+e.target.value}:x);
+                setServicios(nuevos);
+                actualizar({servicios:nuevos});
+              }} style={{width:70,padding:"2px 5px",border:"1px solid #fbbf24",borderRadius:5,fontSize:11,fontWeight:800,color:"#92400e",textAlign:"center"}}/>
+              <span style={{fontSize:10,color:"#64748b",marginLeft:4}}>Bs.</span>
+            </div>)}
+          </div>}
+          {(ot.repuestos||[]).length>0&&<div style={{marginTop:6}}>
+            <div style={{fontSize:10,color:"#64748b",fontWeight:700,marginBottom:4}}>REPUESTOS ACTUALES:</div>
+            {(ot.repuestos||[]).map((r,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"4px 6px",background:"#eff6ff",borderRadius:6,marginBottom:3,fontSize:11}}>
+              <span style={{flex:1}}>📦 {r.nom} x{r.qty||1}</span>
+              <input type="number" value={r.precio||0} onChange={e=>{
+                const nuevos=(ot.repuestos||[]).map((x,j)=>j===i?{...x,precio:+e.target.value}:x);
+                setRepuestos(nuevos);
+                actualizar({repuestos:nuevos,total:nuevos.reduce((s,x)=>s+(parseFloat(x.precio||0)*(x.qty||1)),0)+(ot.servicios||[]).reduce((s,x)=>s+parseFloat(x.precio||0),0)});
+              }} style={{width:70,padding:"2px 5px",border:"1px solid #fbbf24",borderRadius:5,fontSize:11,fontWeight:800,color:"#92400e",textAlign:"center"}}/>
+              <span style={{fontSize:10,color:"#64748b",marginLeft:4}}>Bs.</span>
+            </div>)}
+          </div>}
+        </div>
+        {paso===6&&<>
         <div style={{fontSize:12,color:"#64748b",marginBottom:10}}>Realiza la prueba antes de entregar.</div>
         {["✅ Motor arranca correctamente","✅ Sin fugas de aceite","✅ Frenos funcionan bien","✅ Eléctrico correcto","✅ Limpieza del vehículo","✅ Prueba de manejo"].map(item=>
           <label key={item} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 10px",background:"#f8fafc",borderRadius:8,cursor:"pointer",fontSize:12,marginBottom:4}}>
@@ -522,6 +577,7 @@ function DetalleOT({ot:otInit,usuario,onVolver,onUpdate}){
           <Btn onClick={()=>{if(!obsCalidad){alert("Escribe las observaciones.");return;}actualizar({obs_calidad:obsCalidad,falla_calidad:true});alert(`✅ Observaciones enviadas a ${ot.tecnico}`);}} color="#f97316" text="⚠️ Enviar fallas al técnico"/>
           <Btn onClick={()=>actualizar({paso:7,obs_calidad:obsCalidad,aprobado_calidad:true})} color="#16a34a" text="✅ Aprobado — Pasar a entrega"/>
         </div>
+        </>}
       </>:paso===7&&esEnc?<>
         {ot.obs_calidad&&<div style={{background:"#fffbeb",border:"1px solid #fde68a",borderRadius:8,padding:"10px",fontSize:12,marginBottom:10}}><strong>Observaciones:</strong> {ot.obs_calidad}</div>}
         <div style={{background:"#f0fdf4",border:"2px solid #16a34a",borderRadius:10,padding:"14px"}}>
