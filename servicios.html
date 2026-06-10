@@ -82,10 +82,14 @@ function CambioAceite({usuario,inv}){
   const [kmIn,setKmIn]=React.useState("");const [kmInt,setKmInt]=React.useState(10000);
   const [acLit,setAcLit]=React.useState(4);const [acTipo,setAcTipo]=React.useState("20W-50 Mineral");const [acPv,setAcPv]=React.useState(45);
   const [filtro,setFiltro]=React.useState(null);const [fiPv,setFiPv]=React.useState(55);
-  const [fa,setFa]=React.useState(false);const [faPv,setFaPv]=React.useState(45);
-  const [lf,setLf]=React.useState(false);const [lfPv,setLfPv]=React.useState(35);
+  const [fa,setFa]=React.useState(false);const [faSel,setFaSel]=React.useState(null);const [faPv,setFaPv]=React.useState(45);
+  const [lf,setLf]=React.useState(false);const [lfSel,setLfSel]=React.useState(null);const [lfPv,setLfPv]=React.useState(35);
   const [cj,setCj]=React.useState(false);const [cjTipo,setCjTipo]=React.useState("85W/140");const [cjPv,setCjPv]=React.useState(58);const [cjLit,setCjLit]=React.useState(2);
-  const [ad,setAd]=React.useState(false);const [adPv,setAdPv]=React.useState(45);
+  const [ad,setAd]=React.useState(false);const [adSel,setAdSel]=React.useState(null);const [adPv,setAdPv]=React.useState(45);
+
+  const filtrosAire=inv.filter(i=>i.cat==="Filtros"&&i.nom?.toLowerCase().includes("aire"));
+  const liquidosFreno=inv.filter(i=>i.cat==="Líquidos");
+  const aceitesDir=inv.filter(i=>i.cat==="Lubricantes"&&i.nom?.toLowerCase().includes("direc"));
   const [desc,setDesc]=React.useState(0);
   const tallerDef=usuario.taller==="ambos"?"":usuario.taller;
   const [tallerSel,setTallerSel]=React.useState(tallerDef);
@@ -96,13 +100,13 @@ function CambioAceite({usuario,inv}){
 
   const items=[
     {d:`🛢️ Aceite ${acTipo} x${acLit}L`,p:acLit*acPv},
-    {d:`🔘 ${filtro?filtro.nom:"Filtro de aceite"}`,p:fiPv},
+    ...(filtro?[{d:`🔘 ${filtro.nom}`,p:fiPv}]:[]),
     ...(plan?[{d:"🚿 Lavado ext+int",p:20}]:[]),
     ...(plan==="premium"?[{d:"⭐ Mano de obra premium",p:100}]:[]),
-    ...(fa?[{d:"💨 Filtro de aire",p:faPv}]:[]),
-    ...(lf?[{d:"🔴 Líquido de freno",p:lfPv}]:[]),
+    ...(fa?[{d:`💨 ${faSel?faSel.nom:"Filtro de aire"}`,p:faPv}]:[]),
+    ...(lf?[{d:`🔴 ${lfSel?lfSel.nom:"Líquido de freno"}`,p:lfPv}]:[]),
     ...(cj?[{d:`⚙️ Aceite caja ${cjTipo} x${cjLit}L`,p:cjPv*cjLit}]:[]),
-    ...(ad?[{d:"🔵 Aceite dirección",p:adPv}]:[]),
+    ...(ad?[{d:`🔵 ${adSel?adSel.nom:"Aceite dirección"}`,p:adPv}]:[]),
   ];
   const sub=items.reduce((s,i)=>s+i.p,0);
   const total=sub-(parseFloat(desc)||0);
@@ -183,18 +187,63 @@ function CambioAceite({usuario,inv}){
       </div>
     </Card>
     <Card><Tit text="➕ Opcionales"/>
-      {[{check:fa,set:setFa,t:"Filtro de Aire",e:"💨",pv:faPv,setPv:setFaPv},{check:lf,set:setLf,t:"Líquido de Freno",e:"🔴",pv:lfPv,setPv:setLfPv},{check:ad,set:setAd,t:"Aceite Dirección",e:"🔵",pv:adPv,setPv:setAdPv}].map(x=>
-        <div key={x.t} style={{border:`1px solid ${x.check?"#f59e0b":"#e2e8f0"}`,borderRadius:10,padding:"8px 12px",background:x.check?"#fffbeb":"#f8fafc",marginBottom:6}}>
-          <div style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",marginBottom:x.check?6:0}} onClick={()=>x.set(!x.check)}>
-            <input type="checkbox" checked={x.check} onChange={e=>x.set(e.target.checked)} style={{width:15,height:15}}/>
-            <span style={{fontWeight:700,fontSize:12}}>{x.e} {x.t}</span>
-          </div>
-          {x.check&&<div style={{display:"flex",gap:8,alignItems:"center"}}>
+      {/* FILTRO DE AIRE */}
+      <div style={{border:`1px solid ${fa?"#f59e0b":"#e2e8f0"}`,borderRadius:10,padding:"8px 12px",background:fa?"#fffbeb":"#f8fafc",marginBottom:6}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",marginBottom:fa?8:0}} onClick={()=>setFa(!fa)}>
+          <input type="checkbox" checked={fa} onChange={e=>setFa(e.target.checked)} style={{width:15,height:15}}/>
+          <span style={{fontWeight:700,fontSize:12}}>💨 Filtro de Aire</span>
+        </div>
+        {fa&&<>
+          <select value={faSel?.id||""} onChange={e=>{const f=filtrosAire.find(x=>String(x.id)===e.target.value);setFaSel(f||null);if(f)setFaPv(f.precio);}}
+            style={{width:"100%",padding:"6px 8px",border:"1px solid #e2e8f0",borderRadius:7,fontSize:12,marginBottom:6}}>
+            <option value="">Seleccionar del inventario...</option>
+            {filtrosAire.length===0?<option disabled>Sin filtros de aire en inventario</option>:filtrosAire.map(f=><option key={f.id} value={String(f.id)}>{f.nom} · Stock:{f.stock} · Bs.{f.precio}</option>)}
+          </select>
+          <div style={{display:"flex",gap:8,alignItems:"center"}}>
             <span style={{fontSize:11,color:"#64748b"}}>Precio Bs.:</span>
-            <input type="number" value={x.pv} onChange={e=>x.setPv(+e.target.value)} style={{width:75,padding:"4px 8px",border:"1px solid #fbbf24",borderRadius:6,fontSize:13,fontWeight:800,color:"#92400e",textAlign:"center"}}/>
-            <span style={{color:"#16a34a",fontWeight:700,fontSize:12}}>= {fmt(x.pv)}</span>
-          </div>}
-        </div>)}
+            <input type="number" value={faPv} onChange={e=>setFaPv(+e.target.value)} style={{width:75,padding:"4px 8px",border:"1px solid #fbbf24",borderRadius:6,fontSize:13,fontWeight:800,color:"#92400e",textAlign:"center"}}/>
+            <span style={{color:"#16a34a",fontWeight:700,fontSize:12}}>= {fmt(faPv)}</span>
+          </div>
+        </>}
+      </div>
+      {/* LÍQUIDO DE FRENO */}
+      <div style={{border:`1px solid ${lf?"#f59e0b":"#e2e8f0"}`,borderRadius:10,padding:"8px 12px",background:lf?"#fffbeb":"#f8fafc",marginBottom:6}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",marginBottom:lf?8:0}} onClick={()=>setLf(!lf)}>
+          <input type="checkbox" checked={lf} onChange={e=>setLf(e.target.checked)} style={{width:15,height:15}}/>
+          <span style={{fontWeight:700,fontSize:12}}>🔴 Líquido de Freno</span>
+        </div>
+        {lf&&<>
+          <select value={lfSel?.id||""} onChange={e=>{const f=liquidosFreno.find(x=>String(x.id)===e.target.value);setLfSel(f||null);if(f)setLfPv(f.precio);}}
+            style={{width:"100%",padding:"6px 8px",border:"1px solid #e2e8f0",borderRadius:7,fontSize:12,marginBottom:6}}>
+            <option value="">Seleccionar del inventario...</option>
+            {liquidosFreno.length===0?<option disabled>Sin líquidos en inventario</option>:liquidosFreno.map(f=><option key={f.id} value={String(f.id)}>{f.nom} · Stock:{f.stock} · Bs.{f.precio}</option>)}
+          </select>
+          <div style={{display:"flex",gap:8,alignItems:"center"}}>
+            <span style={{fontSize:11,color:"#64748b"}}>Precio Bs.:</span>
+            <input type="number" value={lfPv} onChange={e=>setLfPv(+e.target.value)} style={{width:75,padding:"4px 8px",border:"1px solid #fbbf24",borderRadius:6,fontSize:13,fontWeight:800,color:"#92400e",textAlign:"center"}}/>
+            <span style={{color:"#16a34a",fontWeight:700,fontSize:12}}>= {fmt(lfPv)}</span>
+          </div>
+        </>}
+      </div>
+      {/* ACEITE DIRECCIÓN */}
+      <div style={{border:`1px solid ${ad?"#f59e0b":"#e2e8f0"}`,borderRadius:10,padding:"8px 12px",background:ad?"#fffbeb":"#f8fafc",marginBottom:6}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",marginBottom:ad?8:0}} onClick={()=>setAd(!ad)}>
+          <input type="checkbox" checked={ad} onChange={e=>setAd(e.target.checked)} style={{width:15,height:15}}/>
+          <span style={{fontWeight:700,fontSize:12}}>🔵 Aceite Dirección</span>
+        </div>
+        {ad&&<>
+          <select value={adSel?.id||""} onChange={e=>{const f=aceitesDir.find(x=>String(x.id)===e.target.value);setAdSel(f||null);if(f)setAdPv(f.precio);}}
+            style={{width:"100%",padding:"6px 8px",border:"1px solid #e2e8f0",borderRadius:7,fontSize:12,marginBottom:6}}>
+            <option value="">Seleccionar del inventario...</option>
+            {aceitesDir.length===0?<option disabled>Sin aceite de dirección en inventario</option>:aceitesDir.map(f=><option key={f.id} value={String(f.id)}>{f.nom} · Stock:{f.stock} · Bs.{f.precio}</option>)}
+          </select>
+          <div style={{display:"flex",gap:8,alignItems:"center"}}>
+            <span style={{fontSize:11,color:"#64748b"}}>Precio Bs.:</span>
+            <input type="number" value={adPv} onChange={e=>setAdPv(+e.target.value)} style={{width:75,padding:"4px 8px",border:"1px solid #fbbf24",borderRadius:6,fontSize:13,fontWeight:800,color:"#92400e",textAlign:"center"}}/>
+            <span style={{color:"#16a34a",fontWeight:700,fontSize:12}}>= {fmt(adPv)}</span>
+          </div>
+        </>}
+      </div>
       <div style={{border:`1px solid ${cj?"#f59e0b":"#e2e8f0"}`,borderRadius:10,padding:"8px 12px",background:cj?"#fffbeb":"#f8fafc"}}>
         <div style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",marginBottom:cj?6:0}} onClick={()=>setCj(!cj)}>
           <input type="checkbox" checked={cj} onChange={e=>setCj(e.target.checked)} style={{width:15,height:15}}/>
