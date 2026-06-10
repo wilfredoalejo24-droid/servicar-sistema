@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Usuarios — Servi Car Platinium</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;background:#f0f4f8}#root{min-height:100vh}</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+
+const SUPA_URL="https://epirsbudngwbxgcsryvv.supabase.co";
+const SUPA_KEY="sb_publishable_zsqvMzJMc80Ypf3UQqs-SA_IrV-XIGc";
+const sb=window.supabase.createClient(SUPA_URL,SUPA_KEY);
+
+// Permisos por rol
+const PERMISOS={
+  admin:{
+    label:"👑 Administrador",
+    color:"#7c3aed",
+    bg:"#f5f3ff",
+    permisos:[
+      "🏠 Ventas de tienda",
+      "🛢️ Cambio de aceite",
+      "🚿 Lavado",
+      "🎯 Alineado y balanceado",
+      "🚛 Grúa",
+      "📋 Crear y ver todas las OTs",
+      "💰 Ver precios y cotizaciones",
+      "📄 Generar PDF e informes",
+      "🚗 Entregar vehículos",
+      "🔎 Control de calidad",
+      "📦 Inventario completo con costos",
+      "➕ Agregar productos al inventario",
+      "💵 Caja diaria ambos talleres",
+      "📊 Cierre de caja",
+      "👥 CRM completo",
+      "👨‍🔧 Personal y herramientas",
+      "🏖️ Aprobar vacaciones",
+      "⚙️ Gestionar usuarios",
+    ]
+  },
+  encargado:{
+    label:"🔧 Encargado",
+    color:"#1d4ed8",
+    bg:"#eff6ff",
+    permisos:[
+      "🏠 Ventas de tienda",
+      "🛢️ Cambio de aceite",
+      "🚿 Lavado",
+      "🎯 Alineado y balanceado",
+      "🚛 Grúa",
+      "📋 Crear y ver todas las OTs",
+      "💰 Ver precios y cotizaciones",
+      "📄 Generar PDF e informes",
+      "🚗 Entregar vehículos",
+      "🔎 Control de calidad",
+      "📦 Inventario completo con costos",
+      "➕ Agregar productos al inventario",
+      "💵 Caja diaria su taller",
+      "📊 Cierre de caja su taller",
+      "👥 CRM completo",
+      "👨‍🔧 Personal y herramientas (ver)",
+    ]
+  },
+  vendedor:{
+    label:"🛒 Vendedor",
+    color:"#16a34a",
+    bg:"#f0fdf4",
+    permisos:[
+      "🏠 Ventas de tienda",
+      "🛢️ Cambio de aceite",
+      "🚿 Lavado",
+      "🎯 Alineado y balanceado",
+      "📋 Crear OTs (sin precios)",
+      "🔧 Diagnóstico y ejecución",
+      "✅ Marcar trabajo terminado",
+    ]
+  },
+  mecanico:{
+    label:"⚙️ Mecánico",
+    color:"#92400e",
+    bg:"#fffbeb",
+    permisos:[
+      "📋 Crear sus propias OTs",
+      "🔍 Ver solo sus OTs",
+      "🔧 Diagnóstico y ejecución",
+      "✅ Marcar trabajo terminado",
+    ]
+  }
+};
+
+const TALLERES=["Taller 1 · Montes","Taller 2 · Bella Vista","ambos"];
+
+function Login({onLogin}){
+  const [u,setU]=React.useState("");const [p,setP]=React.useState("");const [err,setErr]=React.useState("");const [cargando,setCargando]=React.useState(false);
+  const ok=async()=>{
+    setCargando(true);
+    const{data}=await sb.from("usuarios").select("*").eq("user_name",u.toLowerCase()).eq("pass",p).single();
+    setCargando(false);
+    if(!data){setErr("Usuario o contraseña incorrectos");return;}
+    if(data.rol!=="admin"){alert(`❌ Acceso denegado\nSolo Wilfredo puede gestionar usuarios.`);window.location.href="/admin.html";return;}
+    onLogin(data);
+  };
+  return <div style={{minHeight:"100vh",background:"#0f172a",display:"flex",alignItems:"center",justifyContent:"center"}}>
+    <div style={{background:"#1e293b",borderRadius:16,padding:32,width:300,boxShadow:"0 20px 60px rgba(0,0,0,.5)"}}>
+      <div style={{textAlign:"center",marginBottom:24}}>
+        <div style={{fontSize:36}}>⚙️</div>
+        <div style={{color:"#fbbf24",fontWeight:900,fontSize:16}}>SERVI CAR PLATINIUM</div>
+        <div style={{color:"#64748b",fontSize:11,marginTop:4}}>Gestión de Usuarios</div>
+        <div style={{color:"#ef4444",fontSize:10,marginTop:4,fontWeight:700}}>🔒 Solo acceso administrador</div>
+      </div>
+      {[["USUARIO",u,setU,"text"],["CONTRASEÑA",p,setP,"password"]].map(([l,v,s,t])=>
+        <div key={l} style={{marginBottom:12}}>
+          <div style={{color:"#94a3b8",fontSize:11,marginBottom:4,fontWeight:700}}>{l}</div>
+          <input type={t} value={v} onChange={e=>s(e.target.value)} onKeyDown={e=>e.key==="Enter"&&ok()}
+            style={{width:"100%",padding:"10px 12px",background:"#0f172a",border:"1px solid #334155",borderRadius:8,color:"#fff",fontSize:13,boxSizing:"border-box"}}/>
+        </div>)}
+      {err&&<div style={{color:"#ef4444",fontSize:11,marginBottom:10,textAlign:"center"}}>{err}</div>}
+      <button onClick={ok} disabled={cargando} style={{width:"100%",padding:11,background:"#f59e0b",color:"#1e293b",border:"none",borderRadius:8,fontWeight:900,fontSize:14,cursor:"pointer"}}>{cargando?"Verificando...":"Ingresar →"}</button>
+    </div>
+  </div>;
+}
+
+function App(){
+  const [usuario,setUsuario]=React.useState(null);
+  const [usuarios,setUsuarios]=React.useState([]);
+  const [cargando,setCargando]=React.useState(false);
+  const [modal,setModal]=React.useState(null); // null | {modo:'nuevo'} | {modo:'editar', user}
+  const [verPermisos,setVerPermisos]=React.useState(null);
+  const [form,setForm]=React.useState({user_name:"",nombre:"",pass:"",rol:"vendedor",taller:"Taller 1 · Montes"});
+  const [mostrarPass,setMostrarPass]=React.useState({});
+  const [guardando,setGuardando]=React.useState(false);
+
+  const cargar=async()=>{
+    setCargando(true);
+    const{data}=await sb.from("usuarios").select("*").order("id");
+    setUsuarios(data||[]);
+    setCargando(false);
+  };
+
+  React.useEffect(()=>{if(usuario)cargar();},[usuario]);
+
+  const abrirNuevo=()=>{
+    setForm({user_name:"",nombre:"",pass:"",rol:"vendedor",taller:"Taller 1 · Montes"});
+    setModal({modo:"nuevo"});
+  };
+
+  const abrirEditar=(u)=>{
+    setForm({user_name:u.user_name,nombre:u.nombre,pass:u.pass,rol:u.rol,taller:u.taller});
+    setModal({modo:"editar",user:u});
+  };
+
+  const guardar=async()=>{
+    if(!form.user_name||!form.nombre||!form.pass||!form.rol||!form.taller){alert("Completa todos los campos.");return;}
+    setGuardando(true);
+    if(modal.modo==="nuevo"){
+      const{error}=await sb.from("usuarios").insert({user_name:form.user_name.toLowerCase(),nombre:form.nombre,pass:form.pass,rol:form.rol,taller:form.taller});
+      if(error){alert("Error: "+error.message);setGuardando(false);return;}
+    } else {
+      const{error}=await sb.from("usuarios").update({user_name:form.user_name.toLowerCase(),nombre:form.nombre,pass:form.pass,rol:form.rol,taller:form.taller}).eq("id",modal.user.id);
+      if(error){alert("Error: "+error.message);setGuardando(false);return;}
+    }
+    setGuardando(false);
+    setModal(null);
+    cargar();
+    alert(`✅ Usuario ${modal.modo==="nuevo"?"creado":"actualizado"} correctamente`);
+  };
+
+  const eliminar=async(u)=>{
+    if(u.rol==="admin"){alert("❌ No puedes eliminar al administrador.");return;}
+    if(!window.confirm(`¿Eliminar a ${u.nombre}?\nEsta acción no se puede deshacer.`))return;
+    await sb.from("usuarios").delete().eq("id",u.id);
+    cargar();
+  };
+
+  const togglePass=(id)=>setMostrarPass(p=>({...p,[id]:!p[id]}));
+
+  if(!usuario) return <Login onLogin={setUsuario}/>;
+
+  const rolInfo=r=>PERMISOS[r]||PERMISOS.vendedor;
+
+  return <div style={{padding:10,background:"#f0f4f8",minHeight:"100vh"}}>
+    {/* Header */}
+    <div style={{background:"#1e293b",color:"#fbbf24",padding:"10px 14px",borderRadius:10,marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}}>
+      <div>
+        <div style={{fontSize:14,fontWeight:900}}>🔧 SERVI CAR PLATINIUM</div>
+        <div style={{fontSize:9,color:"#94a3b8"}}>Gestión de Usuarios · Solo Wilfredo</div>
+      </div>
+      <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+        <button onClick={()=>window.location.href="/admin.html"} style={{padding:"3px 8px",background:"#7c3aed",color:"#fff",border:"none",borderRadius:6,fontSize:10,cursor:"pointer",fontWeight:700}}>⚙️ Admin</button>
+        <button onClick={()=>setUsuario(null)} style={{padding:"3px 8px",background:"#ef4444",color:"#fff",border:"none",borderRadius:6,fontSize:10,cursor:"pointer",fontWeight:700}}>Salir</button>
+      </div>
+    </div>
+
+    {/* Resumen de roles */}
+    <div style={{background:"#fff",borderRadius:10,padding:14,marginBottom:10,border:"1px solid #e2e8f0"}}>
+      <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",color:"#64748b",marginBottom:10,paddingBottom:4,borderBottom:"2px solid #fbbf24",display:"inline-block"}}>📋 Roles disponibles</div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+        {Object.entries(PERMISOS).map(([k,v])=>
+          <div key={k} onClick={()=>setVerPermisos(verPermisos===k?null:k)}
+            style={{border:`2px solid ${verPermisos===k?v.color:"#e2e8f0"}`,borderRadius:10,padding:"8px 10px",cursor:"pointer",background:verPermisos===k?v.bg:"#f8fafc"}}>
+            <div style={{fontWeight:800,color:v.color,fontSize:12}}>{v.label}</div>
+            <div style={{fontSize:10,color:"#94a3b8",marginTop:2}}>{v.permisos.length} permisos · Toca para ver</div>
+            {verPermisos===k&&<div style={{marginTop:8,borderTop:"1px solid #e2e8f0",paddingTop:6}}>
+              {v.permisos.map(p=><div key={p} style={{fontSize:10,color:"#374151",lineHeight:1.9}}>✅ {p}</div>)}
+              <div style={{marginTop:6,padding:"4px 8px",background:"#fee2e2",borderRadius:6,fontSize:10,color:"#991b1b",fontWeight:700}}>
+                ❌ Todo lo demás está bloqueado
+              </div>
+            </div>}
+          </div>)}
+      </div>
+    </div>
+
+    {/* Lista de usuarios */}
+    <div style={{background:"#fff",borderRadius:10,padding:14,marginBottom:10,border:"1px solid #e2e8f0"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+        <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",color:"#64748b",paddingBottom:4,borderBottom:"2px solid #fbbf24"}}>👥 Usuarios del sistema</div>
+        <button onClick={abrirNuevo} style={{padding:"6px 12px",background:"#16a34a",color:"#fff",border:"none",borderRadius:8,fontWeight:700,fontSize:11,cursor:"pointer"}}>+ Nuevo usuario</button>
+      </div>
+
+      {cargando?<div style={{textAlign:"center",padding:20,color:"#94a3b8"}}>Cargando...</div>:
+      <div style={{display:"grid",gap:8}}>
+        {usuarios.map(u=>{
+          const ri=rolInfo(u.rol);
+          return <div key={u.id} style={{border:`1px solid ${ri.color}33`,borderRadius:10,padding:"10px 12px",background:ri.bg}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:6}}>
+              <div style={{flex:1}}>
+                <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
+                  <span style={{fontWeight:900,fontSize:13}}>{u.nombre}</span>
+                  <span style={{padding:"2px 7px",background:ri.color,color:"#fff",borderRadius:20,fontSize:9,fontWeight:700}}>{ri.label}</span>
+                </div>
+                <div style={{fontSize:11,color:"#64748b",marginBottom:2}}>👤 Usuario: <strong>{u.user_name}</strong></div>
+                <div style={{fontSize:11,color:"#64748b",marginBottom:2}}>🏢 Taller: <strong>{u.taller}</strong></div>
+                <div style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:"#64748b"}}>
+                  🔑 Contraseña: <strong>{mostrarPass[u.id]?u.pass:"••••••••"}</strong>
+                  <button onClick={()=>togglePass(u.id)} style={{padding:"1px 6px",background:"#f1f5f9",border:"1px solid #e2e8f0",borderRadius:4,fontSize:9,cursor:"pointer"}}>{mostrarPass[u.id]?"Ocultar":"Ver"}</button>
+                </div>
+                {/* Permisos resumidos */}
+                <div style={{marginTop:6,display:"flex",flexWrap:"wrap",gap:3}}>
+                  {PERMISOS[u.rol]?.permisos.slice(0,4).map(p=><span key={p} style={{fontSize:9,background:"#fff",border:"1px solid #e2e8f0",borderRadius:4,padding:"1px 5px",color:"#374151"}}>{p}</span>)}
+                  {PERMISOS[u.rol]?.permisos.length>4&&<span style={{fontSize:9,color:"#94a3b8"}}>+{PERMISOS[u.rol].permisos.length-4} más</span>}
+                </div>
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:5}}>
+                <button onClick={()=>abrirEditar(u)} style={{padding:"5px 10px",background:"#1d4ed8",color:"#fff",border:"none",borderRadius:7,fontWeight:700,fontSize:10,cursor:"pointer"}}>✏️ Editar</button>
+                {u.rol!=="admin"&&<button onClick={()=>eliminar(u)} style={{padding:"5px 10px",background:"#ef4444",color:"#fff",border:"none",borderRadius:7,fontWeight:700,fontSize:10,cursor:"pointer"}}>🗑️ Eliminar</button>}
+              </div>
+            </div>
+          </div>;
+        })}
+      </div>}
+    </div>
+
+    {/* Modal crear/editar */}
+    {modal&&<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,.6)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+      <div style={{background:"#fff",borderRadius:14,padding:20,width:"100%",maxWidth:380,maxHeight:"90vh",overflowY:"auto"}}>
+        <div style={{fontWeight:900,fontSize:15,marginBottom:14,color:"#1e293b"}}>
+          {modal.modo==="nuevo"?"➕ Nuevo usuario":"✏️ Editar usuario"}
+        </div>
+
+        {[
+          {l:"Nombre completo *",k:"nombre",ph:"Ej: Carlos Mamani"},
+          {l:"Usuario (sin espacios) *",k:"user_name",ph:"Ej: carlos"},
+          {l:"Contraseña *",k:"pass",ph:"Ej: carlos123"},
+        ].map(f=><div key={f.k} style={{marginBottom:10}}>
+          <div style={{fontSize:10,color:"#94a3b8",fontWeight:700,textTransform:"uppercase",marginBottom:3}}>{f.l}</div>
+          <input value={form[f.k]} onChange={e=>setForm(p=>({...p,[f.k]:e.target.value}))} placeholder={f.ph}
+            style={{width:"100%",padding:"8px 10px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:13,boxSizing:"border-box"}}/>
+        </div>)}
+
+        {/* Selector de rol con permisos visibles */}
+        <div style={{marginBottom:10}}>
+          <div style={{fontSize:10,color:"#94a3b8",fontWeight:700,textTransform:"uppercase",marginBottom:6}}>Rol y permisos *</div>
+          <div style={{display:"grid",gap:6}}>
+            {Object.entries(PERMISOS).map(([k,v])=>
+              <div key={k} onClick={()=>setForm(p=>({...p,rol:k}))}
+                style={{border:`2px solid ${form.rol===k?v.color:"#e2e8f0"}`,borderRadius:10,padding:"8px 10px",cursor:"pointer",background:form.rol===k?v.bg:"#f8fafc"}}>
+                <div style={{fontWeight:800,color:v.color,fontSize:12,marginBottom:3}}>{v.label}</div>
+                <div style={{display:"flex",flexWrap:"wrap",gap:3}}>
+                  {v.permisos.map(p=><span key={p} style={{fontSize:9,background:"#fff",border:"1px solid #e2e8f0",borderRadius:4,padding:"1px 5px",color:"#374151"}}>{p}</span>)}
+                </div>
+                <div style={{marginTop:4,fontSize:9,color:"#ef4444",fontWeight:700}}>❌ Sin acceso a todo lo demás</div>
+              </div>)}
+          </div>
+        </div>
+
+        {/* Taller */}
+        <div style={{marginBottom:14}}>
+          <div style={{fontSize:10,color:"#94a3b8",fontWeight:700,textTransform:"uppercase",marginBottom:6}}>Taller asignado *</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6}}>
+            {TALLERES.map(t=><div key={t} onClick={()=>setForm(p=>({...p,taller:t}))}
+              style={{border:`2px solid ${form.taller===t?"#f59e0b":"#e2e8f0"}`,borderRadius:8,padding:"6px 4px",cursor:"pointer",textAlign:"center",background:form.taller===t?"#fffbeb":"#f8fafc"}}>
+              <div style={{fontSize:9,fontWeight:700,color:form.taller===t?"#92400e":"#64748b"}}>{t==="ambos"?"🏢 Ambos":t.includes("Montes")?"🔧 Montes":"🔧 Bella Vista"}</div>
+            </div>)}
+          </div>
+        </div>
+
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+          <button onClick={()=>setModal(null)} style={{padding:10,background:"#f1f5f9",border:"1px solid #e2e8f0",borderRadius:8,fontWeight:700,fontSize:12,cursor:"pointer"}}>Cancelar</button>
+          <button onClick={guardar} disabled={guardando} style={{padding:10,background:"#16a34a",color:"#fff",border:"none",borderRadius:8,fontWeight:700,fontSize:12,cursor:"pointer"}}>{guardando?"Guardando...":"💾 Guardar"}</button>
+        </div>
+      </div>
+    </div>}
+  </div>;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
