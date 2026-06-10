@@ -129,7 +129,7 @@ function ListaOTs({usuario,onNueva}){
 
     {/* Filtros */}
     <div style={{display:"flex",gap:5,marginBottom:10}}>
-      {[{k:"todos",l:"Todas"},${k:"activas",l:"🔄 Activas"},{k:"entregadas",l:"✅ Entregadas"}].map(f=>
+      {[{k:"todos",l:"Todas"},{k:"activas",l:"🔄 Activas"},{k:"entregadas",l:"✅ Entregadas"}].map(f=>
         <button key={f.k} onClick={()=>setFiltro(f.k)} style={{padding:"5px 10px",borderRadius:7,border:`1px solid ${filtro===f.k?"#fbbf24":"#e2e8f0"}`,background:filtro===f.k?"#fffbeb":"#fff",color:filtro===f.k?"#92400e":"#64748b",fontWeight:700,fontSize:10,cursor:"pointer"}}>{f.l}</button>)}
     </div>
 
