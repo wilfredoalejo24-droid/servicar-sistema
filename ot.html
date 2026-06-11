@@ -1,310 +1,282 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-  <title>OT — Servi Car Platinium</title>
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;background:#f0f4f8}#root{min-height:100vh}</style>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Órdenes de Trabajo — Servi Car Platinium</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;background:#0f172a;color:#fff;min-height:100vh}
+.btn{padding:10px 16px;border:none;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer}
+.btn-primary{background:#f59e0b;color:#1e293b}
+.btn-blue{background:#1d4ed8;color:#fff}
+.btn-gray{background:#334155;color:#94a3b8}
+.card{background:#1e293b;border:1px solid #334155;border-radius:14px;padding:16px;margin-bottom:10px}
+.input{width:100%;padding:10px 12px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#fff;font-size:13px}
+.label{color:#64748b;font-size:11px;font-weight:700;margin-bottom:5px;display:block}
+select{width:100%;padding:10px 12px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#fff;font-size:13px}
+.badge{padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.8);display:flex;align-items:flex-end;justify-content:center;z-index:1000}
+.modal-box{background:#1e293b;border-radius:16px 16px 0 0;padding:20px;width:100%;max-width:500px;max-height:90vh;overflow-y:auto}
+textarea{width:100%;padding:10px 12px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#fff;font-size:13px;resize:vertical}
+</style>
 </head>
 <body>
-<div id="root"></div>
-<script type="text/babel">
+<div id="app"></div>
+<div id="modal-area"></div>
 
-const SUPA_URL="https://epirsbudngwbxgcsryvv.supabase.co";
-const SUPA_KEY="sb_publishable_zsqvMzJMc80Ypf3UQqs-SA_IrV-XIGc";
-const sb=window.supabase.createClient(SUPA_URL,SUPA_KEY);
-const EMPRESA={nombre:"SERVI CAR PLATINIUM",ciudad:"Viacha - La Paz",tel1:"68167264",tel2:"60574920"};
-const fmt=n=>`Bs. ${parseFloat(n||0).toFixed(2)}`;
-const hoy=()=>new Date().toLocaleDateString("es-BO");
-const hora=()=>new Date().toLocaleTimeString("es-BO",{hour:"2-digit",minute:"2-digit"});
+<script>
+const SB=window.supabase.createClient("https://epirsbudngwbxgcsryvv.supabase.co","sb_publishable_zsqvMzJMc80Ypf3UQqs-SA_IrV-XIGc");
 
-const comprimirFoto=(file,cb)=>{
-  const r=new FileReader();
-  r.onload=ev=>{
-    const img=new Image();
-    img.onload=()=>{
-      const c=document.createElement("canvas");
-      const MAX=400;let w=img.width,h=img.height;
-      if(w>h){if(w>MAX){h=h*(MAX/w);w=MAX;}}else{if(h>MAX){w=w*(MAX/h);h=MAX;}}
-      c.width=w;c.height=h;c.getContext("2d").drawImage(img,0,0,w,h);
-      cb(c.toDataURL("image/jpeg",0.65));
-    };img.src=ev.target.result;
-  };r.readAsDataURL(file);
-};
+let usuario=null, ots=[], filtro="todas";
 
-function FotoUpload({fotos=[],setFotos,label="📷 Tomar foto"}){
-  const add=e=>{Array.from(e.target.files).forEach(f=>comprimirFoto(f,url=>setFotos(p=>[...p,{url,hora:hora()}])));e.target.value="";};
-  return <div>
-    <label style={{display:"inline-flex",alignItems:"center",gap:5,padding:"7px 12px",background:"#1e293b",borderRadius:8,cursor:"pointer",fontSize:12,fontWeight:700,color:"#fbbf24"}}>
-      📷 {label}<input type="file" accept="image/*" capture="environment" multiple onChange={add} style={{display:"none"}}/>
-    </label>
-    {fotos.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:5,marginTop:7}}>
-      {fotos.map((f,i)=><div key={i} style={{position:"relative"}}>
-        <img src={f.url} alt="" style={{width:65,height:65,objectFit:"cover",borderRadius:7,border:"2px solid #e2e8f0"}}/>
-        <button onClick={()=>setFotos(p=>p.filter((_,j)=>j!==i))} style={{position:"absolute",top:-4,right:-4,background:"#ef4444",color:"#fff",border:"none",borderRadius:"50%",width:16,height:16,fontSize:9,cursor:"pointer",padding:0}}>✕</button>
-      </div>)}
-    </div>}
-  </div>;
+const PASO_LABEL=["","Recepción","Diagnóstico","Cotización","Aprobación","Ejecución","Trabajo adicional","Control calidad","Entregada"];
+const PASO_COLOR=["","#64748b","#60a5fa","#a78bfa","#f59e0b","#f97316","#ec4899","#0891b2","#16a34a"];
+
+async function init(){
+  const u=localStorage.getItem("sc_user");
+  if(u){usuario=JSON.parse(u);await cargar();renderLista();}
+  else renderLogin();
 }
 
-function Login({onLogin}){
-  const [u,setU]=React.useState("");const [p,setP]=React.useState("");
-  const [err,setErr]=React.useState("");const [cargando,setCargando]=React.useState(false);
-  const ok=async()=>{
-    setCargando(true);
-    const{data}=await sb.from("usuarios").select("*").eq("user_name",u.toLowerCase().trim()).eq("pass",p).single();
-    setCargando(false);
-    if(data) onLogin(data);
-    else setErr("Usuario o contraseña incorrectos");
-  };
-  return <div style={{minHeight:"100vh",background:"#0f172a",display:"flex",alignItems:"center",justifyContent:"center"}}>
-    <div style={{background:"#1e293b",borderRadius:16,padding:32,width:300,boxShadow:"0 20px 60px rgba(0,0,0,.5)"}}>
-      <div style={{textAlign:"center",marginBottom:24}}>
-        <div style={{fontSize:40}}>📋</div>
-        <div style={{color:"#fbbf24",fontWeight:900,fontSize:16}}>{EMPRESA.nombre}</div>
-        <div style={{color:"#64748b",fontSize:11,marginTop:4}}>Órdenes de Trabajo</div>
+async function login(){
+  const un=document.getElementById("usr").value.trim().toLowerCase();
+  const pw=document.getElementById("pwd").value;
+  if(!un||!pw){document.getElementById("err").textContent="Completa los campos";return;}
+  const{data}=await SB.from("usuarios").select("*").eq("user_name",un).eq("pass",pw).single();
+  if(data){localStorage.setItem("sc_user",JSON.stringify(data));usuario=data;await cargar();renderLista();}
+  else document.getElementById("err").textContent="Usuario o contraseña incorrectos";
+}
+
+function salir(){localStorage.removeItem("sc_user");usuario=null;renderLogin();}
+
+async function cargar(){
+  let q=SB.from("ots").select("*").order("id",{ascending:false});
+  if(usuario.rol==="mecanico") q=q.eq("tecnico",usuario.user_name);
+  const{data}=await q;
+  ots=data||[];
+}
+
+function renderLogin(){
+  document.getElementById("app").innerHTML=`
+  <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px">
+    <div style="width:100%;max-width:340px">
+      <div style="text-align:center;margin-bottom:28px">
+        <div style="font-size:52px">📋</div>
+        <div style="color:#fbbf24;font-weight:900;font-size:20px;margin-top:6px">SERVI CAR PLATINIUM</div>
+        <div style="color:#475569;font-size:11px">Órdenes de Trabajo</div>
       </div>
-      {[["USUARIO",u,setU,"text"],["CONTRASEÑA",p,setP,"password"]].map(([l,v,s,t])=>
-        <div key={l} style={{marginBottom:12}}>
-          <div style={{color:"#94a3b8",fontSize:11,marginBottom:4,fontWeight:700}}>{l}</div>
-          <input type={t} value={v} onChange={e=>s(e.target.value)} onKeyDown={e=>e.key==="Enter"&&ok()}
-            style={{width:"100%",padding:"10px 12px",background:"#0f172a",border:"1px solid #334155",borderRadius:8,color:"#fff",fontSize:13,boxSizing:"border-box"}}/>
-        </div>)}
-      {err&&<div style={{color:"#ef4444",fontSize:11,marginBottom:10,textAlign:"center"}}>{err}</div>}
-      <button onClick={ok} disabled={cargando} style={{width:"100%",padding:11,background:"#f59e0b",color:"#1e293b",border:"none",borderRadius:8,fontWeight:900,fontSize:14,cursor:"pointer"}}>{cargando?"Verificando...":"Ingresar →"}</button>
+      <div style="background:#1e293b;border-radius:16px;padding:24px">
+        <div class="label">Usuario</div>
+        <input id="usr" class="input" placeholder="tu usuario" style="margin-bottom:12px" onkeydown="if(event.key==='Enter')login()"/>
+        <div class="label">Contraseña</div>
+        <input id="pwd" type="password" class="input" placeholder="tu contraseña" style="margin-bottom:12px" onkeydown="if(event.key==='Enter')login()"/>
+        <div id="err" style="color:#ef4444;font-size:11px;text-align:center;margin-bottom:8px;min-height:16px"></div>
+        <button onclick="login()" class="btn btn-primary" style="width:100%">Ingresar →</button>
+      </div>
+      <div style="text-align:center;margin-top:12px">
+        <a href="/" style="color:#475569;font-size:11px;text-decoration:none">← Volver al menú</a>
+      </div>
     </div>
-  </div>;
+  </div>`;
 }
 
-function ListaOTs({usuario,onNueva}){
-  const [ots,setOts]=React.useState([]);
-  const [cargando,setCargando]=React.useState(false);
-  const [filtro,setFiltro]=React.useState("todos");
-  const esAdmin=["admin","encargado"].includes(usuario.rol)||["wilfredo","william"].includes(usuario.user_name);
+function renderLista(){
+  const filtradas=filtro==="todas"?ots:ots.filter(o=>o.paso_actual==filtro||(filtro==="abiertas"&&o.paso_actual<8)||(filtro==="entregadas"&&o.paso_actual>=8));
+  const esAdmin=(usuario.rol==="admin"||usuario.rol==="encargado");
 
-  const cargar=async()=>{
-    setCargando(true);
-    let q=sb.from("ots").select("*").order("created_at",{ascending:false});
-    if(!esAdmin) q=q.eq("tecnico",usuario.nombre);
-    const{data}=await q;
-    setOts(data||[]);
-    setCargando(false);
-  };
-
-  React.useEffect(()=>{cargar();},[]);
-
-  const borrar=async(ot,e)=>{
-    e.stopPropagation();
-    if(usuario.user_name!=="wilfredo"){alert("❌ Solo Wilfredo puede borrar OTs.");return;}
-    if(!window.confirm(`¿Borrar OT ${ot.num}?\nEsta acción NO se puede deshacer.`))return;
-    await sb.from("ots").delete().eq("id",ot.id);
-    cargar();
-  };
-
-  const abrirDetalle=(ot)=>{
-    // Guardar OT en sessionStorage y abrir detalle
-    sessionStorage.setItem("ot_actual",JSON.stringify(ot));
-    sessionStorage.setItem("usuario_ot",JSON.stringify(usuario));
-    window.location.href="/ot-detalle.html";
-  };
-
-  const estadoColor={1:"#94a3b8",2:"#3b82f6",3:"#f59e0b",4:"#8b5cf6",5:"#ec4899",6:"#14b8a6",7:"#22c55e",8:"#16a34a"};
-  const estadoLabel={1:"Recepción",2:"Diagnóstico",3:"Cotización",4:"Aprobado",5:"En trabajo",6:"Terminado",7:"Calidad",8:"Entregado"};
-
-  const otsFiltradas=ots.filter(o=>{
-    if(filtro==="activas") return o.paso<8;
-    if(filtro==="entregadas") return o.paso>=8;
-    return true;
-  });
-
-  return <div>
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-      <div style={{fontWeight:900,fontSize:14,color:"#1e293b"}}>📋 Órdenes de Trabajo</div>
-      <button onClick={onNueva} style={{padding:"7px 14px",background:"#16a34a",color:"#fff",border:"none",borderRadius:8,fontWeight:700,fontSize:12,cursor:"pointer"}}>+ Nueva OT</button>
+  document.getElementById("app").innerHTML=`
+  <!-- Header -->
+  <div style="background:#1e293b;border-bottom:1px solid #334155;padding:12px 16px;position:sticky;top:0;z-index:100">
+    <div style="display:flex;justify-content:space-between;align-items:center;max-width:500px;margin:0 auto">
+      <div>
+        <a href="/" style="color:#64748b;text-decoration:none;font-size:11px">← Inicio</a>
+        <div style="color:#fbbf24;font-weight:900;font-size:15px">📋 Órdenes de Trabajo</div>
+        <div style="color:#475569;font-size:10px">${usuario.nombre} · ${ots.length} OT${ots.length!==1?"s":""}</div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button onclick="cargar().then(renderLista)" class="btn btn-gray" style="padding:8px 10px;font-size:11px">🔄</button>
+        <button onclick="mostrarCrear()" class="btn btn-primary" style="padding:8px 12px;font-size:12px">+ Nueva OT</button>
+      </div>
     </div>
+  </div>
 
-    {/* Filtros */}
-    <div style={{display:"flex",gap:5,marginBottom:10}}>
-      {[{k:"todos",l:"Todas"},{k:"activas",l:"🔄 Activas"},{k:"entregadas",l:"✅ Entregadas"}].map(f=>
-        <button key={f.k} onClick={()=>setFiltro(f.k)} style={{padding:"5px 10px",borderRadius:7,border:`1px solid ${filtro===f.k?"#fbbf24":"#e2e8f0"}`,background:filtro===f.k?"#fffbeb":"#fff",color:filtro===f.k?"#92400e":"#64748b",fontWeight:700,fontSize:10,cursor:"pointer"}}>{f.l}</button>)}
-    </div>
+  <div style="padding:14px 16px;max-width:500px;margin:0 auto">
 
-    {cargando?<div style={{textAlign:"center",padding:20,color:"#94a3b8"}}>Cargando...</div>:
-    otsFiltradas.length===0?<div style={{textAlign:"center",padding:30,color:"#94a3b8",fontSize:12,background:"#fff",borderRadius:10}}>Sin órdenes de trabajo</div>:
-    <div style={{display:"grid",gap:8}}>
-      {otsFiltradas.map(ot=><div key={ot.id}
-        style={{background:"#fff",borderRadius:10,padding:"10px 12px",border:`2px solid ${estadoColor[ot.paso]||"#e2e8f0"}20`,cursor:"pointer"}}
-        onClick={()=>abrirDetalle(ot)}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:4}}>
-          <div style={{flex:1}}>
-            <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginBottom:3}}>
-              <span style={{fontWeight:900,fontSize:13}}>{ot.num}</span>
-              <span style={{padding:"2px 7px",background:`${estadoColor[ot.paso]||"#94a3b8"}20`,color:estadoColor[ot.paso]||"#94a3b8",borderRadius:20,fontSize:9,fontWeight:700}}>{estadoLabel[ot.paso]||"—"}</span>
-            </div>
-            <div style={{fontSize:12,color:"#374151"}}>🚗 {ot.placa} · {ot.marca} {ot.modelo}</div>
-            <div style={{fontSize:11,color:"#64748b"}}>👤 {ot.cliente||"—"} · 👨‍🔧 {ot.tecnico}</div>
-            <div style={{fontSize:10,color:"#94a3b8"}}>📅 {ot.fecha} · 🏢 {ot.taller}</div>
-          </div>
-          <div style={{display:"flex",gap:5,alignItems:"center",flexDirection:"column"}}>
-            {ot.total>0&&<span style={{fontWeight:900,fontSize:13,color:"#16a34a"}}>{fmt(ot.total)}</span>}
-            <div style={{display:"flex",gap:4}}>
-              <span style={{padding:"3px 8px",background:"#eff6ff",color:"#1d4ed8",borderRadius:6,fontSize:9,fontWeight:700}}>Ver →</span>
-              {usuario.user_name==="wilfredo"&&<button onClick={e=>borrar(ot,e)} style={{padding:"3px 7px",background:"#fee2e2",color:"#dc2626",border:"1px solid #fca5a5",borderRadius:6,fontSize:9,cursor:"pointer",fontWeight:700}}>🗑️</button>}
-            </div>
-          </div>
+  <!-- Filtros -->
+  <div style="display:flex;gap:6px;margin-bottom:14px;overflow-x:auto;padding-bottom:4px">
+    ${[["todas","Todas"],["abiertas","Abiertas"],["entregadas","Entregadas"]].map(([k,l])=>
+      `<button onclick="filtro='${k}';renderLista()" class="btn" style="white-space:nowrap;padding:7px 12px;font-size:11px;background:${filtro===k?"#f59e0b":"#1e293b"};color:${filtro===k?"#1e293b":"#94a3b8"};border:1px solid ${filtro===k?"#f59e0b":"#334155"}">${l}</button>`
+    ).join("")}
+  </div>
+
+  <!-- Lista OTs -->
+  ${filtradas.length===0?`<div style="text-align:center;padding:40px;color:#475569">
+    <div style="font-size:40px;margin-bottom:10px">📋</div>
+    <div style="font-size:14px">No hay órdenes de trabajo</div>
+    <button onclick="mostrarCrear()" class="btn btn-primary" style="margin-top:14px">+ Crear primera OT</button>
+  </div>`:""}
+
+  ${filtradas.map(o=>{
+    const paso=o.paso_actual||1;
+    const color=PASO_COLOR[paso]||"#64748b";
+    const label=PASO_LABEL[paso]||"";
+    const entregada=paso>=8;
+    return `<div onclick="abrirDetalle(${o.id})" style="cursor:pointer;background:#1e293b;border:1px solid #334155;border-radius:14px;padding:14px;margin-bottom:10px;border-left:3px solid ${color}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+        <div>
+          <div style="font-weight:900;font-size:14px;color:#fff">${o.placa||"Sin placa"} <span style="color:#64748b;font-weight:400;font-size:12px">· ${o.marca||""} ${o.modelo||""}</span></div>
+          <div style="color:#94a3b8;font-size:11px;margin-top:2px">👤 ${o.cliente_nombre||"-"} ${o.cliente_tel?`· 📞 ${o.cliente_tel}`:""}</div>
+          ${o.tecnico?`<div style="color:#475569;font-size:10px;margin-top:2px">🔧 Técnico: ${o.tecnico}</div>`:""}
         </div>
-      </div>)}
-    </div>}
-  </div>;
+        <span class="badge" style="background:${color}20;color:${color};border:1px solid ${color}40;white-space:nowrap">${label}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="font-size:10px;color:#475569">${o.fecha_ingreso||""}</div>
+        <div style="display:flex;gap:6px;align-items:center">
+          ${entregada?`<span style="font-size:10px;color:#16a34a;font-weight:700">✅ Entregado</span>`:`<span style="font-size:10px;color:#64748b">Paso ${paso}/8</span>`}
+          <span style="color:#475569;font-size:14px">→</span>
+        </div>
+      </div>
+    </div>`;
+  }).join("")}
+
+  <div style="height:20px"></div>
+  </div>`;
 }
 
-function FormOT({usuario,onGuardado,onCancelar}){
-  const [form,setForm]=React.useState({
-    placa:"",cliente:"",tel:"",marca:"",modelo:"",color:"",
-    km:"",combustible:"3/4",
-    taller:usuario.taller==="ambos"?"":usuario.taller,
-    tecnico:usuario.nombre,problema:""
-  });
-  const [fotos,setFotos]=React.useState([]);
-  const [guardando,setGuardando]=React.useState(false);
-  const [usuarios,setUsuarios]=React.useState([]);
-  const esEncargado=["admin","encargado"].includes(usuario.rol)||["wilfredo","william"].includes(usuario.user_name);
+function abrirDetalle(id){
+  location.href=`/ot-detalle.html?id=${id}`;
+}
 
-  React.useEffect(()=>{
-    sb.from("usuarios").select("nombre,rol,user_name").then(({data})=>setUsuarios(data||[]));
-  },[]);
+function mostrarCrear(){
+  const esAdmin=(usuario.rol==="admin"||usuario.rol==="encargado");
+  document.getElementById("modal-area").innerHTML=`
+  <div class="modal" onclick="if(event.target===this)cerrarModal()">
+  <div class="modal-box">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <strong style="color:#fbbf24;font-size:15px">+ Nueva Orden de Trabajo</strong>
+      <button onclick="cerrarModal()" class="btn btn-gray" style="padding:6px 12px">✕</button>
+    </div>
 
-  const guardar=async()=>{
-    if(!form.placa||!form.tecnico||!form.taller){alert("Completa placa, técnico y taller.");return;}
-    setGuardando(true);
-    const num=`OT-${Date.now().toString().slice(-5)}`;
-    const{data,error}=await sb.from("ots").insert({
-      num,fecha:hoy(),placa:form.placa,cliente:form.cliente,
-      tel:form.tel,marca:form.marca,modelo:form.modelo,
-      color:form.color,km:form.km,combustible:form.combustible,
-      taller:form.taller,tecnico:form.tecnico,
-      problema:form.problema,paso:1,estado:"Recepción",
-      fotos_recepcion:JSON.stringify(fotos),
-      creado_por:usuario.nombre,total:0
-    }).select().single();
-    setGuardando(false);
-    if(error){alert("Error: "+error.message);return;}
-    alert(`✅ OT creada: ${num}\nToca la OT para continuar con el diagnóstico.`);
-    onGuardado(data);
+    <div class="label">Placa del vehículo *</div>
+    <input id="n_placa" class="input" placeholder="Ej: ABC-123" style="margin-bottom:10px" oninput="buscarCliente()"/>
+
+    <div id="sugerencia_cliente" style="display:none;background:#0f172a;border:1px solid #334155;border-radius:8px;padding:10px;margin-bottom:10px;font-size:12px;cursor:pointer;color:#60a5fa"></div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+      <div>
+        <div class="label">Marca</div>
+        <input id="n_marca" class="input" placeholder="Toyota"/>
+      </div>
+      <div>
+        <div class="label">Modelo</div>
+        <input id="n_modelo" class="input" placeholder="Corolla"/>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+      <div>
+        <div class="label">Año</div>
+        <input id="n_anio" type="number" class="input" placeholder="2018"/>
+      </div>
+      <div>
+        <div class="label">Km ingreso</div>
+        <input id="n_km" type="number" class="input" placeholder="85000"/>
+      </div>
+    </div>
+
+    <div class="label">Nombre del cliente *</div>
+    <input id="n_cliente" class="input" placeholder="Nombre completo" style="margin-bottom:10px"/>
+
+    <div class="label">Teléfono cliente</div>
+    <input id="n_tel" type="tel" class="input" placeholder="7XXXXXXX" style="margin-bottom:10px"/>
+
+    <div class="label">Motivo de ingreso *</div>
+    <textarea id="n_motivo" class="input" rows="2" placeholder="¿Por qué trae el vehículo?" style="margin-bottom:10px"></textarea>
+
+    ${esAdmin?`
+    <div class="label">Asignar técnico</div>
+    <select id="n_tecnico" class="input" style="margin-bottom:10px">
+      <option value="${usuario.user_name}">${usuario.nombre} (yo)</option>
+      ${usuario.user_name==="wilfredo"?`<option value="william">William</option><option value="adolfo">Adolfo</option><option value="joel">Joel</option>`:""}
+      ${usuario.user_name==="william"?`<option value="wilfredo">Wilfredo</option><option value="adolfo">Adolfo</option><option value="joel">Joel</option>`:""}
+    </select>`:`<input type="hidden" id="n_tecnico" value="${usuario.user_name}"/>`}
+
+    <div class="label">Taller</div>
+    <select id="n_taller" class="input" style="margin-bottom:16px">
+      <option value="Taller 1 · Montes">Taller 1 · Montes</option>
+      <option value="Taller 2 · Bella Vista">Taller 2 · Bella Vista</option>
+    </select>
+
+    <button onclick="crearOT()" class="btn btn-primary" style="width:100%;padding:13px;font-size:14px">✅ Crear OT</button>
+  </div></div>`;
+}
+
+async function buscarCliente(){
+  const placa=document.getElementById("n_placa").value.trim().toUpperCase();
+  if(placa.length<4)return;
+  const{data}=await SB.from("crm").select("*").ilike("placa",`%${placa}%`).limit(1).single();
+  if(data){
+    const sg=document.getElementById("sugerencia_cliente");
+    sg.style.display="block";
+    sg.innerHTML=`✅ Cliente conocido: <strong>${data.nombre}</strong> · ${data.placa} · ${data.marca||""} ${data.modelo||""}`;
+    sg.onclick=()=>{
+      document.getElementById("n_cliente").value=data.nombre||"";
+      document.getElementById("n_tel").value=data.tel||"";
+      document.getElementById("n_marca").value=data.marca||"";
+      document.getElementById("n_modelo").value=data.modelo||"";
+      sg.style.display="none";
+    };
+  }
+}
+
+async function crearOT(){
+  const placa=document.getElementById("n_placa").value.trim().toUpperCase();
+  const cliente=document.getElementById("n_cliente").value.trim();
+  const motivo=document.getElementById("n_motivo").value.trim();
+  if(!placa||!cliente||!motivo){alert("Completa placa, cliente y motivo");return;}
+
+  const tecEl=document.getElementById("n_tecnico");
+  const tecnico=tecEl.tagName==="SELECT"?tecEl.value:tecEl.value;
+
+  const nueva={
+    placa,
+    marca:document.getElementById("n_marca").value.trim(),
+    modelo:document.getElementById("n_modelo").value.trim(),
+    anio:document.getElementById("n_anio").value||null,
+    km_ingreso:document.getElementById("n_km").value||null,
+    cliente_nombre:cliente,
+    cliente_tel:document.getElementById("n_tel").value.trim(),
+    motivo_ingreso:motivo,
+    tecnico,
+    taller:document.getElementById("n_taller").value,
+    paso_actual:1,
+    registrado_por:usuario.user_name,
+    fecha_ingreso:new Date().toLocaleDateString("es-BO"),
+    mano_obra:[],
+    repuestos:[],
+    repuestos_conseguir:[],
+    fotos_recepcion:[],
+    fotos_trabajo:[]
   };
 
-  return <div style={{background:"#fff",borderRadius:10,padding:14,border:"1px solid #e2e8f0"}}>
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-      <div style={{fontWeight:900,fontSize:14}}>➕ Nueva OT</div>
-      <button onClick={onCancelar} style={{padding:"4px 10px",background:"#f1f5f9",border:"1px solid #e2e8f0",borderRadius:6,fontSize:11,cursor:"pointer"}}>✕ Cancelar</button>
-    </div>
-
-    {/* Taller */}
-    {usuario.taller==="ambos"&&<div style={{marginBottom:10}}>
-      <div style={{fontSize:10,color:"#94a3b8",fontWeight:700,marginBottom:4}}>TALLER *</div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
-        {["Taller 1 · Montes","Taller 2 · Bella Vista"].map(t=>
-          <button key={t} onClick={()=>setForm(f=>({...f,taller:t}))}
-            style={{padding:"8px",border:`2px solid ${form.taller===t?"#f59e0b":"#e2e8f0"}`,borderRadius:8,background:form.taller===t?"#fffbeb":"#fff",fontWeight:700,fontSize:10,cursor:"pointer",color:form.taller===t?"#92400e":"#64748b"}}>
-            {t.includes("Montes")?"🔧 Montes":"🔧 Bella Vista"}
-          </button>)}
-      </div>
-    </div>}
-
-    {/* Técnico */}
-    <div style={{marginBottom:10}}>
-      <div style={{fontSize:10,color:"#94a3b8",fontWeight:700,marginBottom:3}}>TÉCNICO ASIGNADO *</div>
-      {esEncargado
-        ?<select value={form.tecnico} onChange={e=>setForm(f=>({...f,tecnico:e.target.value}))}
-          style={{width:"100%",padding:"7px 10px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:13}}>
-          {usuarios.map(u=><option key={u.user_name} value={u.nombre}>{u.nombre}</option>)}
-        </select>
-        :<div style={{padding:"8px 10px",background:"#f0fdf4",borderRadius:8,fontWeight:700,fontSize:13,color:"#15803d"}}>👨‍🔧 {usuario.nombre}</div>}
-    </div>
-
-    {/* Datos */}
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
-      {[["PLACA *","placa","1234ABC"],["CLIENTE","cliente","Nombre completo"],
-        ["TELÉFONO","tel","70000000"],["MARCA","marca","Toyota"],
-        ["MODELO","modelo","Corolla"],["COLOR","color","Blanco"]].map(([l,k,ph])=>
-        <div key={k}>
-          <div style={{fontSize:10,color:"#94a3b8",fontWeight:700,marginBottom:3}}>{l}</div>
-          <input value={form[k]} onChange={e=>setForm(f=>({...f,[k]:e.target.value}))} placeholder={ph}
-            style={{width:"100%",padding:"7px 10px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:13,boxSizing:"border-box"}}/>
-        </div>)}
-    </div>
-
-    {/* Km y combustible */}
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
-      <div>
-        <div style={{fontSize:10,color:"#94a3b8",fontWeight:700,marginBottom:3}}>KM INGRESO</div>
-        <input type="number" value={form.km} onChange={e=>setForm(f=>({...f,km:e.target.value}))} placeholder="85000"
-          style={{width:"100%",padding:"7px 10px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:13,boxSizing:"border-box"}}/>
-      </div>
-      <div>
-        <div style={{fontSize:10,color:"#94a3b8",fontWeight:700,marginBottom:3}}>COMBUSTIBLE</div>
-        <select value={form.combustible} onChange={e=>setForm(f=>({...f,combustible:e.target.value}))}
-          style={{width:"100%",padding:"7px 10px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:13}}>
-          {["Vacío","1/4","1/2","3/4","Lleno"].map(v=><option key={v}>{v}</option>)}
-        </select>
-      </div>
-    </div>
-
-    {/* Problema */}
-    <div style={{marginBottom:10}}>
-      <div style={{fontSize:10,color:"#94a3b8",fontWeight:700,marginBottom:3}}>PROBLEMA REPORTADO</div>
-      <textarea value={form.problema} onChange={e=>setForm(f=>({...f,problema:e.target.value}))}
-        placeholder="Describe el problema reportado por el cliente..."
-        style={{width:"100%",padding:"7px 10px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:12,minHeight:70,resize:"none",boxSizing:"border-box"}}/>
-    </div>
-
-    {/* Fotos */}
-    <div style={{marginBottom:12}}>
-      <div style={{fontSize:10,color:"#94a3b8",fontWeight:700,marginBottom:5}}>📷 FOTOS AL INGRESO</div>
-      <FotoUpload fotos={fotos} setFotos={setFotos} label="Fotografiar el vehículo"/>
-    </div>
-
-    <button onClick={guardar} disabled={guardando}
-      style={{width:"100%",padding:12,background:"#16a34a",color:"#fff",border:"none",borderRadius:8,fontWeight:900,fontSize:14,cursor:"pointer"}}>
-      {guardando?"Creando OT...":"✅ Crear OT"}
-    </button>
-  </div>;
+  const{data,error}=await SB.from("ots").insert(nueva).select().single();
+  if(error){alert("Error al crear OT: "+error.message);return;}
+  cerrarModal();
+  location.href=`/ot-detalle.html?id=${data.id}`;
 }
 
-function App(){
-  const [usuario,setUsuario]=React.useState(null);
-  const [vista,setVista]=React.useState("lista");
+function cerrarModal(){document.getElementById("modal-area").innerHTML="";}
 
-  if(!usuario) return <Login onLogin={u=>{
-    sessionStorage.setItem("usuario_ot",JSON.stringify(u));
-    setUsuario(u);
-  }}/>;
+window.cerrarModal=cerrarModal;
+window.mostrarCrear=mostrarCrear;
+window.crearOT=crearOT;
+window.buscarCliente=buscarCliente;
+window.abrirDetalle=abrirDetalle;
 
-  return <div style={{padding:10,background:"#f0f4f8",minHeight:"100vh"}}>
-    {/* Header */}
-    <div style={{background:"#1e293b",color:"#fbbf24",padding:"10px 14px",borderRadius:10,marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}}>
-      <div>
-        <div style={{fontSize:14,fontWeight:900}}>📋 {EMPRESA.nombre}</div>
-        <div style={{fontSize:9,color:"#94a3b8"}}>Órdenes de Trabajo · {usuario.nombre}</div>
-      </div>
-      <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-        <button onClick={()=>window.location.href="/"} style={{padding:"3px 8px",background:"#1d4ed8",color:"#fff",border:"none",borderRadius:6,fontSize:10,cursor:"pointer",fontWeight:700}}>🏠 Inicio</button>
-        <button onClick={()=>window.location.href="/servicios.html"} style={{padding:"3px 8px",background:"#16a34a",color:"#fff",border:"none",borderRadius:6,fontSize:10,cursor:"pointer",fontWeight:700}}>🔧 Servicios</button>
-        {["admin","encargado"].includes(usuario.rol)&&<button onClick={()=>window.location.href="/admin.html"} style={{padding:"3px 8px",background:"#7c3aed",color:"#fff",border:"none",borderRadius:6,fontSize:10,cursor:"pointer",fontWeight:700}}>⚙️ Admin</button>}
-        <button onClick={()=>setUsuario(null)} style={{padding:"3px 8px",background:"#ef4444",color:"#fff",border:"none",borderRadius:6,fontSize:10,cursor:"pointer",fontWeight:700}}>Salir</button>
-      </div>
-    </div>
-
-    {vista==="lista"&&<ListaOTs usuario={usuario} onNueva={()=>setVista("nueva")}/>}
-    {vista==="nueva"&&<FormOT usuario={usuario} onGuardado={()=>setVista("lista")} onCancelar={()=>setVista("lista")}/>}
-  </div>;
-}
-
-ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+init();
 </script>
 </body>
 </html>
