@@ -14,32 +14,38 @@ body{font-family:Arial,sans-serif;background:#0f172a;color:#fff;min-height:100vh
 .btn-blue{background:#1d4ed8;color:#fff}
 .btn-red{background:#ef4444;color:#fff}
 .btn-gray{background:#334155;color:#94a3b8}
+.btn-wa{background:#25d366;color:#fff}
 .card{background:#1e293b;border:1px solid #334155;border-radius:14px;padding:16px;margin-bottom:12px}
 .input{width:100%;padding:10px 12px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#fff;font-size:13px}
 .label{color:#64748b;font-size:11px;font-weight:700;margin-bottom:5px;display:block}
 select,textarea{width:100%;padding:10px 12px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#fff;font-size:13px}
 textarea{resize:vertical}
-.step-done{background:#16a34a20;border:1px solid #16a34a40}
-.step-active{background:#f59e0b20;border:1px solid #f59e0b60}
-.step-pending{background:#1e293b;border:1px solid #334155}
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;align-items:flex-end;justify-content:center;z-index:1000}
-.modal-box{background:#1e293b;border-radius:16px 16px 0 0;padding:20px;width:100%;max-width:500px;max-height:88vh;overflow-y:auto}
+.modal-box{background:#1e293b;border-radius:16px 16px 0 0;padding:20px;width:100%;max-width:500px;max-height:90vh;overflow-y:auto}
 .foto-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
 .foto-item{aspect-ratio:1;border-radius:8px;overflow:hidden;position:relative;background:#0f172a;border:1px solid #334155}
 .foto-item img{width:100%;height:100%;object-fit:cover}
 .foto-del{position:absolute;top:3px;right:3px;background:rgba(239,68,68,.9);border:none;border-radius:50%;width:20px;height:20px;color:#fff;font-size:10px;cursor:pointer}
+.step-done{background:#16a34a20;border:1px solid #16a34a40}
+.step-active{background:#f59e0b20;border:1px solid #f59e0b60}
+.step-pending{background:#1e293b;border:1px solid #334155}
+.step-blocked{background:#ef444420;border:1px solid #ef444440}
+.tag-verde{background:#16a34a20;border:1px solid #16a34a40;color:#4ade80;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:700}
+.tag-naranja{background:#f97316.20;border:1px solid #f9731640;color:#fb923c;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:700}
 </style>
 </head>
 <body>
-<div id="app"><div style="display:flex;align-items:center;justify-content:center;min-height:100vh;color:#64748b;font-size:14px">Cargando OT...</div></div>
+<div id="app"><div style="display:flex;align-items:center;justify-content:center;min-height:100vh;color:#64748b">Cargando OT...</div></div>
 <div id="modal-area"></div>
 <script>
 const SB=window.supabase.createClient("https://epirsbudngwbxgcsryvv.supabase.co","sb_publishable_zsqvMzJMc80Ypf3UQqs-SA_IrV-XIGc");
-const PASOS=["Recepción","Diagnóstico","Cotización","Aprobación","Ejecución","Trabajo adicional","Control calidad","Entrega"];
-const MO_OPTS=["Cambio de aceite","Lavado de motor","Alineado","Balanceado","Cambio de frenos","Cambio de pastillas","Cambio de embrague","Cambio de suspensión","Diagnóstico eléctrico","Diagnóstico electrónico","Cambio de filtros","Cambio de correa","Mantenimiento general","Soldadura","Rectificado","Otro (personalizado)"];
+const EMPRESA={nombre:"SERVI CAR PLATINIUM",ciudad:"Viacha - La Paz",tel1:"68167264",tel2:"60574920",wa_grupo:""};
+const LOGO_B64="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wCEAAYGBgYHBgcICAcKCwoLCg8ODAwODxYQERAREBYiFRkVFRkVIh4kHhweJB42KiYmKjY+NDI0PkxERExfWl98fKcBBgYGBgcGBwgIBwoLCgsKDw4MDA4PFhAREBEQFiIVGRUVGRUiHiQeHB4kHjYqJiYqNj40MjQ+TERETF9aX3x8p//CABIAFAAUAMBIgACEQEDEQH/xAAzAAEBAAMBAQEAAAAAAAAAAAAAAQIDBAUGBwEBAQEBAQEBAAAAAAAAAAAAAAECAwQFBv/aAAwDAQACEAMQAAAC9pn5r0AAAAAAAAAAAAAAKSiKlWAKRZECgdBdZ0Y5Y5rPDYFVhKzrHPHNcccsbkAAAA";
+const LOGO_TEXT="🔧 SERVI CAR PLATINIUM";
+const PASOS=["Recepción","Diagnóstico","Cotización","Aprobación","Ejecución","Control técnico","Control calidad","Cobro y entrega"];
+const MO_OPTS=["Cambio de aceite","Lavado de motor","Alineado","Balanceado","Cambio de frenos","Cambio de pastillas","Cambio de embrague","Cambio de suspensión","Diagnóstico eléctrico","Diagnóstico electrónico","Cambio de filtros","Cambio de correa de distribución","Desmontado de motor","Cambio de anillas","Rectificado de culata","Pulido de block","Mantenimiento general","Soldadura","Otro (personalizado)"];
 
-let usuario=null, ot=null, inventario=[], otId=null;
-
+let usuario=null,ot=null,inventario=[],otId=null;
 const params=new URLSearchParams(location.search);
 otId=params.get("id");
 
@@ -57,13 +63,10 @@ async function cargarOT(){
   const{data}=await SB.from("ots").select("*").eq("id",otId).single();
   if(!data){alert("OT no encontrada");location.href="/ot.html";return;}
   ot=data;
-  // Normalizar arrays
-  if(!Array.isArray(ot.servicios)) try{ot.servicios=JSON.parse(ot.servicios||"[]")}catch{ot.servicios=[];}
-  if(!Array.isArray(ot.repuestos)) try{ot.repuestos=JSON.parse(ot.repuestos||"[]")}catch{ot.repuestos=[];}
-  if(!Array.isArray(ot.fotos_recepcion)) try{ot.fotos_recepcion=JSON.parse(ot.fotos_recepcion||"[]")}catch{ot.fotos_recepcion=[];}
-  if(!Array.isArray(ot.fotos_trabajo)) try{ot.fotos_trabajo=JSON.parse(ot.fotos_trabajo||"[]")}catch{ot.fotos_trabajo=[];}
-  if(!ot.repuestos_conseguir) ot.repuestos_conseguir=[];
-  if(!Array.isArray(ot.repuestos_conseguir)) try{ot.repuestos_conseguir=JSON.parse(ot.repuestos_conseguir||"[]")}catch{ot.repuestos_conseguir=[];}
+  const parse=k=>{if(!ot[k])ot[k]=[];else if(!Array.isArray(ot[k]))try{ot[k]=JSON.parse(ot[k])}catch{ot[k]=[];}};
+  ["servicios","repuestos","fotos_recepcion","fotos_trabajo","repuestos_conseguir","procedimientos"].forEach(parse);
+  if(!ot.adelanto)ot.adelanto=0;
+  if(!ot.descuento)ot.descuento=0;
 }
 
 async function cargarInventario(){
@@ -72,6 +75,7 @@ async function cargarInventario(){
 }
 
 const esAdmin=()=>["admin","encargado"].includes(usuario?.rol)||["wilfredo","william"].includes(usuario?.user_name);
+const esTecnico=()=>["adolfo","joel","diego","evo"].includes(usuario?.user_name);
 
 async function guardar(campos){
   await SB.from("ots").update(campos).eq("id",otId);
@@ -90,20 +94,17 @@ function tomarFoto(tipo){
       const img=new Image();
       img.onload=async()=>{
         const c=document.createElement("canvas");
-        const MAX=600;let w=img.width,h=img.height;
+        const MAX=700;let w=img.width,h=img.height;
         if(w>MAX){h=h*MAX/w;w=MAX;}
         c.width=w;c.height=h;
         c.getContext("2d").drawImage(img,0,0,w,h);
-        const b64=c.toDataURL("image/jpeg",0.7);
+        const b64=c.toDataURL("image/jpeg",0.75);
         const campo=tipo==="rec"?"fotos_recepcion":"fotos_trabajo";
         const arr=[...(ot[campo]||[]),b64];
         await guardar({[campo]:arr});
-      };
-      img.src=e.target.result;
-    };
-    r.readAsDataURL(f);
-  };
-  inp.click();
+      };img.src=e.target.result;
+    };r.readAsDataURL(f);
+  };inp.click();
 }
 
 async function borrarFoto(tipo,idx){
@@ -113,7 +114,176 @@ async function borrarFoto(tipo,idx){
   await guardar({[campo]:arr});
 }
 
-// MANO DE OBRA (servicios)
+// PROCEDIMIENTOS (técnico)
+function modalProcedimiento(){
+  document.getElementById("modal-area").innerHTML=`
+  <div class="modal" onclick="if(event.target===this)cerrarModal()">
+  <div class="modal-box">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <strong style="color:#fbbf24">+ Agregar procedimiento</strong>
+      <button onclick="cerrarModal()" class="btn btn-gray" style="padding:5px 10px">✕</button>
+    </div>
+    <div class="label">Seleccionar procedimiento</div>
+    <select id="proc_tipo" class="input" style="margin-bottom:10px" onchange="document.getElementById('proc_custom').style.display=this.value==='Otro'?'block':'none'">
+      ${MO_OPTS.map(o=>`<option>${o}</option>`).join("")}
+      <option>Otro</option>
+    </select>
+    <div id="proc_custom" style="display:none;margin-bottom:10px">
+      <div class="label">Describir procedimiento</div>
+      <input id="proc_nombre_c" class="input" placeholder="Ej: Cambio de termostato"/>
+    </div>
+    <div class="label">Descripción detallada</div>
+    <textarea id="proc_desc" class="input" rows="3" placeholder="Explica qué harás exactamente..." style="margin-bottom:14px"></textarea>
+    <button onclick="agregarProcedimiento()" class="btn btn-green" style="width:100%">✅ Agregar</button>
+  </div></div>`;
+}
+
+async function agregarProcedimiento(){
+  const tipo=document.getElementById("proc_tipo").value;
+  const nombre=tipo==="Otro"?document.getElementById("proc_nombre_c").value.trim():tipo;
+  const desc=document.getElementById("proc_desc").value.trim();
+  if(!nombre){alert("Completa el procedimiento");return;}
+  const arr=[...(ot.procedimientos||[]),{nombre,desc,tecnico:usuario.nombre}];
+  await guardar({procedimientos:arr});
+  cerrarModal();
+}
+
+async function borrarProcedimiento(idx){
+  if(!confirm("¿Borrar?"))return;
+  const arr=[...(ot.procedimientos||[])];arr.splice(idx,1);
+  await guardar({procedimientos:arr});
+}
+
+// REPUESTOS A CONSEGUIR (técnico)
+function modalRepCons(){
+  document.getElementById("modal-area").innerHTML=`
+  <div class="modal" onclick="if(event.target===this)cerrarModal()">
+  <div class="modal-box">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <strong style="color:#f97316">🔍 Repuesto requerido</strong>
+      <button onclick="cerrarModal()" class="btn btn-gray" style="padding:5px 10px">✕</button>
+    </div>
+    <div class="label">Nombre del repuesto</div>
+    <input id="rc_nombre" class="input" placeholder="Ej: Anillas de motor" style="margin-bottom:10px"/>
+    <div class="label">Nota / referencia</div>
+    <textarea id="rc_nota" class="input" rows="2" placeholder="Medidas, código, marca..."></textarea>
+    <button onclick="agregarRepCons()" class="btn" style="width:100%;margin-top:14px;background:#f97316;color:#fff">✅ Agregar</button>
+  </div></div>`;
+}
+
+async function agregarRepCons(){
+  const nombre=document.getElementById("rc_nombre").value.trim();
+  const nota=document.getElementById("rc_nota").value.trim();
+  if(!nombre){alert("Escribe el nombre");return;}
+  const arr=[...(ot.repuestos_conseguir||[]),{nombre,nota,conseguido:false,precio_estimado:0,en_inventario:false}];
+  await guardar({repuestos_conseguir:arr});
+  cerrarModal();
+}
+
+// ENVIAR INFORME AL ENCARGADO (técnico)
+async function enviarInformeEncargado(){
+  if((ot.procedimientos||[]).length===0){alert("Agrega al menos un procedimiento antes de enviar.");return;}
+  await guardar({paso:3,estado:"Cotización",informe_enviado:true});
+  const procs=(ot.procedimientos||[]).map((p,i)=>`${i+1}. ${p.nombre}${p.desc?" - "+p.desc:""}`).join("\n");
+  const reps=(ot.repuestos_conseguir||[]).map((r,i)=>`${i+1}. ${r.nombre}${r.nota?" ("+r.nota+")":""}`).join("\n");
+  const msg=`🔧 *SERVI CAR PLATINIUM*\n📋 *Informe Técnico - ${ot.num||"OT #"+otId}*\n\n🚗 *${ot.placa} · ${ot.marca} ${ot.modelo}*\n👤 Cliente: ${ot.cliente}\n\n*Procedimientos a realizar:*\n${procs}\n\n*Repuestos requeridos:*\n${reps||"Ninguno"}\n\n_Técnico: ${usuario.nombre}_`;
+  window.open(`https://wa.me/591${ot.tel_encargado||""}?text=${encodeURIComponent(msg)}`,"_blank");
+}
+
+// COTIZACIÓN (encargado)
+function modalCotizacion(){
+  const rcs=ot.repuestos_conseguir||[];
+  document.getElementById("modal-area").innerHTML=`
+  <div class="modal" onclick="if(event.target===this)cerrarModal()">
+  <div class="modal-box">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <strong style="color:#fbbf24">💰 Llenar cotización</strong>
+      <button onclick="cerrarModal()" class="btn btn-gray" style="padding:5px 10px">✕</button>
+    </div>
+
+    <div style="color:#60a5fa;font-size:11px;font-weight:700;margin-bottom:8px">PROCEDIMIENTOS — llenar precio mano de obra</div>
+    ${(ot.procedimientos||[]).map((p,i)=>`
+    <div style="background:#0f172a;border:1px solid #334155;border-radius:8px;padding:10px;margin-bottom:8px">
+      <div style="font-size:12px;font-weight:700;margin-bottom:6px">${p.nombre}</div>
+      ${p.desc?`<div style="font-size:10px;color:#64748b;margin-bottom:6px">${p.desc}</div>`:""}
+      <div class="label">Precio mano de obra (Bs.)</div>
+      <input id="mo_precio_${i}" type="number" value="${p.precio||0}" class="input" placeholder="0"/>
+    </div>`).join("")}
+
+    <div style="color:#f97316;font-size:11px;font-weight:700;margin:12px 0 8px">REPUESTOS — buscar en inventario o precio estimado</div>
+    ${rcs.map((r,i)=>`
+    <div style="background:#0f172a;border:1px solid #f97316.30;border-radius:8px;padding:10px;margin-bottom:8px;border-color:#f9731640">
+      <div style="font-size:12px;font-weight:700;color:#fb923c;margin-bottom:4px">🔍 ${r.nombre}</div>
+      ${r.nota?`<div style="font-size:10px;color:#64748b;margin-bottom:6px">${r.nota}</div>`:""}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+        <div>
+          <div class="label">Precio (Bs.)</div>
+          <input id="rp_precio_${i}" type="number" value="${r.precio_estimado||0}" class="input" placeholder="0"/>
+        </div>
+        <div>
+          <div class="label">¿En inventario?</div>
+          <select id="rp_inv_${i}" class="input">
+            <option value="0" ${!r.en_inventario?"selected":""}>No — a conseguir</option>
+            <option value="1" ${r.en_inventario?"selected":""}>Sí — en tienda</option>
+          </select>
+        </div>
+      </div>
+    </div>`).join("")}
+
+    <div style="margin-top:8px">
+      <div class="label">Adelanto recibido (Bs.)</div>
+      <input id="cot_adelanto" type="number" value="${ot.adelanto||0}" class="input" style="margin-bottom:14px"/>
+    </div>
+    <button onclick="guardarCotizacion()" class="btn btn-primary" style="width:100%">💾 Guardar y enviar al cliente</button>
+  </div></div>`;
+}
+
+async function guardarCotizacion(){
+  const procs=[...(ot.procedimientos||[])];
+  procs.forEach((_,i)=>{
+    const el=document.getElementById(`mo_precio_${i}`);
+    if(el) procs[i].precio=parseFloat(el.value)||0;
+  });
+  const rcs=[...(ot.repuestos_conseguir||[])];
+  rcs.forEach((_,i)=>{
+    const pel=document.getElementById(`rp_precio_${i}`);
+    const iel=document.getElementById(`rp_inv_${i}`);
+    if(pel) rcs[i].precio_estimado=parseFloat(pel.value)||0;
+    if(iel) rcs[i].en_inventario=iel.value==="1";
+  });
+  const adelanto=parseFloat(document.getElementById("cot_adelanto").value)||0;
+  await guardar({procedimientos:procs,repuestos_conseguir:rcs,adelanto,paso:3,estado:"Cotización"});
+  cerrarModal();
+  enviarCotizacionCliente();
+}
+
+function calcTotalesCot(){
+  const mo=(ot.procedimientos||[]).reduce((s,x)=>s+(x.precio||0),0);
+  const rep=(ot.repuestos_conseguir||[]).reduce((s,x)=>s+(x.precio_estimado||0),0);
+  return{mo,rep,total:mo+rep};
+}
+
+function enviarCotizacionCliente(){
+  const tot=calcTotalesCot();
+  const procs=(ot.procedimientos||[]).map((p,i)=>`${i+1}. ${p.nombre} — Bs. ${p.precio||0}`).join("\n");
+  const reps=(ot.repuestos_conseguir||[]).map((r,i)=>`${i+1}. ${r.nombre}${r.en_inventario?" ✅":" 🔍 (a conseguir)"} — Bs. ${r.precio_estimado||0}`).join("\n");
+  const adelanto=ot.adelanto||0;
+  const saldo=tot.total-adelanto;
+  const msg=`🔧 *SERVI CAR PLATINIUM*\n📋 *COTIZACIÓN - ${ot.num||"OT #"+otId}*\n🗓 ${new Date().toLocaleDateString("es-BO")}\n\n🚗 *${ot.placa} · ${ot.marca} ${ot.modelo}*\n👤 Cliente: ${ot.cliente}\n\n*MANO DE OBRA:*\n${procs}\nSubtotal: Bs. ${tot.mo}\n\n*REPUESTOS:*\n${reps}\nSubtotal: Bs. ${tot.rep}\n\n💰 *TOTAL ESTIMADO: Bs. ${tot.total}*\n${adelanto>0?`✅ Adelanto: Bs. ${adelanto}\n💳 Saldo a pagar: Bs. ${saldo}`:""}\n\n_Por favor confirme si aprueba el trabajo._\n📞 ${EMPRESA.tel1} / ${EMPRESA.tel2}`;
+  if(ot.tel) window.open(`https://wa.me/591${ot.tel}?text=${encodeURIComponent(msg)}`,"_blank");
+  else alert("El cliente no tiene teléfono registrado.");
+}
+
+// CONFIRMAR APROBACIÓN
+async function confirmarAprobacion(){
+  await guardar({paso:4,estado:"Aprobado"});
+  // Notificar al técnico
+  const msg=`✅ *SERVI CAR PLATINIUM*\n🔔 *El cliente APROBÓ el trabajo*\n\n🚗 ${ot.placa} · ${ot.marca} ${ot.modelo}\n👤 ${ot.cliente}\n\n¡Por favor agiliza el trabajo! 💪\n\nOT #${otId}`;
+  alert("✅ Aprobado. Notifica al técnico por WhatsApp.");
+  window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`,"_blank");
+}
+
+// MANO DE OBRA FINAL (encargado al cobrar)
 function modalMO(){
   document.getElementById("modal-area").innerHTML=`
   <div class="modal" onclick="if(event.target===this)cerrarModal()">
@@ -122,13 +292,12 @@ function modalMO(){
       <strong style="color:#fbbf24">+ Agregar servicio</strong>
       <button onclick="cerrarModal()" class="btn btn-gray" style="padding:5px 10px">✕</button>
     </div>
-    <div class="label">Tipo de servicio</div>
+    <div class="label">Servicio</div>
     <select id="mo_tipo" class="input" style="margin-bottom:10px" onchange="document.getElementById('mo_custom').style.display=this.value==='Otro (personalizado)'?'block':'none'">
       ${MO_OPTS.map(o=>`<option>${o}</option>`).join("")}
     </select>
     <div id="mo_custom" style="display:none;margin-bottom:10px">
-      <div class="label">Nombre del servicio</div>
-      <input id="mo_nombre_c" class="input" placeholder="Ej: Cambio de termostato"/>
+      <input id="mo_nombre_c" class="input" placeholder="Nombre del servicio"/>
     </div>
     <div class="label">Precio (Bs.)</div>
     <input id="mo_precio" type="number" class="input" placeholder="0" style="margin-bottom:14px"/>
@@ -141,9 +310,17 @@ async function agregarMO(){
   const nombre=tipo==="Otro (personalizado)"?document.getElementById("mo_nombre_c").value.trim():tipo;
   const precio=parseFloat(document.getElementById("mo_precio").value)||0;
   if(!nombre||!precio){alert("Completa nombre y precio");return;}
-  const arr=[...(ot.servicios||[]),{nombre,precio,tecnico:usuario.nombre,fecha:new Date().toLocaleDateString("es-BO")}];
+  const arr=[...(ot.servicios||[]),{nombre,precio,tecnico:usuario.nombre}];
   await guardar({servicios:arr});
   cerrarModal();
+}
+
+async function editarMOPrecio(idx){
+  const s=ot.servicios[idx];
+  const nuevo=prompt(`Precio de "${s.nombre}" (Bs.):`,s.precio);
+  if(nuevo===null)return;
+  const arr=[...(ot.servicios||[])];arr[idx].precio=parseFloat(nuevo)||0;
+  await guardar({servicios:arr});
 }
 
 async function borrarMO(idx){
@@ -152,7 +329,7 @@ async function borrarMO(idx){
   await guardar({servicios:arr});
 }
 
-// REPUESTOS
+// REPUESTOS DEL INVENTARIO
 function modalRep(){
   document.getElementById("modal-area").innerHTML=`
   <div class="modal" onclick="if(event.target===this)cerrarModal()">
@@ -164,19 +341,21 @@ function modalRep(){
     <input id="rep_busca" class="input" placeholder="Buscar producto..." oninput="filtrarInv()" style="margin-bottom:10px"/>
     <div id="rep_lista" style="max-height:280px;overflow-y:auto">
       ${inventario.map(p=>`
-        <div onclick="selRep(${p.id})" style="padding:10px;background:#0f172a;border:1px solid #334155;border-radius:8px;margin-bottom:6px;cursor:pointer;display:flex;gap:8px;align-items:center">
-          ${p.foto?`<img src="${p.foto}" style="width:36px;height:36px;border-radius:6px;object-fit:cover"/>`:
-          `<div style="width:36px;height:36px;background:#334155;border-radius:6px;display:flex;align-items:center;justify-content:center">📦</div>`}
-          <div>
-            <div style="color:#fff;font-size:12px;font-weight:700">${p.nombre}</div>
-            <div style="font-size:10px;color:${(p.stock||0)>0?"#16a34a":"#ef4444"};font-weight:700">${(p.stock||0)>0?"Stock: "+p.stock:"❌ SIN STOCK"}</div>
-            <div style="font-size:10px;color:#fbbf24">Bs. ${p.precio_venta||0}</div>
-          </div>
-        </div>`).join("")}
+      <div onclick="selRep(${p.id})" style="padding:10px;background:#0f172a;border:1px solid #334155;border-radius:8px;margin-bottom:6px;cursor:pointer;display:flex;gap:8px;align-items:center">
+        ${p.foto?`<img src="${p.foto}" style="width:36px;height:36px;border-radius:6px;object-fit:cover"/>`:
+        `<div style="width:36px;height:36px;background:#334155;border-radius:6px;display:flex;align-items:center;justify-content:center">📦</div>`}
+        <div>
+          <div style="font-size:12px;font-weight:700">${p.nombre}</div>
+          <div style="font-size:10px;color:${(p.stock||0)>0?"#16a34a":"#ef4444"};font-weight:700">${(p.stock||0)>0?"Stock: "+p.stock:"❌ SIN STOCK"}</div>
+          <div style="font-size:10px;color:#fbbf24">Bs. ${p.precio_venta||0}</div>
+        </div>
+      </div>`).join("")}
     </div>
     <div id="rep_form" style="display:none;margin-top:10px">
       <div class="label">Cantidad</div>
-      <input id="rep_cant" type="number" value="1" class="input" style="margin-bottom:10px"/>
+      <input id="rep_cant" type="number" value="1" class="input" style="margin-bottom:8px"/>
+      <div class="label">Precio venta (Bs.) — editable</div>
+      <input id="rep_precio" type="number" class="input" style="margin-bottom:10px"/>
       <button onclick="agregarRep()" class="btn btn-green" style="width:100%;margin-bottom:8px">✅ Agregar</button>
       <button onclick="document.getElementById('rep_form').style.display='none';document.getElementById('rep_lista').style.display='block'" class="btn btn-gray" style="width:100%">← Volver</button>
     </div>
@@ -186,8 +365,9 @@ function modalRep(){
 let repSelId=null;
 function selRep(id){
   const p=inventario.find(x=>x.id===id);
-  if(!p||(p.stock||0)<=0){alert("❌ Sin stock. Agrega al inventario primero.");return;}
+  if(!p||(p.stock||0)<=0){alert("❌ Sin stock");return;}
   repSelId=id;
+  document.getElementById("rep_precio").value=p.precio_venta||0;
   document.getElementById("rep_form").style.display="block";
   document.getElementById("rep_lista").style.display="none";
 }
@@ -202,22 +382,21 @@ function filtrarInv(){
 async function agregarRep(){
   const p=inventario.find(x=>x.id===repSelId);if(!p)return;
   const cant=parseInt(document.getElementById("rep_cant").value)||1;
+  const precio=parseFloat(document.getElementById("rep_precio").value)||p.precio_venta||0;
   if(cant>(p.stock||0)){alert(`Solo hay ${p.stock} en stock`);return;}
-  const arr=[...(ot.repuestos||[]),{inv_id:p.id,nombre:p.nombre,foto:p.foto||null,cantidad:cant,precio:p.precio_venta||0,estado:"pendiente"}];
+  // Descontar del inventario
+  await SB.from("inventario").update({stock:Math.max(0,(p.stock||0)-cant)}).eq("id",p.id);
+  p.stock=Math.max(0,(p.stock||0)-cant);
+  const arr=[...(ot.repuestos||[]),{inv_id:p.id,nombre:p.nombre,foto:p.foto||null,cantidad:cant,precio,estado:"listo"}];
   await guardar({repuestos:arr});
   cerrarModal();
 }
 
-async function descontarRep(idx){
-  const arr=[...(ot.repuestos||[])];
-  const rep=arr[idx];
-  if(rep.estado==="listo")return;
-  const inv=inventario.find(x=>x.id===rep.inv_id);
-  if(inv){
-    await SB.from("inventario").update({stock:Math.max(0,(inv.stock||0)-rep.cantidad)}).eq("id",inv.id);
-    inv.stock=Math.max(0,(inv.stock||0)-rep.cantidad);
-  }
-  arr[idx].estado="listo";
+async function editarRepPrecio(idx){
+  const r=ot.repuestos[idx];
+  const nuevo=prompt(`Precio de "${r.nombre}" (Bs.):`,r.precio);
+  if(nuevo===null)return;
+  const arr=[...(ot.repuestos||[])];arr[idx].precio=parseFloat(nuevo)||0;
   await guardar({repuestos:arr});
 }
 
@@ -227,131 +406,200 @@ async function borrarRep(idx){
   await guardar({repuestos:arr});
 }
 
-// REPUESTOS A CONSEGUIR
-function modalRepCons(){
-  document.getElementById("modal-area").innerHTML=`
-  <div class="modal" onclick="if(event.target===this)cerrarModal()">
-  <div class="modal-box">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-      <strong style="color:#f97316">🔍 Repuesto a conseguir</strong>
-      <button onclick="cerrarModal()" class="btn btn-gray" style="padding:5px 10px">✕</button>
-    </div>
-    <div class="label">Nombre del repuesto</div>
-    <input id="rc_nombre" class="input" placeholder="Ej: Bomba de agua" style="margin-bottom:10px"/>
-    <div class="label">Nota (opcional)</div>
-    <textarea id="rc_nota" class="input" rows="2" placeholder="Medidas, referencia..."></textarea>
-    <button onclick="agregarRepCons()" class="btn" style="width:100%;margin-top:14px;background:#f97316;color:#fff">✅ Agregar</button>
-  </div></div>`;
-}
-
-async function agregarRepCons(){
-  const nombre=document.getElementById("rc_nombre").value.trim();
-  const nota=document.getElementById("rc_nota").value.trim();
-  if(!nombre){alert("Escribe el nombre");return;}
-  const arr=[...(ot.repuestos_conseguir||[]),{nombre,nota,conseguido:false,fecha:new Date().toLocaleDateString("es-BO")}];
-  await guardar({repuestos_conseguir:arr});
-  cerrarModal();
-}
-
-async function marcarConseguido(idx){
-  const arr=[...(ot.repuestos_conseguir||[])];
-  arr[idx].conseguido=true;
-  await guardar({repuestos_conseguir:arr});
-}
-
-function cerrarModal(){document.getElementById("modal-area").innerHTML="";}
-
-// TOTALES
+// CALCULAR TOTALES FINALES
 function calcTotales(){
   const mo=(ot.servicios||[]).reduce((s,x)=>s+(x.precio||0),0);
   const rep=(ot.repuestos||[]).reduce((s,x)=>s+((x.precio||0)*(x.cantidad||1)),0);
   return{mo,rep,total:mo+rep};
 }
 
-function puedeEntregar(){
-  const pendCons=(ot.repuestos_conseguir||[]).some(r=>!r.conseguido);
-  const pendRep=(ot.repuestos||[]).some(r=>r.estado!=="listo");
-  return !pendCons&&!pendRep;
+// ENVIAR COTIZACIÓN FINAL AL CLIENTE
+function enviarCotizacionFinal(){
+  const tot=calcTotales();
+  const desc=ot.descuento||0;
+  const adelanto=ot.adelanto||0;
+  const total_desc=tot.total-desc;
+  const saldo=total_desc-adelanto;
+  const moList=(ot.servicios||[]).map((s,i)=>`${i+1}. ${s.nombre} — Bs. ${s.precio}`).join("\n");
+  const repList=(ot.repuestos||[]).map((r,i)=>`${i+1}. ${r.nombre} x${r.cantidad} — Bs. ${(r.precio||0)*(r.cantidad||1)}`).join("\n");
+  const fotos=(ot.fotos_trabajo||[]).length;
+  const msg=`🔧 *SERVI CAR PLATINIUM*\n📋 *COTIZACIÓN FINAL - ${ot.num||"OT #"+otId}*\n🗓 ${new Date().toLocaleDateString("es-BO")}\n\n🚗 *${ot.placa} · ${ot.marca} ${ot.modelo}*\n👤 Cliente: ${ot.cliente}\n\n*🔧 MANO DE OBRA:*\n${moList||"—"}\nSubtotal: Bs. ${tot.mo}\n\n*📦 REPUESTOS:*\n${repList||"—"}\nSubtotal: Bs. ${tot.rep}\n\n💰 Total: Bs. ${tot.total}${desc>0?`\n🎁 Descuento: -Bs. ${desc}\n💰 Total con descuento: Bs. ${total_desc}`:""}\n${adelanto>0?`✅ Adelanto: Bs. ${adelanto}\n💳 Saldo a pagar: Bs. ${saldo}`:""}\n\n📷 Se adjuntan ${fotos} foto(s) del trabajo realizado.\n\n📞 ${EMPRESA.tel1} / ${EMPRESA.tel2}\n${EMPRESA.wa_grupo?"🔔 Únete a nuestro grupo de promociones: "+EMPRESA.wa_grupo:""}`;
+  if(ot.tel) window.open(`https://wa.me/591${ot.tel}?text=${encodeURIComponent(msg)}`,"_blank");
 }
 
-async function confirmarEntrega(){
-  if(!puedeEntregar()){alert("⚠️ Hay repuestos pendientes.");return;}
-  if(!confirm("¿Confirmar entrega del vehículo?"))return;
+// COBRAR Y ENTREGAR
+function modalCobro(){
   const tot=calcTotales();
+  document.getElementById("modal-area").innerHTML=`
+  <div class="modal" onclick="if(event.target===this)cerrarModal()">
+  <div class="modal-box">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <strong style="color:#fbbf24">💵 Cobrar y entregar</strong>
+      <button onclick="cerrarModal()" class="btn btn-gray" style="padding:5px 10px">✕</button>
+    </div>
+    <div style="background:#0f172a;border-radius:10px;padding:12px;margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px">
+        <span style="color:#64748b">Mano de obra</span><span style="color:#16a34a;font-weight:700">Bs. ${tot.mo}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px">
+        <span style="color:#64748b">Repuestos</span><span style="color:#60a5fa;font-weight:700">Bs. ${tot.rep}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:14px;font-weight:700;border-top:1px solid #334155;padding-top:8px">
+        <span>TOTAL</span><span style="color:#fbbf24">Bs. ${tot.total}</span>
+      </div>
+    </div>
+    <div class="label">Descuento (Bs.)</div>
+    <input id="cobro_desc" type="number" value="${ot.descuento||0}" class="input" style="margin-bottom:10px" oninput="actualizarCobro()"/>
+    <div class="label">Adelanto ya recibido (Bs.)</div>
+    <input id="cobro_adelanto" type="number" value="${ot.adelanto||0}" class="input" style="margin-bottom:10px" oninput="actualizarCobro()"/>
+    <div id="cobro_resumen" style="background:#16a34a20;border:1px solid #16a34a40;border-radius:10px;padding:12px;margin-bottom:14px;font-size:13px;font-weight:700;text-align:center;color:#4ade80">
+      A cobrar: Bs. ${tot.total-(ot.adelanto||0)}
+    </div>
+    <div class="label">Método de pago</div>
+    <select id="cobro_metodo" class="input" style="margin-bottom:14px">
+      <option>Efectivo</option><option>QR</option><option>Transferencia</option><option>Mixto</option>
+    </select>
+    <button onclick="confirmarCobro()" class="btn btn-green" style="width:100%;padding:14px;font-size:14px">✅ Confirmar cobro y entregar</button>
+  </div></div>`;
+}
+
+function actualizarCobro(){
+  const tot=calcTotales();
+  const desc=parseFloat(document.getElementById("cobro_desc").value)||0;
+  const adelanto=parseFloat(document.getElementById("cobro_adelanto").value)||0;
+  const saldo=Math.max(0,tot.total-desc-adelanto);
+  document.getElementById("cobro_resumen").textContent=`A cobrar: Bs. ${saldo}`;
+}
+
+async function confirmarCobro(){
+  const tot=calcTotales();
+  const desc=parseFloat(document.getElementById("cobro_desc").value)||0;
+  const adelanto=parseFloat(document.getElementById("cobro_adelanto").value)||0;
+  const metodo=document.getElementById("cobro_metodo").value;
+  const total_final=tot.total-desc;
+  const saldo=Math.max(0,total_final-adelanto);
+
+  // Guardar en caja — mano de obra (ganancia neta)
+  await SB.from("caja").insert({
+    concepto:`OT #${otId} · ${ot.placa} · ${ot.cliente} — Mano de obra`,
+    monto:tot.mo,tipo:"ingreso",subtipo:"ganancia_neta",
+    taller:ot.taller,fecha:new Date().toLocaleDateString("es-BO"),
+    registrado_por:usuario.user_name,metodo_pago:metodo
+  });
+  // Guardar en caja — repuestos (capital)
+  if(tot.rep>0){
+    await SB.from("caja").insert({
+      concepto:`OT #${otId} · ${ot.placa} · ${ot.cliente} — Repuestos (capital)`,
+      monto:tot.rep,tipo:"ingreso",subtipo:"capital_tienda",
+      taller:ot.taller,fecha:new Date().toLocaleDateString("es-BO"),
+      registrado_por:usuario.user_name,metodo_pago:metodo
+    });
+  }
+  // Guardar en CRM
   await SB.from("crm").insert({
     nombre:ot.cliente,tel:ot.tel,placa:ot.placa,
     marca:ot.marca,modelo:ot.modelo,
-    servicio:"OT-"+otId,total:tot.total,
+    servicio:JSON.stringify(ot.servicios||[]),
+    repuestos:JSON.stringify(ot.repuestos||[]),
+    total:total_final,descuento:desc,adelanto,
+    ganancia_neta:tot.mo,capital:tot.rep,
     fecha:new Date().toLocaleDateString("es-BO"),
-    taller:ot.taller,tecnico:ot.tecnico
+    taller:ot.taller,tecnico:ot.tecnico,
+    metodo_pago:metodo
   });
-  await SB.from("caja").insert({
-    concepto:`OT #${otId} · ${ot.placa} · ${ot.cliente}`,
-    monto:tot.total,tipo:"ingreso",
-    taller:ot.taller,
-    fecha:new Date().toLocaleDateString("es-BO"),
-    registrado_por:usuario.user_name
-  });
-  await guardar({paso:8,estado:"Entregado",entregado:true,entregado_por:usuario.nombre,fecha_entrega:new Date().toLocaleDateString("es-BO"),total:tot.total});
-  alert("✅ Vehículo entregado. Guardado en CRM y Caja.");
+
+  await guardar({paso:8,estado:"Entregado",entregado:true,entregado_por:usuario.nombre,
+    fecha_entrega:new Date().toLocaleDateString("es-BO"),total:total_final,
+    descuento:desc,adelanto,total_final,metodo_pago:metodo});
+
+  cerrarModal();
+  // Enviar resumen final al cliente
+  enviarResumenFinalCliente(tot,desc,adelanto,total_final,saldo,metodo);
+}
+
+function enviarResumenFinalCliente(tot,desc,adelanto,total_final,saldo,metodo){
+  const moList=(ot.servicios||[]).map((s,i)=>`${i+1}. ${s.nombre} — Bs. ${s.precio}`).join("\n");
+  const repList=(ot.repuestos||[]).map((r,i)=>`${i+1}. ${r.nombre} x${r.cantidad} — Bs. ${(r.precio||0)*(r.cantidad||1)}`).join("\n");
+  const msg=`🔧 *SERVI CAR PLATINIUM*\n✅ *COMPROBANTE DE ENTREGA*\n📋 ${ot.num||"OT #"+otId} · ${new Date().toLocaleDateString("es-BO")}\n\n🚗 *${ot.placa} · ${ot.marca} ${ot.modelo}*\n👤 ${ot.cliente}\n\n*🔧 SERVICIOS REALIZADOS:*\n${moList||"—"}\n\n*📦 REPUESTOS UTILIZADOS:*\n${repList||"—"}\n\n💰 Total: Bs. ${tot.total}${desc>0?"\n🎁 Descuento: -Bs. "+desc+"\n💰 Total final: Bs. "+total_final:""}${adelanto>0?"\n✅ Adelanto: Bs. "+adelanto+"\n💳 Pagado: Bs. "+saldo:""}\n💳 Método: ${metodo}\n\n✅ *Su vehículo ha sido entregado correctamente.*\n⚠️ Garantía: 30 días en mano de obra\n\n📞 ${EMPRESA.tel1} / ${EMPRESA.tel2}${EMPRESA.wa_grupo?"\n🔔 Promociones: "+EMPRESA.wa_grupo:""}`;
+  if(ot.tel) window.open(`https://wa.me/591${ot.tel}?text=${encodeURIComponent(msg)}`,"_blank");
 }
 
 function generarPDF(){
   const tot=calcTotales();
+  const desc=ot.descuento||0;
+  const adelanto=ot.adelanto||0;
+  const total_final=tot.total-desc;
   const w=window.open("","_blank");
   const fotsRec=(ot.fotos_recepcion||[]).map(f=>`<img src="${f}" style="width:80px;height:60px;object-fit:cover;border-radius:4px;margin:2px"/>`).join("");
   const fotsTrab=(ot.fotos_trabajo||[]).map(f=>`<img src="${f}" style="width:80px;height:60px;object-fit:cover;border-radius:4px;margin:2px"/>`).join("");
   w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>OT #${otId}</title>
-  <style>body{font-family:Arial;font-size:12px;padding:20px;color:#1e293b}
-  h2{font-size:13px;color:#475569;margin:14px 0 6px}
-  table{width:100%;border-collapse:collapse}td{border-bottom:1px solid #e2e8f0;padding:5px 8px}
-  .total{font-weight:700;font-size:14px}@media print{button{display:none}}</style></head>
+  <style>body{font-family:Arial;font-size:12px;padding:20px;color:#1e293b;max-width:600px;margin:0 auto}
+  .header{text-align:center;border-bottom:3px solid #f59e0b;padding-bottom:12px;margin-bottom:16px}
+  .logo{color:#f59e0b;font-weight:900;font-size:22px}
+  h2{font-size:13px;color:#475569;margin:14px 0 6px;border-left:3px solid #f59e0b;padding-left:8px}
+  table{width:100%;border-collapse:collapse}td{border-bottom:1px solid #e2e8f0;padding:6px 8px}
+  .total-row{font-weight:700;font-size:14px;background:#fffbeb}
+  .badge{background:#f0fdf4;color:#16a34a;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700}
+  @media print{button{display:none}}</style></head>
   <body>
-  <div style="text-align:center;margin-bottom:16px">
-    <div style="color:#f59e0b;font-weight:900;font-size:18px">🔧 SERVI CAR PLATINIUM</div>
-    <div style="font-size:11px;color:#64748b">Viacha - La Paz · 68167264 / 60574920</div>
-    <div style="font-weight:700;margin-top:8px">ORDEN DE TRABAJO #${otId}</div>
-    <div style="font-size:11px;color:#64748b">${ot.fecha||""}</div>
+  <div class="header">
+    <img src="${LOGO_B64}" style="max-width:280px;max-height:80px;object-fit:contain;margin-bottom:6px"/><br/>
+    <div style="font-size:11px;color:#64748b;margin-top:4px">Viacha - La Paz · Tel: ${EMPRESA.tel1} / ${EMPRESA.tel2}</div>
+    <div style="font-weight:700;font-size:14px;margin-top:8px">ORDEN DE TRABAJO #${otId}</div>
+    <div style="font-size:11px;color:#64748b">${ot.fecha||""} · ${ot.taller||""}</div>
   </div>
-  <h2>🚗 VEHÍCULO</h2>
+  <h2>🚗 DATOS DEL VEHÍCULO</h2>
   <table>
-    <tr><td>Placa</td><td>${ot.placa||"-"}</td></tr>
-    <tr><td>Marca / Modelo</td><td>${ot.marca||"-"} ${ot.modelo||"-"}</td></tr>
-    <tr><td>Km</td><td>${ot.km||"-"}</td></tr>
-    <tr><td>Cliente</td><td>${ot.cliente||"-"}</td></tr>
-    <tr><td>Teléfono</td><td>${ot.tel||"-"}</td></tr>
-    <tr><td>Problema</td><td>${ot.problema||"-"}</td></tr>
+    <tr><td><b>Placa</b></td><td>${ot.placa||"-"}</td><td><b>Marca/Modelo</b></td><td>${ot.marca||"-"} ${ot.modelo||"-"}</td></tr>
+    <tr><td><b>Año</b></td><td>${ot.anio||"-"}</td><td><b>Km</b></td><td>${ot.km||"-"}</td></tr>
+    <tr><td><b>Cliente</b></td><td>${ot.cliente||"-"}</td><td><b>Teléfono</b></td><td>${ot.tel||"-"}</td></tr>
+    <tr><td colspan="4"><b>Problema:</b> ${ot.problema||"-"}</td></tr>
   </table>
-  ${fotsRec?`<h2>📷 FOTOS RECEPCIÓN</h2><div>${fotsRec}</div>`:""}
-  <h2>🔧 MANO DE OBRA</h2>
-  <table>${(ot.servicios||[]).map(s=>`<tr><td>${s.nombre}</td><td style="text-align:right">Bs. ${s.precio}</td></tr>`).join("")}
-  <tr class="total"><td>Subtotal</td><td style="text-align:right">Bs. ${tot.mo}</td></tr></table>
-  <h2>📦 REPUESTOS</h2>
-  <table>${(ot.repuestos||[]).map(r=>`<tr><td>${r.nombre} x${r.cantidad}</td><td style="text-align:right">Bs. ${(r.precio||0)*(r.cantidad||1)}</td></tr>`).join("")}
-  <tr class="total"><td>Subtotal</td><td style="text-align:right">Bs. ${tot.rep}</td></tr></table>
-  ${fotsTrab?`<h2>📷 EVIDENCIA DEL TRABAJO</h2><div>${fotsTrab}</div>`:""}
-  <h2>💰 RESUMEN</h2>
+  ${fotsRec?`<h2>📷 FOTOS AL INGRESO</h2><div style="display:flex;flex-wrap:wrap;gap:4px">${fotsRec}</div>`:""}
+  <h2>🔧 SERVICIOS REALIZADOS</h2>
   <table>
-    <tr><td>Mano de obra (ganancia neta)</td><td style="text-align:right">Bs. ${tot.mo}</td></tr>
-    <tr><td>Repuestos (capital)</td><td style="text-align:right">Bs. ${tot.rep}</td></tr>
-    <tr class="total" style="font-size:15px"><td>TOTAL</td><td style="text-align:right">Bs. ${tot.total}</td></tr>
+    <tr style="background:#f8fafc"><td><b>Descripción</b></td><td style="text-align:right"><b>Precio</b></td></tr>
+    ${(ot.servicios||[]).map(s=>`<tr><td>${s.nombre}</td><td style="text-align:right">Bs. ${s.precio}</td></tr>`).join("")}
+    <tr class="total-row"><td>Subtotal mano de obra</td><td style="text-align:right">Bs. ${tot.mo}</td></tr>
   </table>
-  <div style="margin-top:30px;border-top:1px solid #e2e8f0;padding-top:16px">
-    <div style="color:#64748b;font-size:11px">Garantía: 30 días en mano de obra</div>
-    <div style="margin-top:30px;border-top:1px dashed #94a3b8;width:200px;padding-top:6px;font-size:11px;color:#64748b">Firma del cliente</div>
+  <h2>📦 REPUESTOS UTILIZADOS</h2>
+  <table>
+    <tr style="background:#f8fafc"><td><b>Repuesto</b></td><td><b>Cant.</b></td><td style="text-align:right"><b>Precio</b></td></tr>
+    ${(ot.repuestos||[]).map(r=>`<tr><td>${r.nombre}</td><td>${r.cantidad}</td><td style="text-align:right">Bs. ${(r.precio||0)*(r.cantidad||1)}</td></tr>`).join("")}
+    <tr class="total-row"><td colspan="2">Subtotal repuestos</td><td style="text-align:right">Bs. ${tot.rep}</td></tr>
+  </table>
+  ${fotsTrab?`<h2>📷 EVIDENCIA DEL TRABAJO</h2><div style="display:flex;flex-wrap:wrap;gap:4px">${fotsTrab}</div>`:""}
+  <h2>💰 RESUMEN FINANCIERO</h2>
+  <table>
+    <tr><td>Mano de obra</td><td style="text-align:right">Bs. ${tot.mo}</td></tr>
+    <tr><td>Repuestos</td><td style="text-align:right">Bs. ${tot.rep}</td></tr>
+    <tr><td>Total</td><td style="text-align:right">Bs. ${tot.total}</td></tr>
+    ${desc>0?`<tr><td>Descuento</td><td style="text-align:right;color:#16a34a">-Bs. ${desc}</td></tr>`:""}
+    ${adelanto>0?`<tr><td>Adelanto recibido</td><td style="text-align:right">Bs. ${adelanto}</td></tr>`:""}
+    <tr class="total-row"><td><b>TOTAL FINAL</b></td><td style="text-align:right"><b>Bs. ${total_final}</b></td></tr>
+  </table>
+  <div style="margin-top:24px;border-top:1px solid #e2e8f0;padding-top:16px;display:flex;justify-content:space-between;align-items:flex-end">
+    <div>
+      <div style="font-size:11px;color:#64748b">✅ Garantía: 30 días en mano de obra</div>
+      ${EMPRESA.wa_grupo?`<div style="font-size:11px;color:#25d366;margin-top:4px">🔔 Grupo de promociones: ${EMPRESA.wa_grupo}</div>`:""}
+    </div>
+    <div style="border-top:1px dashed #94a3b8;width:160px;padding-top:6px;font-size:11px;color:#64748b;text-align:center">Firma del cliente</div>
   </div>
-  <div style="text-align:center;margin-top:16px"><button onclick="window.print()" style="padding:8px 20px;background:#f59e0b;border:none;border-radius:6px;font-weight:700;cursor:pointer">🖨️ Imprimir / Guardar PDF</button></div>
+  <div style="text-align:center;margin-top:16px">
+    <button onclick="window.print()" style="padding:10px 24px;background:#f59e0b;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px">🖨️ Imprimir / Guardar PDF</button>
+  </div>
   </body></html>`);
 }
 
-// RENDER PRINCIPAL
+function cerrarModal(){document.getElementById("modal-area").innerHTML="";}
+
+// RENDER
 function render(){
   if(!ot)return;
   const paso=ot.paso||1;
   const tot=calcTotales();
   const admin=esAdmin();
-  const pendCons=(ot.repuestos_conseguir||[]).filter(r=>!r.conseguido).length;
-  const pendRep=(ot.repuestos||[]).filter(r=>r.estado!=="listo").length;
+  const tecnico=esTecnico();
 
   document.getElementById("app").innerHTML=`
   <!-- HEADER -->
@@ -373,45 +621,37 @@ function render(){
     <div style="color:#94a3b8;font-size:11px;font-weight:700;text-transform:uppercase;margin-bottom:10px">Progreso</div>
     ${PASOS.map((p,i)=>{
       const n=i+1;const done=paso>n;const active=paso===n;
-      return `<div class="${done?"step-done":active?"step-active":"step-pending"}" style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:10px;margin-bottom:6px">
-        <span>${done?"✅":active?"🔄":"⏳"}</span>
+      return `<div class="${done?"step-done":active?"step-active":"step-pending"}" style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:10px;margin-bottom:5px">
+        <span style="font-size:14px">${done?"✅":active?"🔄":"⏳"}</span>
         <span style="font-size:12px;color:${done?"#16a34a":active?"#fbbf24":"#64748b"};font-weight:${active?"700":"400"}">${n}. ${p}</span>
-        ${active&&admin&&n<8?`<button onclick="guardar({paso:${n+1},estado:'${PASOS[n]}'})" class="btn btn-green" style="margin-left:auto;padding:5px 10px;font-size:10px">→ Siguiente</button>`:""}
+        ${active&&admin&&n<8&&n!==3&&n!==7?`<button onclick="guardar({paso:${n+1},estado:'${PASOS[n]}'})" class="btn btn-green" style="margin-left:auto;padding:5px 10px;font-size:10px">→ Siguiente</button>`:""}
       </div>`;
     }).join("")}
   </div>
 
-  <!-- INFO VEHÍCULO -->
+  <!-- DATOS VEHÍCULO -->
   <div class="card">
     <div style="color:#94a3b8;font-size:11px;font-weight:700;text-transform:uppercase;margin-bottom:10px">🚗 Vehículo</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px">
-      ${[["Placa",ot.placa],["Marca",ot.marca],["Modelo",ot.modelo],["Año",ot.anio],["Km",ot.km],["Color",ot.color],["Combustible",ot.combustible],["Taller",ot.taller],["Técnico",ot.tecnico],["Cliente",ot.cliente],["Tel",ot.tel],["Fecha",ot.fecha]].map(([k,v])=>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;margin-bottom:10px">
+      ${[["Placa",ot.placa],["Marca",ot.marca],["Modelo",ot.modelo],["Año",ot.anio],["Km",ot.km],["Taller",ot.taller],["Técnico",ot.tecnico],["Fecha",ot.fecha]].map(([k,v])=>
         `<div><div style="color:#475569;font-size:10px">${k}</div><div style="color:#fff;font-weight:700">${v||"-"}</div></div>`
       ).join("")}
     </div>
-    <div style="margin-top:10px;background:#0f172a;border-radius:8px;padding:10px;font-size:12px;color:#94a3b8">
-      <span style="color:#64748b;font-size:10px">PROBLEMA: </span>${ot.problema||"-"}
+    <div style="background:#0f172a;border-radius:8px;padding:10px;font-size:12px;margin-bottom:10px">
+      <span style="color:#64748b;font-size:10px">PROBLEMA REPORTADO: </span><br/>${ot.problema||"-"}
     </div>
-    ${ot.tel?`<a href="https://wa.me/591${ot.tel}" target="_blank" class="btn btn-green" style="display:block;text-align:center;text-decoration:none;margin-top:10px;font-size:12px">📱 WhatsApp al cliente</a>`:""}
-    ${admin&&(usuario.user_name==="wilfredo"||usuario.user_name==="william")?`
-    <div style="margin-top:10px;display:flex;gap:8px">
+    ${ot.tel?`<a href="https://wa.me/591${ot.tel}" target="_blank" class="btn btn-wa" style="display:block;text-align:center;text-decoration:none;font-size:12px">📱 WhatsApp al cliente</a>`:""}
+    ${admin?`<div style="margin-top:8px;display:flex;gap:8px">
       ${usuario.user_name==="wilfredo"?`<button onclick="guardar({tecnico:'William'})" class="btn btn-blue" style="flex:1;font-size:11px">→ Asignar a William</button>`:""}
       ${usuario.user_name==="william"?`<button onclick="guardar({tecnico:'Wilfredo'})" class="btn btn-blue" style="flex:1;font-size:11px">→ Asignar a Wilfredo</button>`:""}
     </div>`:""}
-  </div>
-
-  <!-- DIAGNÓSTICO -->
-  <div class="card">
-    <div style="color:#94a3b8;font-size:11px;font-weight:700;text-transform:uppercase;margin-bottom:10px">🔍 Diagnóstico</div>
-    <textarea id="diag_txt" class="input" rows="3" placeholder="Describe el diagnóstico...">${ot.diagnostico||""}</textarea>
-    <button onclick="guardar({diagnostico:document.getElementById('diag_txt').value})" class="btn btn-primary" style="margin-top:8px;width:100%;font-size:12px">💾 Guardar diagnóstico</button>
   </div>
 
   <!-- FOTOS RECEPCIÓN -->
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
       <div style="color:#94a3b8;font-size:11px;font-weight:700;text-transform:uppercase">📷 Fotos recepción</div>
-      <button onclick="tomarFoto('rec')" class="btn btn-blue" style="padding:6px 12px;font-size:11px">📷 Tomar</button>
+      <button onclick="tomarFoto('rec')" class="btn btn-blue" style="padding:6px 12px;font-size:11px">📷 Foto</button>
     </div>
     ${(ot.fotos_recepcion||[]).length===0?`<div style="color:#475569;font-size:12px;text-align:center;padding:10px">Sin fotos</div>`:""}
     <div class="foto-grid">
@@ -419,86 +659,111 @@ function render(){
     </div>
   </div>
 
-  <!-- REPUESTOS A CONSEGUIR -->
+  <!-- DIAGNÓSTICO + PROCEDIMIENTOS (técnico y admin) -->
   <div class="card">
+    <div style="color:#94a3b8;font-size:11px;font-weight:700;text-transform:uppercase;margin-bottom:10px">🔍 Diagnóstico y procedimientos</div>
+    <textarea id="diag_txt" class="input" rows="3" placeholder="Descripción del diagnóstico..." style="margin-bottom:8px">${ot.diagnostico||""}</textarea>
+    <button onclick="guardar({diagnostico:document.getElementById('diag_txt').value})" class="btn btn-gray" style="width:100%;font-size:12px;margin-bottom:12px">💾 Guardar diagnóstico</button>
+
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-      <div style="color:#94a3b8;font-size:11px;font-weight:700;text-transform:uppercase">🔍 Repuestos a conseguir</div>
+      <div style="color:#60a5fa;font-size:11px;font-weight:700">Lista de procedimientos</div>
+      <button onclick="modalProcedimiento()" class="btn btn-blue" style="padding:6px 12px;font-size:11px">+ Agregar</button>
+    </div>
+    ${(ot.procedimientos||[]).length===0?`<div style="color:#475569;font-size:12px;text-align:center;padding:8px">Sin procedimientos</div>`:""}
+    ${(ot.procedimientos||[]).map((p,i)=>`
+    <div style="background:#0f172a;border:1px solid #334155;border-radius:10px;padding:10px;margin-bottom:6px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div style="flex:1">
+          <div style="font-size:12px;font-weight:700">${p.nombre}</div>
+          ${p.desc?`<div style="font-size:11px;color:#64748b;margin-top:3px">${p.desc}</div>`:""}
+          ${admin&&p.precio?`<div style="font-size:11px;color:#fbbf24;margin-top:3px">Bs. ${p.precio}</div>`:""}
+        </div>
+        <div style="display:flex;gap:4px">
+          ${admin?`<button onclick="borrarProcedimiento(${i})" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:14px">🗑️</button>`:""}
+        </div>
+      </div>
+    </div>`).join("")}
+
+    <!-- Repuestos requeridos por técnico -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin:12px 0 8px">
+      <div style="color:#f97316;font-size:11px;font-weight:700">Repuestos requeridos</div>
       <button onclick="modalRepCons()" class="btn" style="padding:6px 12px;font-size:11px;background:#f97316;color:#fff">+ Agregar</button>
     </div>
     ${(ot.repuestos_conseguir||[]).length===0?`<div style="color:#475569;font-size:12px;text-align:center;padding:8px">Sin repuestos pendientes</div>`:""}
     ${(ot.repuestos_conseguir||[]).map((r,i)=>`
-      <div style="padding:10px 12px;border-radius:10px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;background:${r.conseguido?"#16a34a20":"#ef444420"};border:1px solid ${r.conseguido?"#16a34a40":"#ef444440"}">
+    <div style="padding:10px 12px;border-radius:10px;margin-bottom:6px;background:${r.conseguido?"#16a34a20":"#f9731620"};border:1px solid ${r.conseguido?"#16a34a40":"#f9731640"}">
+      <div style="display:flex;justify-content:space-between;align-items:center">
         <div>
-          <div style="font-size:12px;font-weight:700">${r.conseguido?"✅":"🔴"} ${r.nombre}</div>
+          <div style="font-size:12px;font-weight:700">${r.conseguido?"✅":"🔍"} ${r.nombre}</div>
           ${r.nota?`<div style="font-size:10px;color:#64748b">${r.nota}</div>`:""}
+          ${admin&&r.precio_estimado?`<div style="font-size:10px;color:#fbbf24">Bs. ${r.precio_estimado} ${r.en_inventario?"✅ En tienda":"🔍 A conseguir"}</div>`:""}
         </div>
-        ${!r.conseguido&&admin?`<button onclick="marcarConseguido(${i})" class="btn btn-green" style="padding:5px 8px;font-size:10px">Llegó ✓</button>`:""}
-      </div>`).join("")}
+        ${!r.conseguido&&admin?`<button onclick="marcarConseguido(${i})" class="btn btn-green" style="padding:5px 8px;font-size:10px">✓</button>`:""}
+      </div>
+    </div>`).join("")}
+
+    ${paso===2?`<button onclick="enviarInformeEncargado()" class="btn btn-wa" style="width:100%;margin-top:12px;font-size:12px">📤 Enviar informe al encargado</button>`:""}
   </div>
 
-  <!-- MANO DE OBRA (solo admin) -->
-  ${admin?`<div class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-      <div style="color:#94a3b8;font-size:11px;font-weight:700;text-transform:uppercase">🔧 Mano de obra</div>
-      <button onclick="modalMO()" class="btn btn-primary" style="padding:6px 12px;font-size:11px">+ Agregar</button>
-    </div>
-    ${(ot.servicios||[]).length===0?`<div style="color:#475569;font-size:12px;text-align:center;padding:8px">Sin servicios</div>`:""}
-    ${(ot.servicios||[]).map((s,i)=>`
-      <div style="padding:10px 12px;background:#0f172a;border:1px solid #334155;border-radius:10px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center">
-        <div>
-          <div style="font-size:12px;font-weight:700">${s.nombre}</div>
-          <div style="font-size:10px;color:#64748b">${s.tecnico||""}</div>
-        </div>
-        <div style="display:flex;align-items:center;gap:8px">
-          <span style="color:#fbbf24;font-weight:700">Bs. ${s.precio}</span>
-          ${usuario.rol==="admin"?`<button onclick="borrarMO(${i})" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:14px">🗑️</button>`:""}
-        </div>
-      </div>`).join("")}
-    ${(ot.servicios||[]).length>0?`<div style="text-align:right;color:#fbbf24;font-weight:700;font-size:13px;padding-top:6px;border-top:1px solid #334155">Subtotal: Bs. ${(ot.servicios||[]).reduce((s,x)=>s+(x.precio||0),0)}</div>`:""}
+  <!-- COTIZACIÓN (solo admin, paso 3+) -->
+  ${admin&&paso>=3?`<div class="card" style="border-color:#f59e0b40">
+    <div style="color:#fbbf24;font-size:11px;font-weight:700;text-transform:uppercase;margin-bottom:10px">💰 Cotización</div>
+    ${paso===3?`<button onclick="modalCotizacion()" class="btn btn-primary" style="width:100%;margin-bottom:10px;font-size:12px">✏️ Llenar / editar cotización</button>`:""}
+    <button onclick="enviarCotizacionCliente()" class="btn btn-wa" style="width:100%;font-size:12px">📤 Enviar cotización al cliente</button>
+    ${paso===3?`<button onclick="confirmarAprobacion()" class="btn btn-green" style="width:100%;margin-top:8px;font-size:12px">✅ Registrar aprobación del cliente</button>`:""}
   </div>`:""}
 
-  <!-- REPUESTOS (solo admin) -->
-  ${admin?`<div class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-      <div style="color:#94a3b8;font-size:11px;font-weight:700;text-transform:uppercase">📦 Repuestos usados</div>
-      <button onclick="modalRep()" class="btn btn-blue" style="padding:6px 12px;font-size:11px">+ Del inventario</button>
-    </div>
-    ${(ot.repuestos||[]).length===0?`<div style="color:#475569;font-size:12px;text-align:center;padding:8px">Sin repuestos</div>`:""}
-    ${(ot.repuestos||[]).map((r,i)=>`
-      <div style="padding:10px 12px;border-radius:10px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;background:${r.estado==="listo"?"#16a34a20":"#f59e0b20"};border:1px solid ${r.estado==="listo"?"#16a34a40":"#f59e0b40"}">
-        <div style="display:flex;gap:8px;align-items:center">
-          ${r.foto?`<img src="${r.foto}" style="width:32px;height:32px;border-radius:6px;object-fit:cover"/>`:
-          `<div style="width:32px;height:32px;background:#334155;border-radius:6px;display:flex;align-items:center;justify-content:center">📦</div>`}
-          <div>
-            <div style="font-size:12px;font-weight:700">${r.nombre} x${r.cantidad}</div>
-            <div style="font-size:10px;color:#fbbf24">Bs. ${(r.precio||0)*(r.cantidad||1)}</div>
-            <div style="font-size:9px;color:${r.estado==="listo"?"#16a34a":"#f59e0b"}">${r.estado==="listo"?"✅ Descontado":"⏳ Pendiente"}</div>
-          </div>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:4px">
-          ${r.estado!=="listo"?`<button onclick="descontarRep(${i})" class="btn btn-green" style="padding:4px 8px;font-size:9px">✓ Descontar</button>`:""}
-          ${usuario.rol==="admin"?`<button onclick="borrarRep(${i})" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:12px">🗑️</button>`:""}
-        </div>
-      </div>`).join("")}
-    ${(ot.repuestos||[]).length>0?`<div style="text-align:right;color:#fbbf24;font-weight:700;font-size:13px;padding-top:6px;border-top:1px solid #334155">Subtotal: Bs. ${(ot.repuestos||[]).reduce((s,x)=>s+((x.precio||0)*(x.cantidad||1)),0)}</div>`:""}
-  </div>`:""}
-
-  <!-- FOTOS TRABAJO -->
+  <!-- FOTOS TRABAJO + REPUESTOS INVENTARIO (paso 5+) -->
+  ${paso>=5?`
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-      <div style="color:#94a3b8;font-size:11px;font-weight:700;text-transform:uppercase">📷 Evidencia del trabajo</div>
-      <button onclick="tomarFoto('trab')" class="btn btn-blue" style="padding:6px 12px;font-size:11px">📷 Tomar</button>
+      <div style="color:#94a3b8;font-size:11px;font-weight:700;text-transform:uppercase">📷 Fotos del trabajo</div>
+      <button onclick="tomarFoto('trab')" class="btn btn-blue" style="padding:6px 12px;font-size:11px">📷 Foto</button>
     </div>
     ${(ot.fotos_trabajo||[]).length===0?`<div style="color:#475569;font-size:12px;text-align:center;padding:10px">Sin fotos</div>`:""}
     <div class="foto-grid">
       ${(ot.fotos_trabajo||[]).map((f,i)=>`<div class="foto-item"><img src="${f}"/>${admin?`<button class="foto-del" onclick="borrarFoto('trab',${i})">✕</button>`:""}</div>`).join("")}
     </div>
+    ${paso===5?`<button onclick="guardar({paso:6,estado:'Control técnico'})" class="btn btn-green" style="width:100%;margin-top:10px;font-size:12px">✅ Marcar trabajo terminado</button>`:""}
   </div>
 
-  <!-- RESUMEN FINANCIERO (solo admin) -->
-  ${admin?`<div class="card" style="border-color:#fbbf2430">
+  ${admin?`<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div style="color:#94a3b8;font-size:11px;font-weight:700;text-transform:uppercase">📦 Repuestos usados</div>
+      <button onclick="modalRep()" class="btn btn-blue" style="padding:6px 12px;font-size:11px">+ Inventario</button>
+    </div>
+    ${(ot.repuestos||[]).length===0?`<div style="color:#475569;font-size:12px;text-align:center;padding:8px">Sin repuestos</div>`:""}
+    ${(ot.repuestos||[]).map((r,i)=>`
+    <div style="padding:10px;background:#0f172a;border:1px solid #334155;border-radius:10px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center">
+      <div style="display:flex;gap:8px;align-items:center">
+        ${r.foto?`<img src="${r.foto}" style="width:32px;height:32px;border-radius:6px;object-fit:cover"/>`:
+        `<div style="width:32px;height:32px;background:#334155;border-radius:6px;display:flex;align-items:center;justify-content:center">📦</div>`}
+        <div>
+          <div style="font-size:12px;font-weight:700">${r.nombre} x${r.cantidad}</div>
+          <div style="font-size:10px;color:#fbbf24;cursor:pointer" onclick="editarRepPrecio(${i})">Bs. ${(r.precio||0)*(r.cantidad||1)} ✏️</div>
+        </div>
+      </div>
+      ${usuario.rol==="admin"?`<button onclick="borrarRep(${i})" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:14px">🗑️</button>`:""}
+    </div>`).join("")}
+    ${(ot.repuestos||[]).length>0?`<div style="text-align:right;color:#fbbf24;font-weight:700;font-size:13px;padding-top:6px;border-top:1px solid #334155">Subtotal: Bs. ${(ot.repuestos||[]).reduce((s,x)=>s+((x.precio||0)*(x.cantidad||1)),0)}</div>`:""}
+  </div>`:""}
+  `:""}
+
+  <!-- CONTROL CALIDAD (paso 7 — OBLIGATORIO) -->
+  ${paso>=7?`<div class="card" style="border-color:${paso===7?"#0891b240":"#334155"}">
+    <div style="color:#0891b2;font-size:11px;font-weight:700;text-transform:uppercase;margin-bottom:10px">🔍 Control de calidad</div>
+    <textarea id="calidad_txt" class="input" rows="3" placeholder="Observaciones de calidad...">${ot.obs_calidad||""}</textarea>
+    ${admin?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">
+      <button onclick="guardar({obs_calidad:document.getElementById('calidad_txt').value})" class="btn btn-gray" style="font-size:11px">💾 Guardar</button>
+      <button onclick="aprobarCalidad()" class="btn btn-green" style="font-size:11px">✅ Aprobar calidad</button>
+    </div>
+    <button onclick="enviarCotizacionFinal()" class="btn btn-wa" style="width:100%;margin-top:8px;font-size:12px">📤 Enviar cotización final al cliente</button>`:""}
+  </div>`:""}
+
+  <!-- RESUMEN FINANCIERO + COBRO (solo admin, paso 7+) -->
+  ${admin&&paso>=7?`<div class="card" style="border-color:#fbbf2430">
     <div style="color:#94a3b8;font-size:11px;font-weight:700;text-transform:uppercase;margin-bottom:10px">💰 Resumen financiero</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center;margin-bottom:12px">
       <div style="background:#16a34a20;border:1px solid #16a34a40;border-radius:10px;padding:10px">
         <div style="color:#64748b;font-size:9px;font-weight:700">GANANCIA NETA</div>
         <div style="color:#16a34a;font-weight:900;font-size:16px">Bs.${tot.mo}</div>
@@ -515,49 +780,44 @@ function render(){
         <div style="color:#475569;font-size:9px">A cobrar</div>
       </div>
     </div>
+    ${!ot.entregado?`
+    <div style="display:flex;gap:8px;margin-bottom:8px">
+      <button onclick="modalMO()" class="btn btn-primary" style="flex:1;font-size:11px">+ Servicio</button>
+      <button onclick="modalRep()" class="btn btn-blue" style="flex:1;font-size:11px">+ Repuesto</button>
+    </div>
+    <button onclick="generarPDF()" class="btn btn-blue" style="width:100%;margin-bottom:8px;font-size:12px">📄 Generar PDF</button>
+    <button onclick="modalCobro()" class="btn btn-green" style="width:100%;padding:14px;font-size:14px">💵 Cobrar y entregar vehículo</button>
+    `:`<div style="background:#16a34a20;border:1px solid #16a34a40;border-radius:12px;padding:12px;text-align:center;color:#4ade80;font-size:12px;font-weight:700">
+      ✅ Entregado el ${ot.fecha_entrega} por ${ot.entregado_por}
+    </div>
+    <button onclick="generarPDF()" class="btn btn-blue" style="width:100%;margin-top:8px;font-size:12px">📄 Ver PDF / Comprobante</button>`}
   </div>`:""}
 
-  <!-- ACCIONES FINALES (solo admin) -->
-  ${admin?`
-  ${pendCons>0||pendRep>0?`<div style="background:#ef444420;border:1px solid #ef444460;border-radius:12px;padding:12px;margin-bottom:12px;font-size:12px;color:#f87171;text-align:center">
-    ⚠️ No se puede entregar: ${pendCons} repuesto(s) a conseguir · ${pendRep} repuesto(s) sin descontar
-  </div>`:""}
-  ${ot.entregado?`<div style="background:#16a34a20;border:1px solid #16a34a40;border-radius:12px;padding:12px;margin-bottom:12px;font-size:12px;color:#4ade80;text-align:center">
-    ✅ Entregado el ${ot.fecha_entrega} por ${ot.entregado_por}
-  </div>`:""}
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
-    <button onclick="generarPDF()" class="btn btn-blue" style="padding:13px;font-size:13px">📄 PDF</button>
-    <button onclick="${puedeEntregar()?"confirmarEntrega()":"alert('⚠️ Faltan repuestos pendientes')"}"
-      class="btn ${puedeEntregar()?"btn-green":"btn-gray"}" style="padding:13px;font-size:13px">
-      ${ot.entregado?"✅ Entregado":puedeEntregar()?"✅ Entregar":"🔒 Pendientes"}
-    </button>
-  </div>
+  <!-- BORRAR OT (solo admin wilfredo) -->
   ${usuario.rol==="admin"?`<button onclick="if(confirm('¿Borrar esta OT?')){SB.from('ots').delete().eq('id',${otId}).then(()=>location.href='/ot.html')}" class="btn btn-red" style="width:100%;margin-bottom:16px;font-size:12px">🗑️ Borrar esta OT</button>`:""}
-  `:""}
 
   <div style="height:20px"></div>
   </div>`;
 }
 
-// Exponer funciones globales
-window.cerrarModal=cerrarModal;
-window.tomarFoto=tomarFoto;
-window.borrarFoto=borrarFoto;
-window.modalMO=modalMO;
-window.agregarMO=agregarMO;
-window.borrarMO=borrarMO;
-window.modalRep=modalRep;
-window.selRep=selRep;
-window.filtrarInv=filtrarInv;
-window.agregarRep=agregarRep;
-window.descontarRep=descontarRep;
-window.borrarRep=borrarRep;
-window.modalRepCons=modalRepCons;
-window.agregarRepCons=agregarRepCons;
-window.marcarConseguido=marcarConseguido;
-window.guardar=guardar;
-window.confirmarEntrega=confirmarEntrega;
-window.generarPDF=generarPDF;
+async function marcarConseguido(idx){
+  const arr=[...(ot.repuestos_conseguir||[])];
+  arr[idx].conseguido=true;
+  await guardar({repuestos_conseguir:arr});
+}
+
+async function aprobarCalidad(){
+  const obs=document.getElementById("calidad_txt")?.value||"";
+  await guardar({obs_calidad:obs,paso:8,estado:"Cobro y entrega",aprobado_calidad:true});
+}
+
+// Exponer globales
+["cerrarModal","tomarFoto","borrarFoto","modalProcedimiento","agregarProcedimiento","borrarProcedimiento",
+"modalRepCons","agregarRepCons","marcarConseguido","enviarInformeEncargado","modalCotizacion",
+"guardarCotizacion","confirmarAprobacion","modalMO","agregarMO","editarMOPrecio","borrarMO",
+"modalRep","selRep","filtrarInv","agregarRep","editarRepPrecio","borrarRep","guardar",
+"aprobarCalidad","enviarCotizacionFinal","enviarCotizacionCliente","actualizarCobro",
+"modalCobro","confirmarCobro","generarPDF"].forEach(fn=>window[fn]=eval(fn));
 
 init();
 </script>
