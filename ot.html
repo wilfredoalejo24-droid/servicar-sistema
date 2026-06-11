@@ -12,7 +12,6 @@ body{font-family:Arial,sans-serif;background:#0f172a;color:#fff;min-height:100vh
 .btn-primary{background:#f59e0b;color:#1e293b}
 .btn-blue{background:#1d4ed8;color:#fff}
 .btn-gray{background:#334155;color:#94a3b8}
-.card{background:#1e293b;border:1px solid #334155;border-radius:14px;padding:16px;margin-bottom:10px}
 .input{width:100%;padding:10px 12px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#fff;font-size:13px}
 .label{color:#64748b;font-size:11px;font-weight:700;margin-bottom:5px;display:block}
 select{width:100%;padding:10px 12px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#fff;font-size:13px}
@@ -25,12 +24,9 @@ textarea{width:100%;padding:10px 12px;background:#0f172a;border:1px solid #33415
 <body>
 <div id="app"></div>
 <div id="modal-area"></div>
-
 <script>
 const SB=window.supabase.createClient("https://epirsbudngwbxgcsryvv.supabase.co","sb_publishable_zsqvMzJMc80Ypf3UQqs-SA_IrV-XIGc");
-
-let usuario=null, ots=[], filtro="todas";
-
+let usuario=null,ots=[],filtro="todas";
 const PASO_LABEL=["","Recepción","Diagnóstico","Cotización","Aprobación","Ejecución","Trabajo adicional","Control calidad","Entregada"];
 const PASO_COLOR=["","#64748b","#60a5fa","#a78bfa","#f59e0b","#f97316","#ec4899","#0891b2","#16a34a"];
 
@@ -48,8 +44,6 @@ async function login(){
   if(data){localStorage.setItem("sc_user",JSON.stringify(data));usuario=data;await cargar();renderLista();}
   else document.getElementById("err").textContent="Usuario o contraseña incorrectos";
 }
-
-function salir(){localStorage.removeItem("sc_user");usuario=null;renderLogin();}
 
 async function cargar(){
   let q=SB.from("ots").select("*").order("id",{ascending:false});
@@ -83,17 +77,14 @@ function renderLogin(){
 }
 
 function renderLista(){
-  const filtradas=filtro==="todas"?ots:ots.filter(o=>o.paso_actual==filtro||(filtro==="abiertas"&&o.paso_actual<8)||(filtro==="entregadas"&&o.paso_actual>=8));
-  const esAdmin=(usuario.rol==="admin"||usuario.rol==="encargado");
-
+  const filtradas=filtro==="todas"?ots:filtro==="abiertas"?ots.filter(o=>o.paso<8):ots.filter(o=>o.paso>=8);
   document.getElementById("app").innerHTML=`
-  <!-- Header -->
   <div style="background:#1e293b;border-bottom:1px solid #334155;padding:12px 16px;position:sticky;top:0;z-index:100">
     <div style="display:flex;justify-content:space-between;align-items:center;max-width:500px;margin:0 auto">
       <div>
         <a href="/" style="color:#64748b;text-decoration:none;font-size:11px">← Inicio</a>
         <div style="color:#fbbf24;font-weight:900;font-size:15px">📋 Órdenes de Trabajo</div>
-        <div style="color:#475569;font-size:10px">${usuario.nombre} · ${ots.length} OT${ots.length!==1?"s":""}</div>
+        <div style="color:#475569;font-size:10px">${usuario.nombre} · ${ots.length} OTs</div>
       </div>
       <div style="display:flex;gap:8px">
         <button onclick="cargar().then(renderLista)" class="btn btn-gray" style="padding:8px 10px;font-size:11px">🔄</button>
@@ -101,53 +92,52 @@ function renderLista(){
       </div>
     </div>
   </div>
-
   <div style="padding:14px 16px;max-width:500px;margin:0 auto">
-
-  <!-- Filtros -->
-  <div style="display:flex;gap:6px;margin-bottom:14px;overflow-x:auto;padding-bottom:4px">
-    ${[["todas","Todas"],["abiertas","Abiertas"],["entregadas","Entregadas"]].map(([k,l])=>
-      `<button onclick="filtro='${k}';renderLista()" class="btn" style="white-space:nowrap;padding:7px 12px;font-size:11px;background:${filtro===k?"#f59e0b":"#1e293b"};color:${filtro===k?"#1e293b":"#94a3b8"};border:1px solid ${filtro===k?"#f59e0b":"#334155"}">${l}</button>`
-    ).join("")}
-  </div>
-
-  <!-- Lista OTs -->
-  ${filtradas.length===0?`<div style="text-align:center;padding:40px;color:#475569">
-    <div style="font-size:40px;margin-bottom:10px">📋</div>
-    <div style="font-size:14px">No hay órdenes de trabajo</div>
-    <button onclick="mostrarCrear()" class="btn btn-primary" style="margin-top:14px">+ Crear primera OT</button>
-  </div>`:""}
-
-  ${filtradas.map(o=>{
-    const paso=o.paso_actual||1;
-    const color=PASO_COLOR[paso]||"#64748b";
-    const label=PASO_LABEL[paso]||"";
-    const entregada=paso>=8;
-    return `<div onclick="abrirDetalle(${o.id})" style="cursor:pointer;background:#1e293b;border:1px solid #334155;border-radius:14px;padding:14px;margin-bottom:10px;border-left:3px solid ${color}">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
-        <div>
-          <div style="font-weight:900;font-size:14px;color:#fff">${o.placa||"Sin placa"} <span style="color:#64748b;font-weight:400;font-size:12px">· ${o.marca||""} ${o.modelo||""}</span></div>
-          <div style="color:#94a3b8;font-size:11px;margin-top:2px">👤 ${o.cliente_nombre||"-"} ${o.cliente_tel?`· 📞 ${o.cliente_tel}`:""}</div>
-          ${o.tecnico?`<div style="color:#475569;font-size:10px;margin-top:2px">🔧 Técnico: ${o.tecnico}</div>`:""}
+    <div style="display:flex;gap:6px;margin-bottom:14px">
+      ${[["todas","Todas"],["abiertas","Abiertas"],["entregadas","Entregadas"]].map(([k,l])=>
+        `<button onclick="filtro='${k}';renderLista()" class="btn" style="padding:7px 12px;font-size:11px;background:${filtro===k?"#f59e0b":"#1e293b"};color:${filtro===k?"#1e293b":"#94a3b8"};border:1px solid ${filtro===k?"#f59e0b":"#334155"}">${l}</button>`
+      ).join("")}
+    </div>
+    ${filtradas.length===0?`<div style="text-align:center;padding:40px;color:#475569">
+      <div style="font-size:40px;margin-bottom:10px">📋</div>
+      <div>No hay órdenes de trabajo</div>
+      <button onclick="mostrarCrear()" class="btn btn-primary" style="margin-top:14px">+ Crear primera OT</button>
+    </div>`:""}
+    ${filtradas.map(o=>{
+      const paso=o.paso||1;
+      const color=PASO_COLOR[paso]||"#64748b";
+      const label=PASO_LABEL[paso]||"";
+      return `<div onclick="abrirDetalle(${o.id})" style="cursor:pointer;background:#1e293b;border:1px solid #334155;border-radius:14px;padding:14px;margin-bottom:10px;border-left:3px solid ${color}">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+          <div>
+            <div style="font-weight:900;font-size:14px">${o.num||"OT-"+o.id} <span style="color:#64748b;font-weight:400;font-size:12px">· ${o.marca||""} ${o.modelo||""}</span></div>
+            <div style="color:#94a3b8;font-size:11px;margin-top:2px">🚗 ${o.placa||"-"} · 👤 ${o.cliente||"-"}</div>
+            ${o.tecnico?`<div style="color:#475569;font-size:10px;margin-top:2px">🔧 ${o.tecnico}</div>`:""}
+          </div>
+          <span class="badge" style="background:${color}20;color:${color};border:1px solid ${color}40">${label}</span>
         </div>
-        <span class="badge" style="background:${color}20;color:${color};border:1px solid ${color}40;white-space:nowrap">${label}</span>
-      </div>
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <div style="font-size:10px;color:#475569">${o.fecha_ingreso||""}</div>
-        <div style="display:flex;gap:6px;align-items:center">
-          ${entregada?`<span style="font-size:10px;color:#16a34a;font-weight:700">✅ Entregado</span>`:`<span style="font-size:10px;color:#64748b">Paso ${paso}/8</span>`}
-          <span style="color:#475569;font-size:14px">→</span>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div style="font-size:10px;color:#475569">${o.fecha||""} · ${o.taller||""}</div>
+          <div style="display:flex;gap:6px;align-items:center">
+            ${o.total>0?`<span style="color:#16a34a;font-weight:700;font-size:12px">Bs. ${o.total}</span>`:""}
+            ${usuario.user_name==="wilfredo"?`<button onclick="event.stopPropagation();borrarOT(${o.id})" style="background:#ef444420;border:1px solid #ef444440;color:#ef4444;border-radius:6px;padding:3px 8px;font-size:10px;cursor:pointer">🗑️</button>`:""}
+            <span style="color:#475569;font-size:14px">→</span>
+          </div>
         </div>
-      </div>
-    </div>`;
-  }).join("")}
-
-  <div style="height:20px"></div>
+      </div>`;
+    }).join("")}
+    <div style="height:20px"></div>
   </div>`;
 }
 
 function abrirDetalle(id){
-  location.href=`/ot-detalle.html?id=${id}`;
+  location.href="/ot-detalle.html?id="+id;
+}
+
+async function borrarOT(id){
+  if(!confirm("¿Borrar esta OT?"))return;
+  await SB.from("ots").delete().eq("id",id);
+  await cargar();renderLista();
 }
 
 function mostrarCrear(){
@@ -159,71 +149,49 @@ function mostrarCrear(){
       <strong style="color:#fbbf24;font-size:15px">+ Nueva Orden de Trabajo</strong>
       <button onclick="cerrarModal()" class="btn btn-gray" style="padding:6px 12px">✕</button>
     </div>
-
-    <div class="label">Placa del vehículo *</div>
-    <input id="n_placa" class="input" placeholder="Ej: ABC-123" style="margin-bottom:10px" oninput="buscarCliente()"/>
-
-    <div id="sugerencia_cliente" style="display:none;background:#0f172a;border:1px solid #334155;border-radius:8px;padding:10px;margin-bottom:10px;font-size:12px;cursor:pointer;color:#60a5fa"></div>
-
+    <div class="label">Placa *</div>
+    <input id="n_placa" class="input" placeholder="Ej: 1234ABC" style="margin-bottom:10px" oninput="buscarCliente()"/>
+    <div id="sugerencia_cliente" style="display:none;background:#0f172a;border:1px solid #16a34a;border-radius:8px;padding:10px;margin-bottom:10px;font-size:12px;cursor:pointer;color:#4ade80"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
-      <div>
-        <div class="label">Marca</div>
-        <input id="n_marca" class="input" placeholder="Toyota"/>
-      </div>
-      <div>
-        <div class="label">Modelo</div>
-        <input id="n_modelo" class="input" placeholder="Corolla"/>
-      </div>
+      <div><div class="label">Marca</div><input id="n_marca" class="input" placeholder="Toyota"/></div>
+      <div><div class="label">Modelo</div><input id="n_modelo" class="input" placeholder="Corolla"/></div>
     </div>
-
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
-      <div>
-        <div class="label">Año</div>
-        <input id="n_anio" type="number" class="input" placeholder="2018"/>
-      </div>
-      <div>
-        <div class="label">Km ingreso</div>
-        <input id="n_km" type="number" class="input" placeholder="85000"/>
-      </div>
+      <div><div class="label">Año</div><input id="n_anio" type="number" class="input" placeholder="2018"/></div>
+      <div><div class="label">Km</div><input id="n_km" type="number" class="input" placeholder="85000"/></div>
     </div>
-
-    <div class="label">Nombre del cliente *</div>
+    <div class="label">Cliente *</div>
     <input id="n_cliente" class="input" placeholder="Nombre completo" style="margin-bottom:10px"/>
-
-    <div class="label">Teléfono cliente</div>
+    <div class="label">Teléfono</div>
     <input id="n_tel" type="tel" class="input" placeholder="7XXXXXXX" style="margin-bottom:10px"/>
-
-    <div class="label">Motivo de ingreso *</div>
-    <textarea id="n_motivo" class="input" rows="2" placeholder="¿Por qué trae el vehículo?" style="margin-bottom:10px"></textarea>
-
+    <div class="label">Problema reportado *</div>
+    <textarea id="n_problema" class="input" rows="2" placeholder="¿Por qué trae el vehículo?" style="margin-bottom:10px"></textarea>
     ${esAdmin?`
-    <div class="label">Asignar técnico</div>
+    <div class="label">Técnico</div>
     <select id="n_tecnico" class="input" style="margin-bottom:10px">
-      <option value="${usuario.user_name}">${usuario.nombre} (yo)</option>
-      ${usuario.user_name==="wilfredo"?`<option value="william">William</option><option value="adolfo">Adolfo</option><option value="joel">Joel</option>`:""}
-      ${usuario.user_name==="william"?`<option value="wilfredo">Wilfredo</option><option value="adolfo">Adolfo</option><option value="joel">Joel</option>`:""}
-    </select>`:`<input type="hidden" id="n_tecnico" value="${usuario.user_name}"/>`}
-
+      <option value="${usuario.nombre}">${usuario.nombre} (yo)</option>
+      ${usuario.user_name==="wilfredo"?`<option value="William">William</option><option value="Adolfo">Adolfo</option><option value="Joel">Joel</option>`:""}
+      ${usuario.user_name==="william"?`<option value="Wilfredo">Wilfredo</option><option value="Adolfo">Adolfo</option><option value="Joel">Joel</option>`:""}
+    </select>`:`<input type="hidden" id="n_tecnico" value="${usuario.nombre}"/>`}
     <div class="label">Taller</div>
     <select id="n_taller" class="input" style="margin-bottom:16px">
       <option value="Taller 1 · Montes">Taller 1 · Montes</option>
       <option value="Taller 2 · Bella Vista">Taller 2 · Bella Vista</option>
     </select>
-
     <button onclick="crearOT()" class="btn btn-primary" style="width:100%;padding:13px;font-size:14px">✅ Crear OT</button>
   </div></div>`;
 }
 
 async function buscarCliente(){
   const placa=document.getElementById("n_placa").value.trim().toUpperCase();
-  if(placa.length<4)return;
+  if(placa.length<3)return;
   const{data}=await SB.from("crm").select("*").ilike("placa",`%${placa}%`).limit(1).single();
   if(data){
     const sg=document.getElementById("sugerencia_cliente");
     sg.style.display="block";
-    sg.innerHTML=`✅ Cliente conocido: <strong>${data.nombre}</strong> · ${data.placa} · ${data.marca||""} ${data.modelo||""}`;
+    sg.innerHTML=`✅ Cliente conocido: <strong>${data.nombre||data.cliente||""}</strong> · ${data.placa||""} · ${data.marca||""} ${data.modelo||""}`;
     sg.onclick=()=>{
-      document.getElementById("n_cliente").value=data.nombre||"";
+      document.getElementById("n_cliente").value=data.nombre||data.cliente||"";
       document.getElementById("n_tel").value=data.tel||"";
       document.getElementById("n_marca").value=data.marca||"";
       document.getElementById("n_modelo").value=data.modelo||"";
@@ -235,48 +203,44 @@ async function buscarCliente(){
 async function crearOT(){
   const placa=document.getElementById("n_placa").value.trim().toUpperCase();
   const cliente=document.getElementById("n_cliente").value.trim();
-  const motivo=document.getElementById("n_motivo").value.trim();
-  if(!placa||!cliente||!motivo){alert("Completa placa, cliente y motivo");return;}
-
+  const problema=document.getElementById("n_problema").value.trim();
+  if(!placa||!cliente||!problema){alert("Completa placa, cliente y problema");return;}
   const tecEl=document.getElementById("n_tecnico");
-  const tecnico=tecEl.tagName==="SELECT"?tecEl.value:tecEl.value;
-
   const nueva={
+    num:"OT-"+Date.now().toString().slice(-5),
     placa,
     marca:document.getElementById("n_marca").value.trim(),
     modelo:document.getElementById("n_modelo").value.trim(),
     anio:document.getElementById("n_anio").value||null,
     km:document.getElementById("n_km").value||null,
-    cliente:cliente,
+    cliente,
     tel:document.getElementById("n_tel").value.trim(),
-    problema:motivo,
-    tecnico,
+    problema,
+    tecnico:tecEl.value,
     taller:document.getElementById("n_taller").value,
     paso:1,
     estado:"Recepción",
     creado_por:usuario.user_name,
     fecha:new Date().toLocaleDateString("es-BO"),
-    servicios:[],
     repuestos:[],
+    servicios:[],
     fotos_recepcion:[],
     fotos_trabajo:[],
     total:0
   };
-
   const{data,error}=await SB.from("ots").insert(nueva).select().single();
-  if(error){alert("Error al crear OT: "+error.message);return;}
+  if(error){alert("Error: "+error.message);return;}
   cerrarModal();
-  location.href=`/ot-detalle.html?id=${data.id}`;
+  location.href="/ot-detalle.html?id="+data.id;
 }
 
 function cerrarModal(){document.getElementById("modal-area").innerHTML="";}
-
 window.cerrarModal=cerrarModal;
 window.mostrarCrear=mostrarCrear;
 window.crearOT=crearOT;
 window.buscarCliente=buscarCliente;
 window.abrirDetalle=abrirDetalle;
-
+window.borrarOT=borrarOT;
 init();
 </script>
 </body>
