@@ -246,20 +246,21 @@ async function crearOT(){
     marca:document.getElementById("n_marca").value.trim(),
     modelo:document.getElementById("n_modelo").value.trim(),
     anio:document.getElementById("n_anio").value||null,
-    km_ingreso:document.getElementById("n_km").value||null,
-    cliente_nombre:cliente,
-    cliente_tel:document.getElementById("n_tel").value.trim(),
-    motivo_ingreso:motivo,
+    km:document.getElementById("n_km").value||null,
+    cliente:cliente,
+    tel:document.getElementById("n_tel").value.trim(),
+    problema:motivo,
     tecnico,
     taller:document.getElementById("n_taller").value,
-    paso_actual:1,
-    registrado_por:usuario.user_name,
-    fecha_ingreso:new Date().toLocaleDateString("es-BO"),
-    mano_obra:[],
+    paso:1,
+    estado:"Recepción",
+    creado_por:usuario.user_name,
+    fecha:new Date().toLocaleDateString("es-BO"),
+    servicios:[],
     repuestos:[],
-    repuestos_conseguir:[],
     fotos_recepcion:[],
-    fotos_trabajo:[]
+    fotos_trabajo:[],
+    total:0
   };
 
   const{data,error}=await SB.from("ots").insert(nueva).select().single();
