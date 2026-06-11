@@ -10,48 +10,36 @@
 body{font-family:Arial,sans-serif;background:#0f172a;color:#fff;min-height:100vh}
 .btn{padding:10px 16px;border:none;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer}
 .btn-primary{background:#f59e0b;color:#1e293b}
-.btn-danger{background:#ef4444;color:#fff}
 .btn-green{background:#16a34a;color:#fff}
 .btn-blue{background:#1d4ed8;color:#fff}
+.btn-red{background:#ef4444;color:#fff}
 .btn-gray{background:#334155;color:#94a3b8}
 .card{background:#1e293b;border:1px solid #334155;border-radius:14px;padding:16px;margin-bottom:12px}
-.badge{padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;display:inline-block}
 .input{width:100%;padding:10px 12px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#fff;font-size:13px}
 .label{color:#64748b;font-size:11px;font-weight:700;margin-bottom:5px;display:block}
-.step{padding:10px 14px;border-radius:10px;margin-bottom:8px;border:1px solid #334155}
-.step-done{background:#16a34a20;border-color:#16a34a40}
-.step-active{background:#f59e0b20;border-color:#f59e0b60}
-.step-pending{background:#1e293b;border-color:#334155}
-.step-blocked{background:#ef444420;border-color:#ef444440}
-select{width:100%;padding:10px 12px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#fff;font-size:13px}
-textarea{width:100%;padding:10px 12px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#fff;font-size:13px;resize:vertical}
+select,textarea{width:100%;padding:10px 12px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#fff;font-size:13px}
+textarea{resize:vertical}
+.step-done{background:#16a34a20;border:1px solid #16a34a40}
+.step-active{background:#f59e0b20;border:1px solid #f59e0b60}
+.step-pending{background:#1e293b;border:1px solid #334155}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;align-items:flex-end;justify-content:center;z-index:1000}
+.modal-box{background:#1e293b;border-radius:16px 16px 0 0;padding:20px;width:100%;max-width:500px;max-height:88vh;overflow-y:auto}
 .foto-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
 .foto-item{aspect-ratio:1;border-radius:8px;overflow:hidden;position:relative;background:#0f172a;border:1px solid #334155}
 .foto-item img{width:100%;height:100%;object-fit:cover}
-.foto-item .del{position:absolute;top:4px;right:4px;background:rgba(239,68,68,.9);border:none;border-radius:50%;width:22px;height:22px;color:#fff;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center}
-.rep-item{padding:10px 12px;border-radius:10px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;font-size:13px}
-.rep-ok{background:#16a34a20;border:1px solid #16a34a40}
-.rep-pendiente{background:#f59e0b20;border:1px solid #f59e0b60}
-.rep-falta{background:#ef444420;border:1px solid #ef444440}
-.mo-item{padding:10px 12px;background:#0f172a;border:1px solid #334155;border-radius:10px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center}
-h3{color:#94a3b8;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px}
-.modal{position:fixed;inset:0;background:rgba(0,0,0,.8);display:flex;align-items:flex-end;justify-content:center;z-index:1000;padding:0}
-.modal-box{background:#1e293b;border-radius:16px 16px 0 0;padding:20px;width:100%;max-width:500px;max-height:85vh;overflow-y:auto}
+.foto-del{position:absolute;top:3px;right:3px;background:rgba(239,68,68,.9);border:none;border-radius:50%;width:20px;height:20px;color:#fff;font-size:10px;cursor:pointer}
 </style>
 </head>
 <body>
-<div id="app"><div style="display:flex;align-items:center;justify-content:center;min-height:100vh;color:#64748b">Cargando...</div></div>
-
+<div id="app"><div style="display:flex;align-items:center;justify-content:center;min-height:100vh;color:#64748b;font-size:14px">Cargando OT...</div></div>
+<div id="modal-area"></div>
 <script>
 const SB=window.supabase.createClient("https://epirsbudngwbxgcsryvv.supabase.co","sb_publishable_zsqvMzJMc80Ypf3UQqs-SA_IrV-XIGc");
-
 const PASOS=["Recepción","Diagnóstico","Cotización","Aprobación","Ejecución","Trabajo adicional","Control calidad","Entrega"];
-
-const MO_OPCIONES=["Cambio de aceite","Lavado de motor","Alineado","Balanceado","Cambio de frenos","Cambio de pastillas","Cambio de embrague","Cambio de suspensión","Diagnóstico eléctrico","Diagnóstico electrónico","Cambio de filtros","Cambio de correa","Mantenimiento general","Soldadura","Rectificado","Personalizado..."];
+const MO_OPTS=["Cambio de aceite","Lavado de motor","Alineado","Balanceado","Cambio de frenos","Cambio de pastillas","Cambio de embrague","Cambio de suspensión","Diagnóstico eléctrico","Diagnóstico electrónico","Cambio de filtros","Cambio de correa","Mantenimiento general","Soldadura","Rectificado","Otro (personalizado)"];
 
 let usuario=null, ot=null, inventario=[], otId=null;
 
-// Leer params
 const params=new URLSearchParams(location.search);
 otId=params.get("id");
 
@@ -67,13 +55,15 @@ async function init(){
 
 async function cargarOT(){
   const{data}=await SB.from("ots").select("*").eq("id",otId).single();
-  if(!data){location.href="/ot.html";return;}
+  if(!data){alert("OT no encontrada");location.href="/ot.html";return;}
   ot=data;
-  if(!ot.mano_obra) ot.mano_obra=[];
-  if(!ot.repuestos) ot.repuestos=[];
-  if(!ot.fotos_recepcion) ot.fotos_recepcion=[];
-  if(!ot.fotos_trabajo) ot.fotos_trabajo=[];
+  // Normalizar arrays
+  if(!Array.isArray(ot.servicios)) try{ot.servicios=JSON.parse(ot.servicios||"[]")}catch{ot.servicios=[];}
+  if(!Array.isArray(ot.repuestos)) try{ot.repuestos=JSON.parse(ot.repuestos||"[]")}catch{ot.repuestos=[];}
+  if(!Array.isArray(ot.fotos_recepcion)) try{ot.fotos_recepcion=JSON.parse(ot.fotos_recepcion||"[]")}catch{ot.fotos_recepcion=[];}
+  if(!Array.isArray(ot.fotos_trabajo)) try{ot.fotos_trabajo=JSON.parse(ot.fotos_trabajo||"[]")}catch{ot.fotos_trabajo=[];}
   if(!ot.repuestos_conseguir) ot.repuestos_conseguir=[];
+  if(!Array.isArray(ot.repuestos_conseguir)) try{ot.repuestos_conseguir=JSON.parse(ot.repuestos_conseguir||"[]")}catch{ot.repuestos_conseguir=[];}
 }
 
 async function cargarInventario(){
@@ -81,140 +71,122 @@ async function cargarInventario(){
   inventario=data||[];
 }
 
-function puedeVer(campo){
-  const r=usuario.rol;
-  if(r==="admin"||r==="encargado") return true;
-  const soloAdmin=["precio_total","mano_obra","cotizacion","aprobar","calidad","entregar"];
-  if(soloAdmin.includes(campo)) return false;
-  return true;
-}
+const esAdmin=()=>["admin","encargado"].includes(usuario?.rol)||["wilfredo","william"].includes(usuario?.user_name);
 
-function esTecnico(){return usuario.rol==="mecanico"||usuario.rol==="vendedor";}
-
-async function guardar(extra={}){
-  const upd={...extra,updated_at:new Date().toISOString()};
-  await SB.from("ots").update(upd).eq("id",otId);
-  Object.assign(ot,upd);
+async function guardar(campos){
+  await SB.from("ots").update(campos).eq("id",otId);
+  Object.assign(ot,campos);
   render();
 }
 
-async function avanzarPaso(paso){
-  if(paso===3 && ot.paso_actual<3) return;
-  await guardar({paso_actual:paso});
-}
-
-// Fotos
-async function tomarFoto(tipo){
+// FOTOS
+function tomarFoto(tipo){
   const inp=document.createElement("input");
   inp.type="file";inp.accept="image/*";inp.capture="environment";
   inp.onchange=async()=>{
     const f=inp.files[0];if(!f)return;
     const r=new FileReader();
-    r.onload=async()=>{
-      const b64=r.result;
-      const campo=tipo==="recepcion"?"fotos_recepcion":"fotos_trabajo";
-      const arr=[...(ot[campo]||[]),b64];
-      await guardar({[campo]:arr});
+    r.onload=async e=>{
+      const img=new Image();
+      img.onload=async()=>{
+        const c=document.createElement("canvas");
+        const MAX=600;let w=img.width,h=img.height;
+        if(w>MAX){h=h*MAX/w;w=MAX;}
+        c.width=w;c.height=h;
+        c.getContext("2d").drawImage(img,0,0,w,h);
+        const b64=c.toDataURL("image/jpeg",0.7);
+        const campo=tipo==="rec"?"fotos_recepcion":"fotos_trabajo";
+        const arr=[...(ot[campo]||[]),b64];
+        await guardar({[campo]:arr});
+      };
+      img.src=e.target.result;
     };
     r.readAsDataURL(f);
   };
   inp.click();
 }
 
-function borrarFoto(tipo,idx){
-  if(!confirm("¿Borrar esta foto?"))return;
-  const campo=tipo==="recepcion"?"fotos_recepcion":"fotos_trabajo";
-  const arr=[...(ot[campo]||[])];
-  arr.splice(idx,1);
-  guardar({[campo]:arr});
+async function borrarFoto(tipo,idx){
+  if(!confirm("¿Borrar foto?"))return;
+  const campo=tipo==="rec"?"fotos_recepcion":"fotos_trabajo";
+  const arr=[...(ot[campo]||[])];arr.splice(idx,1);
+  await guardar({[campo]:arr});
 }
 
-// Mano de obra
-function mostrarModalMO(){
-  const mo=ot.mano_obra||[];
-  const html=`<div class="modal" onclick="if(event.target===this)cerrarModal()">
+// MANO DE OBRA (servicios)
+function modalMO(){
+  document.getElementById("modal-area").innerHTML=`
+  <div class="modal" onclick="if(event.target===this)cerrarModal()">
   <div class="modal-box">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-      <strong style="color:#fbbf24">+ Mano de obra</strong>
-      <button onclick="cerrarModal()" class="btn btn-gray" style="padding:6px 12px">✕</button>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <strong style="color:#fbbf24">+ Agregar servicio</strong>
+      <button onclick="cerrarModal()" class="btn btn-gray" style="padding:5px 10px">✕</button>
     </div>
-    <div class="label">Servicio</div>
-    <select id="mo_tipo" class="input" style="margin-bottom:10px" onchange="if(this.value==='Personalizado...'){document.getElementById('mo_custom').style.display='block'}else{document.getElementById('mo_custom').style.display='none'}">
-      ${MO_OPCIONES.map(o=>`<option>${o}</option>`).join("")}
+    <div class="label">Tipo de servicio</div>
+    <select id="mo_tipo" class="input" style="margin-bottom:10px" onchange="document.getElementById('mo_custom').style.display=this.value==='Otro (personalizado)'?'block':'none'">
+      ${MO_OPTS.map(o=>`<option>${o}</option>`).join("")}
     </select>
     <div id="mo_custom" style="display:none;margin-bottom:10px">
       <div class="label">Nombre del servicio</div>
-      <input id="mo_nombre_custom" class="input" placeholder="Ej: Cambio de termostato"/>
+      <input id="mo_nombre_c" class="input" placeholder="Ej: Cambio de termostato"/>
     </div>
     <div class="label">Precio (Bs.)</div>
     <input id="mo_precio" type="number" class="input" placeholder="0" style="margin-bottom:14px"/>
-    <div class="label">Técnico</div>
-    <select id="mo_tecnico" class="input" style="margin-bottom:16px">
-      <option value="${usuario.user_name}">${usuario.nombre} (yo)</option>
-      ${usuario.user_name==="wilfredo"?`<option value="william">William</option>`:""}
-      ${usuario.user_name==="william"?`<option value="wilfredo">Wilfredo</option>`:""}
-    </select>
     <button onclick="agregarMO()" class="btn btn-green" style="width:100%">✅ Agregar</button>
   </div></div>`;
-  document.getElementById("modal-area").innerHTML=html;
 }
 
 async function agregarMO(){
   const tipo=document.getElementById("mo_tipo").value;
-  const nombre=tipo==="Personalizado..."?document.getElementById("mo_nombre_custom").value.trim():tipo;
+  const nombre=tipo==="Otro (personalizado)"?document.getElementById("mo_nombre_c").value.trim():tipo;
   const precio=parseFloat(document.getElementById("mo_precio").value)||0;
-  const tecnico=document.getElementById("mo_tecnico").value;
   if(!nombre||!precio){alert("Completa nombre y precio");return;}
-  const arr=[...(ot.mano_obra||[]),{nombre,precio,tecnico,fecha:new Date().toLocaleDateString("es-BO")}];
-  await guardar({mano_obra:arr});
+  const arr=[...(ot.servicios||[]),{nombre,precio,tecnico:usuario.nombre,fecha:new Date().toLocaleDateString("es-BO")}];
+  await guardar({servicios:arr});
   cerrarModal();
 }
 
 async function borrarMO(idx){
   if(!confirm("¿Borrar?"))return;
-  const arr=[...(ot.mano_obra||[])];arr.splice(idx,1);
-  await guardar({mano_obra:arr});
+  const arr=[...(ot.servicios||[])];arr.splice(idx,1);
+  await guardar({servicios:arr});
 }
 
-// Repuestos
-function mostrarModalRep(){
-  const html=`<div class="modal" onclick="if(event.target===this)cerrarModal()">
+// REPUESTOS
+function modalRep(){
+  document.getElementById("modal-area").innerHTML=`
+  <div class="modal" onclick="if(event.target===this)cerrarModal()">
   <div class="modal-box">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
       <strong style="color:#fbbf24">+ Repuesto del inventario</strong>
-      <button onclick="cerrarModal()" class="btn btn-gray" style="padding:6px 12px">✕</button>
+      <button onclick="cerrarModal()" class="btn btn-gray" style="padding:5px 10px">✕</button>
     </div>
-    <div class="label">Buscar producto</div>
-    <input id="rep_busca" class="input" placeholder="Escribe nombre..." oninput="filtrarInv()" style="margin-bottom:10px"/>
-    <div id="rep_lista" style="max-height:300px;overflow-y:auto">
+    <input id="rep_busca" class="input" placeholder="Buscar producto..." oninput="filtrarInv()" style="margin-bottom:10px"/>
+    <div id="rep_lista" style="max-height:280px;overflow-y:auto">
       ${inventario.map(p=>`
-        <div onclick="selRep(${p.id})" style="padding:10px;background:#0f172a;border:1px solid #334155;border-radius:8px;margin-bottom:6px;cursor:pointer">
-          <div style="display:flex;gap:8px;align-items:center">
-            ${p.foto?`<img src="${p.foto}" style="width:36px;height:36px;border-radius:6px;object-fit:cover"/>`:
-            `<div style="width:36px;height:36px;background:#334155;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:18px">📦</div>`}
-            <div>
-              <div style="color:#fff;font-size:12px;font-weight:700">${p.nombre}</div>
-              <div style="color:${p.stock>0?"#16a34a":"#ef4444"};font-size:10px;font-weight:700">
-                ${p.stock>0?`Stock: ${p.stock}`:"❌ SIN STOCK"}</div>
-              ${(usuario.rol==="admin"||usuario.rol==="encargado")?`<div style="color:#fbbf24;font-size:10px">Bs. ${p.precio_venta||0}</div>`:""}
-            </div>
+        <div onclick="selRep(${p.id})" style="padding:10px;background:#0f172a;border:1px solid #334155;border-radius:8px;margin-bottom:6px;cursor:pointer;display:flex;gap:8px;align-items:center">
+          ${p.foto?`<img src="${p.foto}" style="width:36px;height:36px;border-radius:6px;object-fit:cover"/>`:
+          `<div style="width:36px;height:36px;background:#334155;border-radius:6px;display:flex;align-items:center;justify-content:center">📦</div>`}
+          <div>
+            <div style="color:#fff;font-size:12px;font-weight:700">${p.nombre}</div>
+            <div style="font-size:10px;color:${(p.stock||0)>0?"#16a34a":"#ef4444"};font-weight:700">${(p.stock||0)>0?"Stock: "+p.stock:"❌ SIN STOCK"}</div>
+            <div style="font-size:10px;color:#fbbf24">Bs. ${p.precio_venta||0}</div>
           </div>
         </div>`).join("")}
     </div>
-    <div id="rep_form" style="display:none">
+    <div id="rep_form" style="display:none;margin-top:10px">
       <div class="label">Cantidad</div>
       <input id="rep_cant" type="number" value="1" class="input" style="margin-bottom:10px"/>
-      <button onclick="agregarRep()" class="btn btn-green" style="width:100%;margin-top:6px">✅ Agregar</button>
-      <button onclick="document.getElementById('rep_form').style.display='none'" class="btn btn-gray" style="width:100%;margin-top:6px">← Volver</button>
+      <button onclick="agregarRep()" class="btn btn-green" style="width:100%;margin-bottom:8px">✅ Agregar</button>
+      <button onclick="document.getElementById('rep_form').style.display='none';document.getElementById('rep_lista').style.display='block'" class="btn btn-gray" style="width:100%">← Volver</button>
     </div>
   </div></div>`;
-  document.getElementById("modal-area").innerHTML=html;
 }
 
 let repSelId=null;
 function selRep(id){
   const p=inventario.find(x=>x.id===id);
-  if(!p||p.stock<=0){alert("❌ Sin stock. Agrega al inventario primero.");return;}
+  if(!p||(p.stock||0)<=0){alert("❌ Sin stock. Agrega al inventario primero.");return;}
   repSelId=id;
   document.getElementById("rep_form").style.display="block";
   document.getElementById("rep_lista").style.display="none";
@@ -223,34 +195,29 @@ function selRep(id){
 function filtrarInv(){
   const q=document.getElementById("rep_busca").value.toLowerCase();
   document.querySelectorAll("#rep_lista > div").forEach(el=>{
-    el.style.display=el.textContent.toLowerCase().includes(q)?"block":"none";
+    el.style.display=el.textContent.toLowerCase().includes(q)?"":"none";
   });
 }
 
 async function agregarRep(){
-  const p=inventario.find(x=>x.id===repSelId);
-  if(!p)return;
+  const p=inventario.find(x=>x.id===repSelId);if(!p)return;
   const cant=parseInt(document.getElementById("rep_cant").value)||1;
-  if(cant>p.stock){alert(`Solo hay ${p.stock} en stock`);return;}
-  const arr=[...(ot.repuestos||[]),{
-    inv_id:p.id,nombre:p.nombre,foto:p.foto||null,
-    cantidad:cant,precio:p.precio_venta||0,
-    estado:"pendiente"
-  }];
+  if(cant>(p.stock||0)){alert(`Solo hay ${p.stock} en stock`);return;}
+  const arr=[...(ot.repuestos||[]),{inv_id:p.id,nombre:p.nombre,foto:p.foto||null,cantidad:cant,precio:p.precio_venta||0,estado:"pendiente"}];
   await guardar({repuestos:arr});
   cerrarModal();
 }
 
-async function marcarRepLlego(idx){
+async function descontarRep(idx){
   const arr=[...(ot.repuestos||[])];
-  arr[idx].estado="listo";
-  // Descontar del inventario
   const rep=arr[idx];
+  if(rep.estado==="listo")return;
   const inv=inventario.find(x=>x.id===rep.inv_id);
   if(inv){
-    await SB.from("inventario").update({stock:Math.max(0,inv.stock-rep.cantidad)}).eq("id",inv.id);
-    inv.stock=Math.max(0,inv.stock-rep.cantidad);
+    await SB.from("inventario").update({stock:Math.max(0,(inv.stock||0)-rep.cantidad)}).eq("id",inv.id);
+    inv.stock=Math.max(0,(inv.stock||0)-rep.cantidad);
   }
+  arr[idx].estado="listo";
   await guardar({repuestos:arr});
 }
 
@@ -260,24 +227,24 @@ async function borrarRep(idx){
   await guardar({repuestos:arr});
 }
 
-// Repuesto a conseguir
-function mostrarModalRepConseguir(){
-  const html=`<div class="modal" onclick="if(event.target===this)cerrarModal()">
+// REPUESTOS A CONSEGUIR
+function modalRepCons(){
+  document.getElementById("modal-area").innerHTML=`
+  <div class="modal" onclick="if(event.target===this)cerrarModal()">
   <div class="modal-box">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
       <strong style="color:#f97316">🔍 Repuesto a conseguir</strong>
-      <button onclick="cerrarModal()" class="btn btn-gray" style="padding:6px 12px">✕</button>
+      <button onclick="cerrarModal()" class="btn btn-gray" style="padding:5px 10px">✕</button>
     </div>
     <div class="label">Nombre del repuesto</div>
     <input id="rc_nombre" class="input" placeholder="Ej: Bomba de agua" style="margin-bottom:10px"/>
-    <div class="label">Notas (opcional)</div>
+    <div class="label">Nota (opcional)</div>
     <textarea id="rc_nota" class="input" rows="2" placeholder="Medidas, referencia..."></textarea>
-    <button onclick="agregarRepConseguir()" class="btn" style="width:100%;margin-top:14px;background:#f97316;color:#fff">✅ Agregar</button>
+    <button onclick="agregarRepCons()" class="btn" style="width:100%;margin-top:14px;background:#f97316;color:#fff">✅ Agregar</button>
   </div></div>`;
-  document.getElementById("modal-area").innerHTML=html;
 }
 
-async function agregarRepConseguir(){
+async function agregarRepCons(){
   const nombre=document.getElementById("rc_nombre").value.trim();
   const nota=document.getElementById("rc_nota").value.trim();
   if(!nombre){alert("Escribe el nombre");return;}
@@ -294,343 +261,303 @@ async function marcarConseguido(idx){
 
 function cerrarModal(){document.getElementById("modal-area").innerHTML="";}
 
-// Totales
+// TOTALES
 function calcTotales(){
-  const mo=(ot.mano_obra||[]).reduce((s,x)=>s+(x.precio||0),0);
+  const mo=(ot.servicios||[]).reduce((s,x)=>s+(x.precio||0),0);
   const rep=(ot.repuestos||[]).reduce((s,x)=>s+((x.precio||0)*(x.cantidad||1)),0);
   return{mo,rep,total:mo+rep};
 }
 
-// Verificar si puede entregar
 function puedeEntregar(){
-  const pendRep=(ot.repuestos_conseguir||[]).some(r=>!r.conseguido);
-  const repFalta=(ot.repuestos||[]).some(r=>r.estado!=="listo");
-  return !pendRep && !repFalta;
+  const pendCons=(ot.repuestos_conseguir||[]).some(r=>!r.conseguido);
+  const pendRep=(ot.repuestos||[]).some(r=>r.estado!=="listo");
+  return !pendCons&&!pendRep;
 }
 
-// Confirmar entrega
 async function confirmarEntrega(){
-  if(!puedeEntregar()){
-    alert("⚠️ Hay repuestos pendientes. No se puede entregar.");return;
-  }
+  if(!puedeEntregar()){alert("⚠️ Hay repuestos pendientes.");return;}
   if(!confirm("¿Confirmar entrega del vehículo?"))return;
   const tot=calcTotales();
-  // Guardar en CRM
-  const cli={
-    nombre:ot.cliente_nombre,tel:ot.cliente_tel,
-    placa:ot.placa,marca:ot.marca,modelo:ot.modelo,
-    servicio:`OT-${otId}`,
-    mano_obra:JSON.stringify(ot.mano_obra||[]),
-    repuestos:JSON.stringify(ot.repuestos||[]),
-    total:tot.total,
-    capital:tot.rep,
-    ganancia:tot.mo,
+  await SB.from("crm").insert({
+    nombre:ot.cliente,tel:ot.tel,placa:ot.placa,
+    marca:ot.marca,modelo:ot.modelo,
+    servicio:"OT-"+otId,total:tot.total,
     fecha:new Date().toLocaleDateString("es-BO"),
-    taller:usuario.taller,
-    tecnico:ot.tecnico
-  };
-  await SB.from("crm").insert(cli);
-  // Guardar en caja
+    taller:ot.taller,tecnico:ot.tecnico
+  });
   await SB.from("caja").insert({
-    concepto:`OT-${otId} · ${ot.placa} · ${ot.cliente_nombre}`,
-    monto:tot.total,
-    tipo:"ingreso",
-    taller:usuario.taller,
+    concepto:`OT #${otId} · ${ot.placa} · ${ot.cliente}`,
+    monto:tot.total,tipo:"ingreso",
+    taller:ot.taller,
     fecha:new Date().toLocaleDateString("es-BO"),
     registrado_por:usuario.user_name
   });
-  await guardar({paso_actual:8,entregado:true,entregado_por:usuario.user_name,fecha_entrega:new Date().toLocaleDateString("es-BO")});
+  await guardar({paso:8,estado:"Entregado",entregado:true,entregado_por:usuario.nombre,fecha_entrega:new Date().toLocaleDateString("es-BO"),total:tot.total});
   alert("✅ Vehículo entregado. Guardado en CRM y Caja.");
 }
 
-// Generar PDF
 function generarPDF(){
   const tot=calcTotales();
   const w=window.open("","_blank");
   const fotsRec=(ot.fotos_recepcion||[]).map(f=>`<img src="${f}" style="width:80px;height:60px;object-fit:cover;border-radius:4px;margin:2px"/>`).join("");
   const fotsTrab=(ot.fotos_trabajo||[]).map(f=>`<img src="${f}" style="width:80px;height:60px;object-fit:cover;border-radius:4px;margin:2px"/>`).join("");
-  const moRows=(ot.mano_obra||[]).map(m=>`<tr><td style="padding:6px 8px">${m.nombre}</td><td style="padding:6px 8px;text-align:right">Bs. ${m.precio}</td></tr>`).join("");
-  const repRows=(ot.repuestos||[]).map(r=>`<tr><td style="padding:6px 8px">${r.nombre} x${r.cantidad}</td><td style="padding:6px 8px;text-align:right">Bs. ${(r.precio||0)*(r.cantidad||1)}</td></tr>`).join("");
-  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>OT-${otId}</title>
-  <style>body{font-family:Arial,sans-serif;font-size:12px;padding:20px;color:#1e293b}
-  h1{font-size:16px}h2{font-size:13px;color:#475569;margin:14px 0 6px}
-  table{width:100%;border-collapse:collapse}td{border-bottom:1px solid #e2e8f0}
-  .total{font-weight:700;font-size:14px}.logo{color:#f59e0b;font-weight:900;font-size:18px}
-  @media print{button{display:none}}</style></head>
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>OT #${otId}</title>
+  <style>body{font-family:Arial;font-size:12px;padding:20px;color:#1e293b}
+  h2{font-size:13px;color:#475569;margin:14px 0 6px}
+  table{width:100%;border-collapse:collapse}td{border-bottom:1px solid #e2e8f0;padding:5px 8px}
+  .total{font-weight:700;font-size:14px}@media print{button{display:none}}</style></head>
   <body>
   <div style="text-align:center;margin-bottom:16px">
-    <div class="logo">🔧 SERVI CAR PLATINIUM</div>
-    <div style="font-size:11px;color:#64748b">Viacha - La Paz · Tel: 68167264 / 60574920</div>
-    <div style="font-size:13px;font-weight:700;margin-top:8px">ORDEN DE TRABAJO #${otId}</div>
-    <div style="font-size:11px;color:#64748b">${ot.fecha_ingreso||new Date().toLocaleDateString("es-BO")}</div>
+    <div style="color:#f59e0b;font-weight:900;font-size:18px">🔧 SERVI CAR PLATINIUM</div>
+    <div style="font-size:11px;color:#64748b">Viacha - La Paz · 68167264 / 60574920</div>
+    <div style="font-weight:700;margin-top:8px">ORDEN DE TRABAJO #${otId}</div>
+    <div style="font-size:11px;color:#64748b">${ot.fecha||""}</div>
   </div>
   <h2>🚗 VEHÍCULO</h2>
-  <table><tr><td>Placa</td><td>${ot.placa||"-"}</td></tr>
-  <tr><td>Marca / Modelo</td><td>${ot.marca||"-"} ${ot.modelo||"-"}</td></tr>
-  <tr><td>Km ingreso</td><td>${ot.km_ingreso||"-"}</td></tr>
-  <tr><td>Cliente</td><td>${ot.cliente_nombre||"-"}</td></tr>
-  <tr><td>Teléfono</td><td>${ot.cliente_tel||"-"}</td></tr></table>
+  <table>
+    <tr><td>Placa</td><td>${ot.placa||"-"}</td></tr>
+    <tr><td>Marca / Modelo</td><td>${ot.marca||"-"} ${ot.modelo||"-"}</td></tr>
+    <tr><td>Km</td><td>${ot.km||"-"}</td></tr>
+    <tr><td>Cliente</td><td>${ot.cliente||"-"}</td></tr>
+    <tr><td>Teléfono</td><td>${ot.tel||"-"}</td></tr>
+    <tr><td>Problema</td><td>${ot.problema||"-"}</td></tr>
+  </table>
   ${fotsRec?`<h2>📷 FOTOS RECEPCIÓN</h2><div>${fotsRec}</div>`:""}
   <h2>🔧 MANO DE OBRA</h2>
-  <table>${moRows}<tr class="total"><td>Subtotal mano de obra</td><td style="text-align:right">Bs. ${tot.mo}</td></tr></table>
+  <table>${(ot.servicios||[]).map(s=>`<tr><td>${s.nombre}</td><td style="text-align:right">Bs. ${s.precio}</td></tr>`).join("")}
+  <tr class="total"><td>Subtotal</td><td style="text-align:right">Bs. ${tot.mo}</td></tr></table>
   <h2>📦 REPUESTOS</h2>
-  <table>${repRows}<tr class="total"><td>Subtotal repuestos</td><td style="text-align:right">Bs. ${tot.rep}</td></tr></table>
+  <table>${(ot.repuestos||[]).map(r=>`<tr><td>${r.nombre} x${r.cantidad}</td><td style="text-align:right">Bs. ${(r.precio||0)*(r.cantidad||1)}</td></tr>`).join("")}
+  <tr class="total"><td>Subtotal</td><td style="text-align:right">Bs. ${tot.rep}</td></tr></table>
   ${fotsTrab?`<h2>📷 EVIDENCIA DEL TRABAJO</h2><div>${fotsTrab}</div>`:""}
-  <h2 style="margin-top:16px">💰 RESUMEN</h2>
+  <h2>💰 RESUMEN</h2>
   <table>
-  <tr><td>Mano de obra (ganancia neta)</td><td style="text-align:right">Bs. ${tot.mo}</td></tr>
-  <tr><td>Repuestos (capital)</td><td style="text-align:right">Bs. ${tot.rep}</td></tr>
-  <tr class="total" style="font-size:15px"><td>TOTAL</td><td style="text-align:right">Bs. ${tot.total}</td></tr></table>
+    <tr><td>Mano de obra (ganancia neta)</td><td style="text-align:right">Bs. ${tot.mo}</td></tr>
+    <tr><td>Repuestos (capital)</td><td style="text-align:right">Bs. ${tot.rep}</td></tr>
+    <tr class="total" style="font-size:15px"><td>TOTAL</td><td style="text-align:right">Bs. ${tot.total}</td></tr>
+  </table>
   <div style="margin-top:30px;border-top:1px solid #e2e8f0;padding-top:16px">
     <div style="color:#64748b;font-size:11px">Garantía: 30 días en mano de obra</div>
     <div style="margin-top:30px;border-top:1px dashed #94a3b8;width:200px;padding-top:6px;font-size:11px;color:#64748b">Firma del cliente</div>
   </div>
-  <div style="text-align:center;margin-top:20px"><button onclick="window.print()" style="padding:8px 20px;background:#f59e0b;border:none;border-radius:6px;font-weight:700;cursor:pointer">🖨️ Imprimir</button></div>
+  <div style="text-align:center;margin-top:16px"><button onclick="window.print()" style="padding:8px 20px;background:#f59e0b;border:none;border-radius:6px;font-weight:700;cursor:pointer">🖨️ Imprimir / Guardar PDF</button></div>
   </body></html>`);
 }
 
 // RENDER PRINCIPAL
 function render(){
-  if(!ot){return;}
-  const paso=ot.paso_actual||1;
+  if(!ot)return;
+  const paso=ot.paso||1;
   const tot=calcTotales();
-  const esAdmin=(usuario.rol==="admin"||usuario.rol==="encargado");
-  const repConsPend=(ot.repuestos_conseguir||[]).filter(r=>!r.conseguido);
-  const repFalta=(ot.repuestos||[]).filter(r=>r.estado!=="listo");
-  const bloqueado=repConsPend.length>0||repFalta.length>0;
+  const admin=esAdmin();
+  const pendCons=(ot.repuestos_conseguir||[]).filter(r=>!r.conseguido).length;
+  const pendRep=(ot.repuestos||[]).filter(r=>r.estado!=="listo").length;
 
   document.getElementById("app").innerHTML=`
-  <div style="max-width:500px;margin:0 auto">
-    <!-- Header -->
-    <div style="background:#1e293b;border-bottom:1px solid #334155;padding:12px 16px;position:sticky;top:0;z-index:100">
-      <div style="display:flex;align-items:center;gap:10px">
-        <a href="/ot.html" style="color:#64748b;text-decoration:none;font-size:18px">←</a>
-        <div style="flex:1">
-          <div style="color:#fbbf24;font-weight:900;font-size:14px">OT #${otId} · ${ot.placa||"-"}</div>
-          <div style="color:#64748b;font-size:11px">${ot.marca||""} ${ot.modelo||""} · ${ot.cliente_nombre||""}</div>
+  <!-- HEADER -->
+  <div style="background:#1e293b;border-bottom:1px solid #334155;padding:12px 16px;position:sticky;top:0;z-index:100">
+    <div style="display:flex;align-items:center;gap:10px;max-width:500px;margin:0 auto">
+      <a href="/ot.html" style="color:#64748b;text-decoration:none;font-size:20px">←</a>
+      <div style="flex:1">
+        <div style="color:#fbbf24;font-weight:900;font-size:14px">${ot.num||"OT #"+otId} · ${ot.placa||"-"}</div>
+        <div style="color:#64748b;font-size:11px">${ot.marca||""} ${ot.modelo||""} · ${ot.cliente||""}</div>
+      </div>
+      <span style="padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;background:#f59e0b20;color:#f59e0b;border:1px solid #f59e0b40">Paso ${paso}/8</span>
+    </div>
+  </div>
+
+  <div style="padding:14px 16px;max-width:500px;margin:0 auto">
+
+  <!-- PROGRESO -->
+  <div class="card">
+    <div style="color:#94a3b8;font-size:11px;font-weight:700;text-transform:uppercase;margin-bottom:10px">Progreso</div>
+    ${PASOS.map((p,i)=>{
+      const n=i+1;const done=paso>n;const active=paso===n;
+      return `<div class="${done?"step-done":active?"step-active":"step-pending"}" style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:10px;margin-bottom:6px">
+        <span>${done?"✅":active?"🔄":"⏳"}</span>
+        <span style="font-size:12px;color:${done?"#16a34a":active?"#fbbf24":"#64748b"};font-weight:${active?"700":"400"}">${n}. ${p}</span>
+        ${active&&admin&&n<8?`<button onclick="guardar({paso:${n+1},estado:'${PASOS[n]}'})" class="btn btn-green" style="margin-left:auto;padding:5px 10px;font-size:10px">→ Siguiente</button>`:""}
+      </div>`;
+    }).join("")}
+  </div>
+
+  <!-- INFO VEHÍCULO -->
+  <div class="card">
+    <div style="color:#94a3b8;font-size:11px;font-weight:700;text-transform:uppercase;margin-bottom:10px">🚗 Vehículo</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px">
+      ${[["Placa",ot.placa],["Marca",ot.marca],["Modelo",ot.modelo],["Año",ot.anio],["Km",ot.km],["Color",ot.color],["Combustible",ot.combustible],["Taller",ot.taller],["Técnico",ot.tecnico],["Cliente",ot.cliente],["Tel",ot.tel],["Fecha",ot.fecha]].map(([k,v])=>
+        `<div><div style="color:#475569;font-size:10px">${k}</div><div style="color:#fff;font-weight:700">${v||"-"}</div></div>`
+      ).join("")}
+    </div>
+    <div style="margin-top:10px;background:#0f172a;border-radius:8px;padding:10px;font-size:12px;color:#94a3b8">
+      <span style="color:#64748b;font-size:10px">PROBLEMA: </span>${ot.problema||"-"}
+    </div>
+    ${ot.tel?`<a href="https://wa.me/591${ot.tel}" target="_blank" class="btn btn-green" style="display:block;text-align:center;text-decoration:none;margin-top:10px;font-size:12px">📱 WhatsApp al cliente</a>`:""}
+    ${admin&&(usuario.user_name==="wilfredo"||usuario.user_name==="william")?`
+    <div style="margin-top:10px;display:flex;gap:8px">
+      ${usuario.user_name==="wilfredo"?`<button onclick="guardar({tecnico:'William'})" class="btn btn-blue" style="flex:1;font-size:11px">→ Asignar a William</button>`:""}
+      ${usuario.user_name==="william"?`<button onclick="guardar({tecnico:'Wilfredo'})" class="btn btn-blue" style="flex:1;font-size:11px">→ Asignar a Wilfredo</button>`:""}
+    </div>`:""}
+  </div>
+
+  <!-- DIAGNÓSTICO -->
+  <div class="card">
+    <div style="color:#94a3b8;font-size:11px;font-weight:700;text-transform:uppercase;margin-bottom:10px">🔍 Diagnóstico</div>
+    <textarea id="diag_txt" class="input" rows="3" placeholder="Describe el diagnóstico...">${ot.diagnostico||""}</textarea>
+    <button onclick="guardar({diagnostico:document.getElementById('diag_txt').value})" class="btn btn-primary" style="margin-top:8px;width:100%;font-size:12px">💾 Guardar diagnóstico</button>
+  </div>
+
+  <!-- FOTOS RECEPCIÓN -->
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div style="color:#94a3b8;font-size:11px;font-weight:700;text-transform:uppercase">📷 Fotos recepción</div>
+      <button onclick="tomarFoto('rec')" class="btn btn-blue" style="padding:6px 12px;font-size:11px">📷 Tomar</button>
+    </div>
+    ${(ot.fotos_recepcion||[]).length===0?`<div style="color:#475569;font-size:12px;text-align:center;padding:10px">Sin fotos</div>`:""}
+    <div class="foto-grid">
+      ${(ot.fotos_recepcion||[]).map((f,i)=>`<div class="foto-item"><img src="${f}"/>${admin?`<button class="foto-del" onclick="borrarFoto('rec',${i})">✕</button>`:""}</div>`).join("")}
+    </div>
+  </div>
+
+  <!-- REPUESTOS A CONSEGUIR -->
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div style="color:#94a3b8;font-size:11px;font-weight:700;text-transform:uppercase">🔍 Repuestos a conseguir</div>
+      <button onclick="modalRepCons()" class="btn" style="padding:6px 12px;font-size:11px;background:#f97316;color:#fff">+ Agregar</button>
+    </div>
+    ${(ot.repuestos_conseguir||[]).length===0?`<div style="color:#475569;font-size:12px;text-align:center;padding:8px">Sin repuestos pendientes</div>`:""}
+    ${(ot.repuestos_conseguir||[]).map((r,i)=>`
+      <div style="padding:10px 12px;border-radius:10px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;background:${r.conseguido?"#16a34a20":"#ef444420"};border:1px solid ${r.conseguido?"#16a34a40":"#ef444440"}">
+        <div>
+          <div style="font-size:12px;font-weight:700">${r.conseguido?"✅":"🔴"} ${r.nombre}</div>
+          ${r.nota?`<div style="font-size:10px;color:#64748b">${r.nota}</div>`:""}
         </div>
-        <span class="badge" style="background:${paso>=8?"#16a34a20":paso>=5?"#f59e0b20":"#1d4ed820"};color:${paso>=8?"#16a34a":paso>=5?"#f59e0b":"#60a5fa"};border:1px solid ${paso>=8?"#16a34a40":paso>=5?"#f59e0b40":"#1d4ed840"}">
-          Paso ${paso}/8
-        </span>
-      </div>
+        ${!r.conseguido&&admin?`<button onclick="marcarConseguido(${i})" class="btn btn-green" style="padding:5px 8px;font-size:10px">Llegó ✓</button>`:""}
+      </div>`).join("")}
+  </div>
+
+  <!-- MANO DE OBRA (solo admin) -->
+  ${admin?`<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div style="color:#94a3b8;font-size:11px;font-weight:700;text-transform:uppercase">🔧 Mano de obra</div>
+      <button onclick="modalMO()" class="btn btn-primary" style="padding:6px 12px;font-size:11px">+ Agregar</button>
     </div>
-
-    <div style="padding:14px 16px">
-
-    <!-- Progreso pasos -->
-    <div class="card" style="padding:12px">
-      <h3>Progreso</h3>
-      ${PASOS.map((p,i)=>{
-        const n=i+1;
-        const done=paso>n;const active=paso===n;
-        return `<div class="step ${done?"step-done":active?"step-active":"step-pending"}" style="display:flex;align-items:center;gap:8px;padding:8px 12px">
-          <span style="font-size:14px">${done?"✅":active?"🔄":"⏳"}</span>
-          <span style="font-size:12px;color:${done?"#16a34a":active?"#fbbf24":"#64748b"};font-weight:${active?"700":"400"}">${n}. ${p}</span>
-          ${active&&esAdmin&&n<8?`<button onclick="avanzarPaso(${n+1})" class="btn btn-green" style="margin-left:auto;padding:5px 10px;font-size:10px">→ Siguiente</button>`:""}
-        </div>`;
-      }).join("")}
-    </div>
-
-    <!-- Info vehículo -->
-    <div class="card">
-      <h3>🚗 Vehículo</h3>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px">
-        ${[["Placa",ot.placa],["Marca",ot.marca],["Modelo",ot.modelo],["Km ingreso",ot.km_ingreso],["Cliente",ot.cliente_nombre],["Tel",ot.cliente_tel],["Taller asignado",ot.taller],["Técnico",ot.tecnico]].map(([k,v])=>
-          `<div><div style="color:#475569;font-size:10px">${k}</div><div style="color:#fff;font-weight:700">${v||"-"}</div></div>`
-        ).join("")}
-      </div>
-      ${ot.cliente_tel?`<a href="https://wa.me/591${ot.cliente_tel}" target="_blank" class="btn btn-green" style="display:block;text-align:center;text-decoration:none;margin-top:10px;font-size:12px">📱 Contactar cliente por WhatsApp</a>`:""}
-      ${esAdmin&&(usuario.user_name==="wilfredo"||usuario.user_name==="william")?`
-      <div style="margin-top:10px">
-        <div class="label">Reasignar técnico</div>
-        <div style="display:flex;gap:8px">
-          ${usuario.user_name==="wilfredo"?`<button onclick="reasignar('william')" class="btn btn-blue" style="flex:1;font-size:11px">→ Asignar a William</button>`:""}
-          ${usuario.user_name==="william"?`<button onclick="reasignar('wilfredo')" class="btn btn-blue" style="flex:1;font-size:11px">→ Asignar a Wilfredo</button>`:""}
+    ${(ot.servicios||[]).length===0?`<div style="color:#475569;font-size:12px;text-align:center;padding:8px">Sin servicios</div>`:""}
+    ${(ot.servicios||[]).map((s,i)=>`
+      <div style="padding:10px 12px;background:#0f172a;border:1px solid #334155;border-radius:10px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-size:12px;font-weight:700">${s.nombre}</div>
+          <div style="font-size:10px;color:#64748b">${s.tecnico||""}</div>
         </div>
-      </div>`:""}
-    </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="color:#fbbf24;font-weight:700">Bs. ${s.precio}</span>
+          ${usuario.rol==="admin"?`<button onclick="borrarMO(${i})" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:14px">🗑️</button>`:""}
+        </div>
+      </div>`).join("")}
+    ${(ot.servicios||[]).length>0?`<div style="text-align:right;color:#fbbf24;font-weight:700;font-size:13px;padding-top:6px;border-top:1px solid #334155">Subtotal: Bs. ${(ot.servicios||[]).reduce((s,x)=>s+(x.precio||0),0)}</div>`:""}
+  </div>`:""}
 
-    <!-- Fotos recepción -->
-    <div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-        <h3 style="margin:0">📷 Fotos recepción</h3>
-        <button onclick="tomarFoto('recepcion')" class="btn btn-blue" style="padding:6px 12px;font-size:11px">📷 Tomar</button>
-      </div>
-      ${(ot.fotos_recepcion||[]).length===0?`<div style="color:#475569;font-size:12px;text-align:center;padding:12px">Sin fotos</div>`:""}
-      <div class="foto-grid">
-        ${(ot.fotos_recepcion||[]).map((f,i)=>`
-          <div class="foto-item">
-            <img src="${f}"/>
-            ${usuario.rol==="admin"?`<button class="del" onclick="borrarFoto('recepcion',${i})">✕</button>`:""}
-          </div>`).join("")}
-      </div>
+  <!-- REPUESTOS (solo admin) -->
+  ${admin?`<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div style="color:#94a3b8;font-size:11px;font-weight:700;text-transform:uppercase">📦 Repuestos usados</div>
+      <button onclick="modalRep()" class="btn btn-blue" style="padding:6px 12px;font-size:11px">+ Del inventario</button>
     </div>
-
-    <!-- Diagnóstico -->
-    <div class="card">
-      <h3>🔍 Diagnóstico</h3>
-      <div class="label">Descripción del problema</div>
-      <textarea id="diag_txt" class="input" rows="3" placeholder="Describe el diagnóstico...">${ot.diagnostico||""}</textarea>
-      <button onclick="guardar({diagnostico:document.getElementById('diag_txt').value})" class="btn btn-primary" style="margin-top:8px;width:100%;font-size:12px">💾 Guardar diagnóstico</button>
-    </div>
-
-    <!-- Repuestos a conseguir -->
-    <div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-        <h3 style="margin:0">🔍 Repuestos a conseguir</h3>
-        <button onclick="mostrarModalRepConseguir()" class="btn" style="padding:6px 12px;font-size:11px;background:#f97316;color:#fff">+ Agregar</button>
-      </div>
-      ${(ot.repuestos_conseguir||[]).length===0?`<div style="color:#475569;font-size:12px;text-align:center;padding:8px">Sin repuestos pendientes</div>`:""}
-      ${(ot.repuestos_conseguir||[]).map((r,i)=>`
-        <div class="rep-item ${r.conseguido?"rep-ok":"rep-falta"}">
+    ${(ot.repuestos||[]).length===0?`<div style="color:#475569;font-size:12px;text-align:center;padding:8px">Sin repuestos</div>`:""}
+    ${(ot.repuestos||[]).map((r,i)=>`
+      <div style="padding:10px 12px;border-radius:10px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;background:${r.estado==="listo"?"#16a34a20":"#f59e0b20"};border:1px solid ${r.estado==="listo"?"#16a34a40":"#f59e0b40"}">
+        <div style="display:flex;gap:8px;align-items:center">
+          ${r.foto?`<img src="${r.foto}" style="width:32px;height:32px;border-radius:6px;object-fit:cover"/>`:
+          `<div style="width:32px;height:32px;background:#334155;border-radius:6px;display:flex;align-items:center;justify-content:center">📦</div>`}
           <div>
-            <div style="font-weight:700;font-size:12px">${r.conseguido?"✅":"🔴"} ${r.nombre}</div>
-            ${r.nota?`<div style="color:#64748b;font-size:10px">${r.nota}</div>`:""}
+            <div style="font-size:12px;font-weight:700">${r.nombre} x${r.cantidad}</div>
+            <div style="font-size:10px;color:#fbbf24">Bs. ${(r.precio||0)*(r.cantidad||1)}</div>
+            <div style="font-size:9px;color:${r.estado==="listo"?"#16a34a":"#f59e0b"}">${r.estado==="listo"?"✅ Descontado":"⏳ Pendiente"}</div>
           </div>
-          ${!r.conseguido&&esAdmin?`<button onclick="marcarConseguido(${i})" class="btn btn-green" style="padding:5px 8px;font-size:10px">Llegó ✓</button>`:""}
-        </div>`).join("")}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px">
+          ${r.estado!=="listo"?`<button onclick="descontarRep(${i})" class="btn btn-green" style="padding:4px 8px;font-size:9px">✓ Descontar</button>`:""}
+          ${usuario.rol==="admin"?`<button onclick="borrarRep(${i})" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:12px">🗑️</button>`:""}
+        </div>
+      </div>`).join("")}
+    ${(ot.repuestos||[]).length>0?`<div style="text-align:right;color:#fbbf24;font-weight:700;font-size:13px;padding-top:6px;border-top:1px solid #334155">Subtotal: Bs. ${(ot.repuestos||[]).reduce((s,x)=>s+((x.precio||0)*(x.cantidad||1)),0)}</div>`:""}
+  </div>`:""}
+
+  <!-- FOTOS TRABAJO -->
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div style="color:#94a3b8;font-size:11px;font-weight:700;text-transform:uppercase">📷 Evidencia del trabajo</div>
+      <button onclick="tomarFoto('trab')" class="btn btn-blue" style="padding:6px 12px;font-size:11px">📷 Tomar</button>
     </div>
+    ${(ot.fotos_trabajo||[]).length===0?`<div style="color:#475569;font-size:12px;text-align:center;padding:10px">Sin fotos</div>`:""}
+    <div class="foto-grid">
+      ${(ot.fotos_trabajo||[]).map((f,i)=>`<div class="foto-item"><img src="${f}"/>${admin?`<button class="foto-del" onclick="borrarFoto('trab',${i})">✕</button>`:""}</div>`).join("")}
+    </div>
+  </div>
 
-    <!-- Mano de obra -->
-    ${esAdmin?`<div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-        <h3 style="margin:0">🔧 Mano de obra</h3>
-        <button onclick="mostrarModalMO()" class="btn btn-primary" style="padding:6px 12px;font-size:11px">+ Agregar</button>
+  <!-- RESUMEN FINANCIERO (solo admin) -->
+  ${admin?`<div class="card" style="border-color:#fbbf2430">
+    <div style="color:#94a3b8;font-size:11px;font-weight:700;text-transform:uppercase;margin-bottom:10px">💰 Resumen financiero</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center">
+      <div style="background:#16a34a20;border:1px solid #16a34a40;border-radius:10px;padding:10px">
+        <div style="color:#64748b;font-size:9px;font-weight:700">GANANCIA NETA</div>
+        <div style="color:#16a34a;font-weight:900;font-size:16px">Bs.${tot.mo}</div>
+        <div style="color:#475569;font-size:9px">Mano de obra</div>
       </div>
-      ${(ot.mano_obra||[]).length===0?`<div style="color:#475569;font-size:12px;text-align:center;padding:8px">Sin servicios agregados</div>`:""}
-      ${(ot.mano_obra||[]).map((m,i)=>`
-        <div class="mo-item">
-          <div>
-            <div style="font-size:12px;font-weight:700;color:#fff">${m.nombre}</div>
-            <div style="font-size:10px;color:#64748b">Técnico: ${m.tecnico}</div>
-          </div>
-          <div style="display:flex;align-items:center;gap:8px">
-            <span style="color:#fbbf24;font-weight:700;font-size:13px">Bs. ${m.precio}</span>
-            ${usuario.rol==="admin"?`<button onclick="borrarMO(${i})" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:14px">🗑️</button>`:""}
-          </div>
-        </div>`).join("")}
-      ${(ot.mano_obra||[]).length>0?`<div style="text-align:right;color:#fbbf24;font-weight:700;font-size:13px;padding-top:6px;border-top:1px solid #334155">Subtotal: Bs. ${(ot.mano_obra||[]).reduce((s,x)=>s+(x.precio||0),0)}</div>`:""}
-    </div>`:""}
-
-    <!-- Repuestos del inventario -->
-    ${esAdmin?`<div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-        <h3 style="margin:0">📦 Repuestos usados</h3>
-        <button onclick="mostrarModalRep()" class="btn btn-blue" style="padding:6px 12px;font-size:11px">+ Del inventario</button>
+      <div style="background:#1d4ed820;border:1px solid #1d4ed840;border-radius:10px;padding:10px">
+        <div style="color:#64748b;font-size:9px;font-weight:700">CAPITAL</div>
+        <div style="color:#60a5fa;font-weight:900;font-size:16px">Bs.${tot.rep}</div>
+        <div style="color:#475569;font-size:9px">Repuestos</div>
       </div>
-      ${(ot.repuestos||[]).length===0?`<div style="color:#475569;font-size:12px;text-align:center;padding:8px">Sin repuestos agregados</div>`:""}
-      ${(ot.repuestos||[]).map((r,i)=>`
-        <div class="rep-item ${r.estado==="listo"?"rep-ok":"rep-pendiente"}">
-          <div style="display:flex;gap:8px;align-items:center">
-            ${r.foto?`<img src="${r.foto}" style="width:32px;height:32px;border-radius:6px;object-fit:cover"/>`:
-            `<div style="width:32px;height:32px;background:#334155;border-radius:6px;display:flex;align-items:center;justify-content:center">📦</div>`}
-            <div>
-              <div style="font-size:12px;font-weight:700">${r.nombre} x${r.cantidad}</div>
-              <div style="font-size:10px;color:#fbbf24">Bs. ${(r.precio||0)*(r.cantidad||1)}</div>
-              <span style="font-size:9px;color:${r.estado==="listo"?"#16a34a":"#f59e0b"}">${r.estado==="listo"?"✅ Descontado":"⏳ Pendiente"}</span>
-            </div>
-          </div>
-          <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
-            ${r.estado!=="listo"?`<button onclick="marcarRepLlego(${i})" class="btn btn-green" style="padding:4px 8px;font-size:9px">Descontar ✓</button>`:""}
-            ${usuario.rol==="admin"?`<button onclick="borrarRep(${i})" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:12px">🗑️</button>`:""}
-          </div>
-        </div>`).join("")}
-      ${(ot.repuestos||[]).length>0?`<div style="text-align:right;color:#fbbf24;font-weight:700;font-size:13px;padding-top:6px;border-top:1px solid #334155">Subtotal: Bs. ${(ot.repuestos||[]).reduce((s,x)=>s+((x.precio||0)*(x.cantidad||1)),0)}</div>`:""}
-    </div>`:""}
-
-    <!-- Fotos trabajo -->
-    <div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-        <h3 style="margin:0">📷 Evidencia del trabajo</h3>
-        <button onclick="tomarFoto('trabajo')" class="btn btn-blue" style="padding:6px 12px;font-size:11px">📷 Tomar</button>
-      </div>
-      ${(ot.fotos_trabajo||[]).length===0?`<div style="color:#475569;font-size:12px;text-align:center;padding:12px">Sin fotos</div>`:""}
-      <div class="foto-grid">
-        ${(ot.fotos_trabajo||[]).map((f,i)=>`
-          <div class="foto-item">
-            <img src="${f}"/>
-            ${usuario.rol==="admin"?`<button class="del" onclick="borrarFoto('trabajo',${i})">✕</button>`:""}
-          </div>`).join("")}
+      <div style="background:#fbbf2420;border:1px solid #fbbf2440;border-radius:10px;padding:10px">
+        <div style="color:#64748b;font-size:9px;font-weight:700">TOTAL</div>
+        <div style="color:#fbbf24;font-weight:900;font-size:16px">Bs.${tot.total}</div>
+        <div style="color:#475569;font-size:9px">A cobrar</div>
       </div>
     </div>
+  </div>`:""}
 
-    <!-- Resumen financiero (solo admin/encargado) -->
-    ${esAdmin?`<div class="card" style="background:linear-gradient(135deg,#1e293b,#0f172a);border-color:#fbbf2430">
-      <h3>💰 Resumen financiero</h3>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center">
-        <div style="background:#16a34a20;border:1px solid #16a34a40;border-radius:10px;padding:10px">
-          <div style="color:#64748b;font-size:9px;font-weight:700">GANANCIA NETA</div>
-          <div style="color:#16a34a;font-weight:900;font-size:16px">Bs.${tot.mo}</div>
-          <div style="color:#475569;font-size:9px">Mano de obra</div>
-        </div>
-        <div style="background:#1d4ed820;border:1px solid #1d4ed840;border-radius:10px;padding:10px">
-          <div style="color:#64748b;font-size:9px;font-weight:700">CAPITAL</div>
-          <div style="color:#60a5fa;font-weight:900;font-size:16px">Bs.${tot.rep}</div>
-          <div style="color:#475569;font-size:9px">Repuestos</div>
-        </div>
-        <div style="background:#fbbf2420;border:1px solid #fbbf2440;border-radius:10px;padding:10px">
-          <div style="color:#64748b;font-size:9px;font-weight:700">TOTAL</div>
-          <div style="color:#fbbf24;font-weight:900;font-size:16px">Bs.${tot.total}</div>
-          <div style="color:#475569;font-size:9px">A cobrar</div>
-        </div>
-      </div>
-    </div>`:""}
+  <!-- ACCIONES FINALES (solo admin) -->
+  ${admin?`
+  ${pendCons>0||pendRep>0?`<div style="background:#ef444420;border:1px solid #ef444460;border-radius:12px;padding:12px;margin-bottom:12px;font-size:12px;color:#f87171;text-align:center">
+    ⚠️ No se puede entregar: ${pendCons} repuesto(s) a conseguir · ${pendRep} repuesto(s) sin descontar
+  </div>`:""}
+  ${ot.entregado?`<div style="background:#16a34a20;border:1px solid #16a34a40;border-radius:12px;padding:12px;margin-bottom:12px;font-size:12px;color:#4ade80;text-align:center">
+    ✅ Entregado el ${ot.fecha_entrega} por ${ot.entregado_por}
+  </div>`:""}
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+    <button onclick="generarPDF()" class="btn btn-blue" style="padding:13px;font-size:13px">📄 PDF</button>
+    <button onclick="${puedeEntregar()?"confirmarEntrega()":"alert('⚠️ Faltan repuestos pendientes')"}"
+      class="btn ${puedeEntregar()?"btn-green":"btn-gray"}" style="padding:13px;font-size:13px">
+      ${ot.entregado?"✅ Entregado":puedeEntregar()?"✅ Entregar":"🔒 Pendientes"}
+    </button>
+  </div>
+  ${usuario.rol==="admin"?`<button onclick="if(confirm('¿Borrar esta OT?')){SB.from('ots').delete().eq('id',${otId}).then(()=>location.href='/ot.html')}" class="btn btn-red" style="width:100%;margin-bottom:16px;font-size:12px">🗑️ Borrar esta OT</button>`:""}
+  `:""}
 
-    <!-- Acciones finales (solo admin/encargado) -->
-    ${esAdmin?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
-      <button onclick="generarPDF()" class="btn btn-blue" style="padding:13px;font-size:13px">📄 Generar PDF</button>
-      <button onclick="${puedeEntregar()?"confirmarEntrega()":"alert('⚠️ Faltan repuestos pendientes')"}"
-        class="btn ${puedeEntregar()?"btn-green":"btn-gray"}" style="padding:13px;font-size:13px">
-        ${puedeEntregar()?"✅ Entregar vehículo":"🔒 Repuestos pendientes"}
-      </button>
-    </div>
-    ${bloqueado?`<div style="background:#ef444420;border:1px solid #ef444460;border-radius:12px;padding:12px;margin-bottom:16px;font-size:12px;color:#f87171;text-align:center">
-      ⚠️ No se puede entregar: ${repConsPend.length} repuesto(s) a conseguir · ${repFalta.length} repuesto(s) sin descontar
-    </div>`:""}
-    ${ot.entregado?`<div style="background:#16a34a20;border:1px solid #16a34a40;border-radius:12px;padding:12px;margin-bottom:16px;font-size:12px;color:#4ade80;text-align:center">
-      ✅ Entregado el ${ot.fecha_entrega} por ${ot.entregado_por}
-    </div>`:""}
-    ${usuario.rol==="admin"?`<button onclick="if(confirm('¿Borrar esta OT?'))borrarOT()" class="btn btn-danger" style="width:100%;margin-bottom:16px;font-size:12px">🗑️ Borrar esta OT</button>`:""}
-    `:""}
-
-    </div><!-- /padding -->
-  </div><!-- /max-width -->
-  <div id="modal-area"></div>`;
-}
-
-async function reasignar(nuevoTecnico){
-  if(!confirm(`¿Reasignar a ${nuevoTecnico}?`))return;
-  await guardar({tecnico:nuevoTecnico});
-  alert(`✅ OT reasignada a ${nuevoTecnico}`);
-}
-
-async function borrarOT(){
-  await SB.from("ots").delete().eq("id",otId);
-  location.href="/ot.html";
+  <div style="height:20px"></div>
+  </div>`;
 }
 
 // Exponer funciones globales
 window.cerrarModal=cerrarModal;
-window.avanzarPaso=avanzarPaso;
 window.tomarFoto=tomarFoto;
 window.borrarFoto=borrarFoto;
-window.mostrarModalMO=mostrarModalMO;
+window.modalMO=modalMO;
 window.agregarMO=agregarMO;
 window.borrarMO=borrarMO;
-window.mostrarModalRep=mostrarModalRep;
+window.modalRep=modalRep;
 window.selRep=selRep;
 window.filtrarInv=filtrarInv;
 window.agregarRep=agregarRep;
-window.marcarRepLlego=marcarRepLlego;
+window.descontarRep=descontarRep;
 window.borrarRep=borrarRep;
-window.mostrarModalRepConseguir=mostrarModalRepConseguir;
-window.agregarRepConseguir=agregarRepConseguir;
+window.modalRepCons=modalRepCons;
+window.agregarRepCons=agregarRepCons;
 window.marcarConseguido=marcarConseguido;
 window.guardar=guardar;
 window.confirmarEntrega=confirmarEntrega;
 window.generarPDF=generarPDF;
-window.reasignar=reasignar;
-window.borrarOT=borrarOT;
 
 init();
 </script>
