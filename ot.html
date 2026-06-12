@@ -8,17 +8,17 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:Arial,sans-serif;background:#0f172a;color:#fff;min-height:100vh}
-.btn{padding:10px 16px;border:none;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer}
-.btn-primary{background:#f59e0b;color:#1e293b}
-.btn-blue{background:#1d4ed8;color:#fff}
-.btn-gray{background:#334155;color:#94a3b8}
+input,select,textarea{outline:none}
+input:focus,select:focus,textarea:focus{border-color:#f59e0b !important}
 .input{width:100%;padding:10px 12px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#fff;font-size:13px}
 .label{color:#64748b;font-size:11px;font-weight:700;margin-bottom:5px;display:block}
-select{width:100%;padding:10px 12px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#fff;font-size:13px}
-.badge{padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700}
-.modal{position:fixed;inset:0;background:rgba(0,0,0,.8);display:flex;align-items:flex-end;justify-content:center;z-index:1000}
-.modal-box{background:#1e293b;border-radius:16px 16px 0 0;padding:20px;width:100%;max-width:500px;max-height:90vh;overflow-y:auto}
-textarea{width:100%;padding:10px 12px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#fff;font-size:13px;resize:vertical}
+.badge{padding:3px 9px;border-radius:20px;font-size:10px;font-weight:700}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.82);display:flex;align-items:flex-end;justify-content:center;z-index:1000}
+.modal-box{background:#1e293b;border-radius:16px 16px 0 0;padding:20px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto}
+@keyframes fi{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes su{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.fi{animation:fi .25s ease both}
+.su{animation:su .25s ease both}
 </style>
 </head>
 <body>
@@ -26,221 +26,347 @@ textarea{width:100%;padding:10px 12px;background:#0f172a;border:1px solid #33415
 <div id="modal-area"></div>
 <script>
 const SB=window.supabase.createClient("https://epirsbudngwbxgcsryvv.supabase.co","sb_publishable_zsqvMzJMc80Ypf3UQqs-SA_IrV-XIGc");
-let usuario=null,ots=[],filtro="todas";
-const PASO_LABEL=["","Recepción","Diagnóstico","Cotización","Aprobación","Ejecución","Trabajo adicional","Control calidad","Entregada"];
+
+const PASO_LABEL=["","Recepción","Diagnóstico","Cotización","Aprobación","Ejecución","Trab. adicional","Control calidad","Entregada"];
 const PASO_COLOR=["","#64748b","#60a5fa","#a78bfa","#f59e0b","#f97316","#ec4899","#0891b2","#16a34a"];
+const ROL_COLOR={admin:"#f59e0b",encargado:"#3b82f6",vendedor:"#16a34a",mecanico:"#a16207"};
 
+let usuario=null, ots=[], tecnicos=[];
+let filtroEstado="abiertas", filtroTaller="todos", busqueda="";
+
+/* ── Session ──────────────────────────────────────────── */
+function getSession(){
+  try{
+    return JSON.parse(localStorage.getItem("scp_user"))
+        || JSON.parse(localStorage.getItem("sc_user"))
+        || null;
+  }catch{return null;}
+}
+
+/* ── Init ─────────────────────────────────────────────── */
 async function init(){
-  const u=localStorage.getItem("sc_user");
-  if(u){usuario=JSON.parse(u);await cargar();renderLista();}
-  else renderLogin();
+  usuario=getSession();
+  if(!usuario){location.href="/";return;}
+  spinnerCargando();
+  await Promise.all([cargarOTs(),cargarTecnicos()]);
+  renderLista();
 }
 
-async function login(){
-  const un=document.getElementById("usr").value.trim().toLowerCase();
-  const pw=document.getElementById("pwd").value;
-  if(!un||!pw){document.getElementById("err").textContent="Completa los campos";return;}
-  const{data}=await SB.from("usuarios").select("*").eq("user_name",un).eq("pass",pw).single();
-  if(data){localStorage.setItem("sc_user",JSON.stringify(data));usuario=data;await cargar();renderLista();}
-  else document.getElementById("err").textContent="Usuario o contraseña incorrectos";
+function spinnerCargando(){
+  document.getElementById("app").innerHTML=`
+  <div style="min-height:100vh;display:flex;align-items:center;justify-content:center">
+    <div style="text-align:center;color:#334155">
+      <div style="font-size:40px;margin-bottom:10px">📋</div>
+      <div>Cargando órdenes...</div>
+    </div>
+  </div>`;
 }
 
-async function cargar(){
+/* ── Queries ──────────────────────────────────────────── */
+async function cargarOTs(){
   let q=SB.from("ots").select("*").order("id",{ascending:false});
-  if(usuario.rol==="mecanico") q=q.eq("tecnico",usuario.user_name);
+  if(usuario.rol==="mecanico"){
+    q=q.eq("tecnico",usuario.user_name);
+  } else if(usuario.taller && usuario.taller!=="ambos"){
+    q=q.eq("taller",usuario.taller);
+  }
   const{data}=await q;
   ots=data||[];
 }
 
-function renderLogin(){
-  document.getElementById("app").innerHTML=`
-  <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px">
-    <div style="width:100%;max-width:340px">
-      <div style="text-align:center;margin-bottom:28px">
-        <div style="font-size:52px">📋</div>
-        <div style="color:#fbbf24;font-weight:900;font-size:20px;margin-top:6px">SERVI CAR PLATINIUM</div>
-        <div style="color:#475569;font-size:11px">Órdenes de Trabajo</div>
-      </div>
-      <div style="background:#1e293b;border-radius:16px;padding:24px">
-        <div class="label">Usuario</div>
-        <input id="usr" class="input" placeholder="tu usuario" style="margin-bottom:12px" onkeydown="if(event.key==='Enter')login()"/>
-        <div class="label">Contraseña</div>
-        <input id="pwd" type="password" class="input" placeholder="tu contraseña" style="margin-bottom:12px" onkeydown="if(event.key==='Enter')login()"/>
-        <div id="err" style="color:#ef4444;font-size:11px;text-align:center;margin-bottom:8px;min-height:16px"></div>
-        <button onclick="login()" class="btn btn-primary" style="width:100%">Ingresar →</button>
-      </div>
-      <div style="text-align:center;margin-top:12px">
-        <a href="/" style="color:#475569;font-size:11px;text-decoration:none">← Volver al menú</a>
-      </div>
-    </div>
-  </div>`;
+async function cargarTecnicos(){
+  const{data}=await SB.from("usuarios").select("nombre,user_name,taller,rol");
+  tecnicos=(data||[]).filter(u=>
+    ["admin","encargado","mecanico"].includes(u.rol) &&
+    (usuario.taller==="ambos" || u.taller===usuario.taller || u.taller==="ambos")
+  );
 }
 
+/* ── Filtrado local ───────────────────────────────────── */
+function getOTsFiltradas(){
+  let lista=[...ots];
+  if(usuario.taller==="ambos" && filtroTaller!=="todos")
+    lista=lista.filter(o=>o.taller===filtroTaller);
+  if(filtroEstado==="abiertas")   lista=lista.filter(o=>(o.paso||1)<8);
+  else if(filtroEstado==="entregadas") lista=lista.filter(o=>(o.paso||1)>=8);
+  if(busqueda.trim()){
+    const b=busqueda.toLowerCase();
+    lista=lista.filter(o=>
+      (o.placa||"").toLowerCase().includes(b)||
+      (o.cliente||"").toLowerCase().includes(b)||
+      (o.num||"").toLowerCase().includes(b)||
+      (o.tecnico||"").toLowerCase().includes(b)
+    );
+  }
+  return lista;
+}
+
+/* ── Render lista ─────────────────────────────────────── */
 function renderLista(){
-  const filtradas=filtro==="todas"?ots:filtro==="abiertas"?ots.filter(o=>o.paso<8):ots.filter(o=>o.paso>=8);
+  const filtradas=getOTsFiltradas();
+  const puedeCrear=["admin","encargado","vendedor"].includes(usuario.rol);
+  const esAdmin=usuario.rol==="admin";
+  const tieneAmbos=usuario.taller==="ambos";
+  const cRol=ROL_COLOR[usuario.rol]||"#64748b";
+
   document.getElementById("app").innerHTML=`
+  <!-- Header sticky -->
   <div style="background:#1e293b;border-bottom:1px solid #334155;padding:12px 16px;position:sticky;top:0;z-index:100">
-    <div style="display:flex;justify-content:space-between;align-items:center;max-width:500px;margin:0 auto">
+    <div style="max-width:520px;margin:0 auto;display:flex;justify-content:space-between;align-items:center">
       <div>
-        <a href="/" style="color:#64748b;text-decoration:none;font-size:11px">← Inicio</a>
-        <div style="color:#fbbf24;font-weight:900;font-size:15px">📋 Órdenes de Trabajo</div>
-        <div style="color:#475569;font-size:10px">${usuario.nombre} · ${ots.length} OTs</div>
+        <a href="/" style="color:#475569;text-decoration:none;font-size:10px;font-weight:700">← Inicio</a>
+        <div style="color:#fbbf24;font-weight:900;font-size:15px;margin-top:1px">📋 Órdenes de Trabajo</div>
+        <div style="color:#475569;font-size:10px;margin-top:1px">
+          ${usuario.nombre}
+          <span style="padding:1px 7px;background:${cRol}20;color:${cRol};border-radius:10px;font-size:9px;font-weight:700;margin-left:4px">${usuario.rol}</span>
+          · ${ots.length} OTs
+        </div>
       </div>
-      <div style="display:flex;gap:8px">
-        <button onclick="cargar().then(renderLista)" class="btn btn-gray" style="padding:8px 10px;font-size:11px">🔄</button>
-        <button onclick="mostrarCrear()" class="btn btn-primary" style="padding:8px 12px;font-size:12px">+ Nueva OT</button>
+      <div style="display:flex;gap:6px">
+        <button onclick="recargar()" style="padding:8px 10px;background:#334155;color:#94a3b8;border:none;border-radius:8px;cursor:pointer;font-size:14px" title="Actualizar">🔄</button>
+        ${puedeCrear?`<button onclick="mostrarCrear()" style="padding:8px 13px;background:#f59e0b;color:#1e293b;border:none;border-radius:8px;font-weight:900;font-size:12px;cursor:pointer">+ Nueva OT</button>`:""}
       </div>
     </div>
   </div>
-  <div style="padding:14px 16px;max-width:500px;margin:0 auto">
-    <div style="display:flex;gap:6px;margin-bottom:14px">
-      ${[["todas","Todas"],["abiertas","Abiertas"],["entregadas","Entregadas"]].map(([k,l])=>
-        `<button onclick="filtro='${k}';renderLista()" class="btn" style="padding:7px 12px;font-size:11px;background:${filtro===k?"#f59e0b":"#1e293b"};color:${filtro===k?"#1e293b":"#94a3b8"};border:1px solid ${filtro===k?"#f59e0b":"#334155"}">${l}</button>`
-      ).join("")}
+
+  <div class="fi" style="padding:12px 14px;max-width:520px;margin:0 auto">
+
+    <!-- Búsqueda -->
+    <div style="position:relative;margin-bottom:10px">
+      <span style="position:absolute;left:11px;top:50%;transform:translateY(-50%);color:#475569">🔍</span>
+      <input type="text" value="${busqueda.replace(/"/g,'&quot;')}"
+        oninput="busqueda=this.value;renderLista()"
+        placeholder="Buscar placa, cliente, N° OT..."
+        style="width:100%;padding:9px 12px 9px 33px;background:#1e293b;border:1px solid #334155;border-radius:10px;color:#fff;font-size:13px"/>
     </div>
-    ${filtradas.length===0?`<div style="text-align:center;padding:40px;color:#475569">
-      <div style="font-size:40px;margin-bottom:10px">📋</div>
-      <div>No hay órdenes de trabajo</div>
-      <button onclick="mostrarCrear()" class="btn btn-primary" style="margin-top:14px">+ Crear primera OT</button>
+
+    <!-- Filtros estado -->
+    <div style="display:flex;gap:5px;margin-bottom:${tieneAmbos?"8px":"14px"}">
+      ${[["abiertas","Abiertas"],["entregadas","Entregadas"],["todas","Todas"]].map(([k,l])=>`
+        <button onclick="filtroEstado='${k}';renderLista()"
+          style="padding:6px 12px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;
+            border:1px solid ${filtroEstado===k?"#f59e0b":"#334155"};
+            background:${filtroEstado===k?"#f59e0b":"#1e293b"};
+            color:${filtroEstado===k?"#1e293b":"#64748b"}">${l}</button>`).join("")}
+    </div>
+
+    <!-- Filtro taller (solo admin ambos talleres) -->
+    ${tieneAmbos?`
+    <div style="display:flex;gap:5px;margin-bottom:14px;overflow-x:auto;padding-bottom:2px">
+      ${[["todos","Ambos talleres"],["Taller 1 · Montes","T1 · Montes"],["Taller 2 · Bella Vista","T2 · Bella Vista"]].map(([k,l])=>`
+        <button onclick="filtroTaller='${k}';renderLista()"
+          style="white-space:nowrap;padding:5px 10px;border-radius:8px;font-size:10px;font-weight:700;cursor:pointer;
+            border:1px solid ${filtroTaller===k?"#3b82f6":"#334155"};
+            background:${filtroTaller===k?"#3b82f620":"#1e293b"};
+            color:${filtroTaller===k?"#3b82f6":"#475569"}">${l}</button>`).join("")}
     </div>`:""}
-    ${filtradas.map(o=>{
-      const paso=o.paso||1;
-      const color=PASO_COLOR[paso]||"#64748b";
-      const label=PASO_LABEL[paso]||"";
-      return `<div onclick="abrirDetalle(${o.id})" style="cursor:pointer;background:#1e293b;border:1px solid #334155;border-radius:14px;padding:14px;margin-bottom:10px;border-left:3px solid ${color}">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
-          <div>
-            <div style="font-weight:900;font-size:14px">${o.num||"OT-"+o.id} <span style="color:#64748b;font-weight:400;font-size:12px">· ${o.marca||""} ${o.modelo||""}</span></div>
-            <div style="color:#94a3b8;font-size:11px;margin-top:2px">🚗 ${o.placa||"-"} · 👤 ${o.cliente||"-"}</div>
-            ${o.tecnico?`<div style="color:#475569;font-size:10px;margin-top:2px">🔧 ${o.tecnico}</div>`:""}
-          </div>
-          <span class="badge" style="background:${color}20;color:${color};border:1px solid ${color}40">${label}</span>
+
+    <!-- Contador -->
+    <div style="color:#334155;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">
+      ${filtradas.length} orden${filtradas.length!==1?"es":""}
+    </div>
+
+    <!-- Lista -->
+    ${filtradas.length===0?`
+      <div style="text-align:center;padding:50px 20px">
+        <div style="font-size:44px;margin-bottom:12px">📋</div>
+        <div style="font-size:13px;font-weight:700;color:#475569;margin-bottom:6px">Sin órdenes</div>
+        <div style="font-size:11px;color:#334155">
+          ${busqueda?`No hay resultados para "${busqueda}"`:
+            filtroEstado==="abiertas"?"No hay órdenes abiertas":
+            filtroEstado==="entregadas"?"No hay órdenes entregadas":"No hay órdenes"}
         </div>
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <div style="font-size:10px;color:#475569">${o.fecha||""} · ${o.taller||""}</div>
-          <div style="display:flex;gap:6px;align-items:center">
-            ${o.total>0?`<span style="color:#16a34a;font-weight:700;font-size:12px">Bs. ${o.total}</span>`:""}
-            ${usuario.user_name==="wilfredo"?`<button onclick="event.stopPropagation();borrarOT(${o.id})" style="background:#ef444420;border:1px solid #ef444440;color:#ef4444;border-radius:6px;padding:3px 8px;font-size:10px;cursor:pointer">🗑️</button>`:""}
-            <span style="color:#475569;font-size:14px">→</span>
-          </div>
-        </div>
-      </div>`;
-    }).join("")}
-    <div style="height:20px"></div>
+        ${puedeCrear?`<button onclick="mostrarCrear()" style="margin-top:16px;padding:10px 20px;background:#f59e0b;color:#1e293b;border:none;border-radius:10px;font-weight:900;font-size:13px;cursor:pointer">+ Crear primera OT</button>`:""}
+      </div>`
+    :filtradas.map(o=>tarjetaOT(o,esAdmin,tieneAmbos)).join("")}
+
+    <div style="height:28px"></div>
   </div>`;
 }
 
-function abrirDetalle(id){
-  location.href="/ot-detalle.html?id="+id;
+/* ── Tarjeta OT ───────────────────────────────────────── */
+function tarjetaOT(o,esAdmin,tieneAmbos){
+  const paso=o.paso||1;
+  const color=PASO_COLOR[paso]||"#64748b";
+  const label=PASO_LABEL[paso]||"";
+  const prog=Math.round((paso/8)*100);
+  const cTall=o.taller==="Taller 1 · Montes"?"#3b82f6":"#10b981";
+  const lTall=o.taller==="Taller 1 · Montes"?"T1 · Montes":o.taller==="Taller 2 · Bella Vista"?"T2 · Bella Vista":(o.taller||"");
+
+  return `
+  <div onclick="abrirDetalle(${o.id})" style="cursor:pointer;background:#1e293b;border:1px solid #334155;border-left:3px solid ${color};border-radius:14px;padding:14px;margin-bottom:8px;transition:all .15s"
+    onmouseenter="this.style.background='${color}0a';this.style.borderColor='${color}'"
+    onmouseleave="this.style.background='#1e293b';this.style.borderColor='#334155';this.style.borderLeftColor='${color}'">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:900;font-size:14px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          <span>${o.num||"OT-"+o.id}</span>
+          ${(o.marca||o.modelo)?`<span style="color:#64748b;font-weight:400;font-size:12px">${o.marca||""} ${o.modelo||""}</span>`:""}
+        </div>
+        <div style="color:#94a3b8;font-size:11px;margin-top:3px">🚗 <strong>${o.placa||"—"}</strong> · 👤 ${o.cliente||"—"}</div>
+        ${o.tecnico?`<div style="color:#475569;font-size:10px;margin-top:2px">🔧 ${o.tecnico}</div>`:""}
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;margin-left:8px;flex-shrink:0">
+        <span class="badge" style="background:${color}20;color:${color};border:1px solid ${color}40">${label}</span>
+        ${tieneAmbos?`<span class="badge" style="background:${cTall}20;color:${cTall};border:1px solid ${cTall}40">${lTall}</span>`:""}
+      </div>
+    </div>
+    <!-- Progreso -->
+    <div style="background:#0f172a;border-radius:4px;height:3px;margin-bottom:8px">
+      <div style="background:${color};height:3px;border-radius:4px;width:${prog}%"></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div style="font-size:10px;color:#334155">${o.fecha||""}</div>
+      <div style="display:flex;gap:6px;align-items:center">
+        ${o.total>0?`<span style="color:#16a34a;font-weight:700;font-size:12px">Bs. ${Number(o.total).toLocaleString()}</span>`:""}
+        ${esAdmin?`<button onclick="event.stopPropagation();confirmarBorrar(${o.id})" style="background:#ef444415;border:1px solid #ef444430;color:#ef4444;border-radius:6px;padding:3px 7px;font-size:10px;cursor:pointer">🗑</button>`:""}
+        <span style="color:#475569;font-size:12px">→</span>
+      </div>
+    </div>
+  </div>`;
 }
 
-async function borrarOT(id){
-  if(!confirm("¿Borrar esta OT?"))return;
+/* ── Acciones ─────────────────────────────────────────── */
+function abrirDetalle(id){location.href="/ot-detalle.html?id="+id;}
+
+async function recargar(){
+  spinnerCargando();
+  await cargarOTs();
+  renderLista();
+}
+
+async function confirmarBorrar(id){
+  if(!confirm("¿Eliminar esta OT? No se puede deshacer."))return;
   await SB.from("ots").delete().eq("id",id);
-  await cargar();renderLista();
+  ots=ots.filter(o=>o.id!==id);
+  renderLista();
 }
 
+/* ── Modal crear OT ───────────────────────────────────── */
 function mostrarCrear(){
-  const esAdmin=(usuario.rol==="admin"||usuario.rol==="encargado");
+  const puedeAsignar=["admin","encargado"].includes(usuario.rol);
+  const tallerOpts=usuario.taller==="ambos"
+    ?`<option value="Taller 1 · Montes">Taller 1 · Montes</option>
+      <option value="Taller 2 · Bella Vista">Taller 2 · Bella Vista</option>`
+    :`<option value="${usuario.taller}">${usuario.taller}</option>`;
+
+  const tecOpts=tecnicos.length
+    ?tecnicos.map(t=>`<option value="${t.nombre}"${t.user_name===usuario.user_name?" selected":""}>${t.nombre}${t.user_name===usuario.user_name?" (yo)":""}</option>`).join("")
+    :`<option value="${usuario.nombre}">${usuario.nombre} (yo)</option>`;
+
   document.getElementById("modal-area").innerHTML=`
   <div class="modal" onclick="if(event.target===this)cerrarModal()">
-  <div class="modal-box">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-      <strong style="color:#fbbf24;font-size:15px">+ Nueva Orden de Trabajo</strong>
-      <button onclick="cerrarModal()" class="btn btn-gray" style="padding:6px 12px">✕</button>
+  <div class="modal-box su">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+      <div style="color:#fbbf24;font-weight:900;font-size:15px">+ Nueva Orden de Trabajo</div>
+      <button onclick="cerrarModal()" style="padding:5px 12px;background:#334155;color:#94a3b8;border:none;border-radius:8px;cursor:pointer;font-weight:700">✕</button>
     </div>
+
     <div class="label">Placa *</div>
-    <input id="n_placa" class="input" placeholder="Ej: 1234ABC" style="margin-bottom:10px" oninput="buscarCliente()"/>
-    <div id="sugerencia_cliente" style="display:none;background:#0f172a;border:1px solid #16a34a;border-radius:8px;padding:10px;margin-bottom:10px;font-size:12px;cursor:pointer;color:#4ade80"></div>
+    <input id="n_placa" class="input" placeholder="Ej: 1234ABC" style="margin-bottom:6px;text-transform:uppercase"
+      oninput="this.value=this.value.toUpperCase();buscarCliente()"/>
+    <div id="crm_sg" style="display:none;background:#0f172a;border:1px solid #16a34a;border-radius:8px;padding:10px;margin-bottom:10px;cursor:pointer;color:#4ade80;font-size:12px"></div>
+
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
       <div><div class="label">Marca</div><input id="n_marca" class="input" placeholder="Toyota"/></div>
       <div><div class="label">Modelo</div><input id="n_modelo" class="input" placeholder="Corolla"/></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
       <div><div class="label">Año</div><input id="n_anio" type="number" class="input" placeholder="2018"/></div>
-      <div><div class="label">Km</div><input id="n_km" type="number" class="input" placeholder="85000"/></div>
+      <div><div class="label">Kilometraje</div><input id="n_km" type="number" class="input" placeholder="85000"/></div>
     </div>
+
     <div class="label">Cliente *</div>
     <input id="n_cliente" class="input" placeholder="Nombre completo" style="margin-bottom:10px"/>
     <div class="label">Teléfono</div>
     <input id="n_tel" type="tel" class="input" placeholder="7XXXXXXX" style="margin-bottom:10px"/>
+
     <div class="label">Problema reportado *</div>
-    <textarea id="n_problema" class="input" rows="2" placeholder="¿Por qué trae el vehículo?" style="margin-bottom:10px"></textarea>
-    ${esAdmin?`
-    <div class="label">Técnico</div>
-    <select id="n_tecnico" class="input" style="margin-bottom:10px">
-      <option value="${usuario.nombre}">${usuario.nombre} (yo)</option>
-      ${usuario.user_name==="wilfredo"?`<option value="William">William</option><option value="Adolfo">Adolfo</option><option value="Joel">Joel</option>`:""}
-      ${usuario.user_name==="william"?`<option value="Wilfredo">Wilfredo</option><option value="Adolfo">Adolfo</option><option value="Joel">Joel</option>`:""}
-    </select>`:`<input type="hidden" id="n_tecnico" value="${usuario.nombre}"/>`}
+    <textarea id="n_problema" rows="2" style="width:100%;padding:10px 12px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#fff;font-size:13px;resize:vertical;margin-bottom:10px" placeholder="¿Por qué trae el vehículo?"></textarea>
+
+    ${puedeAsignar?`
+    <div class="label">Técnico asignado</div>
+    <select id="n_tecnico" class="input" style="margin-bottom:10px">${tecOpts}</select>`
+    :`<input type="hidden" id="n_tecnico" value="${usuario.nombre}"/>`}
+
     <div class="label">Taller</div>
-    <select id="n_taller" class="input" style="margin-bottom:16px">
-      <option value="Taller 1 · Montes">Taller 1 · Montes</option>
-      <option value="Taller 2 · Bella Vista">Taller 2 · Bella Vista</option>
-    </select>
-    <button onclick="crearOT()" class="btn btn-primary" style="width:100%;padding:13px;font-size:14px">✅ Crear OT</button>
+    <select id="n_taller" class="input" style="margin-bottom:18px" ${usuario.taller!=="ambos"?"disabled":""}>${tallerOpts}</select>
+
+    <button id="btn_crear" onclick="crearOT()" style="width:100%;padding:13px;background:#f59e0b;color:#1e293b;border:none;border-radius:10px;font-weight:900;font-size:14px;cursor:pointer">
+      ✅ Crear OT
+    </button>
   </div></div>`;
 }
 
 async function buscarCliente(){
-  const placa=document.getElementById("n_placa").value.trim().toUpperCase();
-  if(placa.length<3)return;
+  const placa=(document.getElementById("n_placa")?.value||"").trim();
+  const sg=document.getElementById("crm_sg");
+  if(!sg||placa.length<3){if(sg)sg.style.display="none";return;}
   const{data}=await SB.from("crm").select("*").ilike("placa",`%${placa}%`).limit(1).single();
   if(data){
-    const sg=document.getElementById("sugerencia_cliente");
+    const nombre=data.nombre||data.cliente||"";
     sg.style.display="block";
-    sg.innerHTML=`✅ Cliente conocido: <strong>${data.nombre||data.cliente||""}</strong> · ${data.placa||""} · ${data.marca||""} ${data.modelo||""}`;
+    sg.innerHTML=`✅ <strong>Cliente conocido:</strong> ${nombre} · ${data.placa||""} · ${data.marca||""} ${data.modelo||""}<br>
+      <span style="color:#64748b;font-size:10px">Toca para autocompletar</span>`;
     sg.onclick=()=>{
-      document.getElementById("n_cliente").value=data.nombre||data.cliente||"";
+      document.getElementById("n_cliente").value=nombre;
       document.getElementById("n_tel").value=data.tel||"";
       document.getElementById("n_marca").value=data.marca||"";
       document.getElementById("n_modelo").value=data.modelo||"";
       sg.style.display="none";
     };
+  } else {
+    sg.style.display="none";
   }
 }
 
 async function crearOT(){
-  const placa=document.getElementById("n_placa").value.trim().toUpperCase();
-  const cliente=document.getElementById("n_cliente").value.trim();
-  const problema=document.getElementById("n_problema").value.trim();
-  if(!placa||!cliente||!problema){alert("Completa placa, cliente y problema");return;}
-  const tecEl=document.getElementById("n_tecnico");
+  const placa=(document.getElementById("n_placa")?.value||"").trim().toUpperCase();
+  const cliente=(document.getElementById("n_cliente")?.value||"").trim();
+  const problema=(document.getElementById("n_problema")?.value||"").trim();
+  if(!placa||!cliente||!problema){alert("Completa: placa, cliente y problema");return;}
+
+  const btn=document.getElementById("btn_crear");
+  if(btn){btn.disabled=true;btn.textContent="⏳ Creando...";}
+
   const nueva={
     num:"OT-"+Date.now().toString().slice(-5),
-    placa,
-    marca:document.getElementById("n_marca").value.trim(),
-    modelo:document.getElementById("n_modelo").value.trim(),
-    anio:document.getElementById("n_anio").value||null,
-    km:document.getElementById("n_km").value||null,
-    cliente,
-    tel:document.getElementById("n_tel").value.trim(),
-    problema,
-    tecnico:tecEl.value,
-    taller:document.getElementById("n_taller").value,
+    placa,cliente,problema,
+    marca:(document.getElementById("n_marca")?.value||"").trim(),
+    modelo:(document.getElementById("n_modelo")?.value||"").trim(),
+    anio:document.getElementById("n_anio")?.value||null,
+    km:document.getElementById("n_km")?.value||null,
+    tel:(document.getElementById("n_tel")?.value||"").trim(),
+    tecnico:document.getElementById("n_tecnico")?.value||usuario.nombre,
+    taller:document.getElementById("n_taller")?.value||usuario.taller||"Taller 1 · Montes",
     paso:1,
     estado:"Recepción",
     creado_por:usuario.user_name,
     fecha:new Date().toLocaleDateString("es-BO"),
-    repuestos:[],
-    servicios:[],
-    fotos_recepcion:[],
-    fotos_trabajo:[],
-    total:0
+    repuestos:[],servicios:[],fotos_recepcion:[],fotos_trabajo:[],total:0
   };
+
   const{data,error}=await SB.from("ots").insert(nueva).select().single();
-  if(error){alert("Error: "+error.message);return;}
+  if(error){
+    alert("Error: "+error.message);
+    if(btn){btn.disabled=false;btn.textContent="✅ Crear OT";}
+    return;
+  }
   cerrarModal();
   location.href="/ot-detalle.html?id="+data.id;
 }
 
 function cerrarModal(){document.getElementById("modal-area").innerHTML="";}
-window.cerrarModal=cerrarModal;
+
+/* ── Globals ──────────────────────────────────────────── */
+window.recargar=recargar;
 window.mostrarCrear=mostrarCrear;
 window.crearOT=crearOT;
+window.cerrarModal=cerrarModal;
 window.buscarCliente=buscarCliente;
 window.abrirDetalle=abrirDetalle;
-window.borrarOT=borrarOT;
+window.confirmarBorrar=confirmarBorrar;
+
 init();
 </script>
 </body>
