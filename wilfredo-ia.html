@@ -116,15 +116,10 @@ async function init(){
   agregarMensaje("ai",`¡Hola **${usuario.nombre}**! 🤖 Soy tu asistente con acceso total al sistema.\n\nPuedo:\n• 🛒 Registrar compras al inventario\n• 📋 Agregar repuestos a OTs por nombre de cliente\n• 💰 Consultar ventas, caja y ganancias\n• 📊 Generar informes\n• 🔓 Gestionar acceso de trabajadores\n\n¿Qué necesitas?`);
 }
 
-/* ── API Keys ───────────────────────────────────── */
+/* ── API Keys (localStorage) ────────────────────── */
 async function cargarApiKeys(){
-  const{data}=await SB.from("config").select("clave,valor").in("clave",["claude_api_key","chatgpt_api_key"]);
-  if(data){
-    data.forEach(r=>{
-      if(r.clave==="claude_api_key") apiKeys.claude=r.valor;
-      if(r.clave==="chatgpt_api_key") apiKeys.gpt=r.valor;
-    });
-  }
+  apiKeys.claude=localStorage.getItem("scp_claude_key")||null;
+  apiKeys.gpt=localStorage.getItem("scp_gpt_key")||null;
 }
 
 async function cargarInventarioCache(){
@@ -145,7 +140,7 @@ function mostrarStatusBar(){
     <span style="padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;background:#3b82f615;color:#3b82f6;border:1px solid #3b82f630">
       📦 ${invCache?.length||0} productos
     </span>
-    ${!cOk&&!gOk?`<a href="/admin.html" style="padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;background:#f59e0b15;color:#f59e0b;border:1px solid #f59e0b30;text-decoration:none">⚙️ Configurar keys en Admin</a>`:""}
+    ${!cOk&&!gOk?`<button onclick="mostrarConfigKeys()" style="padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;background:#f59e0b15;color:#f59e0b;border:1px solid #f59e0b30;cursor:pointer">⚙️ Configurar API Keys aquí</button>`:!cOk?`<button onclick="mostrarConfigKeys()" style="padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;background:#ef444415;color:#ef4444;border:1px solid #ef444430;cursor:pointer">⚙️ Agregar Claude Key</button>`:""}
   </div>`;
 }
 
@@ -694,9 +689,51 @@ async function bloquearRapido(user_name,nombre){
   mostrarDesbloqueo();
 }
 
+/* ── Config de API Keys (modal rápido) ───────────── */
+function mostrarConfigKeys(){
+  const modal=document.getElementById("modal");
+  const box=document.getElementById("modal-box");
+  modal.style.display="flex";
+  box.innerHTML=`
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <div style="color:#fbbf24;font-weight:900">🔑 Configurar API Keys</div>
+    <button onclick="document.getElementById('modal').style.display='none'" style="background:none;border:none;color:#64748b;font-size:20px;cursor:pointer">✕</button>
+  </div>
+  <div style="color:#94a3b8;font-size:11px;margin-bottom:14px;line-height:1.5">Las keys se guardan en este dispositivo (localStorage). Solo vos las ves — nunca salen al servidor.</div>
+  <div style="margin-bottom:12px">
+    <div style="color:#64748b;font-size:11px;font-weight:700;margin-bottom:5px">🧠 Claude API Key (Anthropic)</div>
+    <input id="ck_claude" type="password" placeholder="sk-ant-api03-..." value="${apiKeys.claude||''}"
+      style="width:100%;padding:10px 12px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#fff;font-size:12px;font-family:monospace"/>
+    <div style="color:#64748b;font-size:10px;margin-top:3px">Obtenela en console.anthropic.com → API Keys</div>
+  </div>
+  <div style="margin-bottom:16px">
+    <div style="color:#64748b;font-size:11px;font-weight:700;margin-bottom:5px">🤖 ChatGPT API Key (OpenAI) — opcional</div>
+    <input id="ck_gpt" type="password" placeholder="sk-proj-..." value="${apiKeys.gpt||''}"
+      style="width:100%;padding:10px 12px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#fff;font-size:12px;font-family:monospace"/>
+    <div style="color:#64748b;font-size:10px;margin-top:3px">Obtenela en platform.openai.com → API Keys</div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+    <button onclick="document.getElementById('modal').style.display='none'" style="padding:11px;background:#334155;color:#94a3b8;border:none;border-radius:10px;font-weight:700;cursor:pointer">Cancelar</button>
+    <button onclick="guardarConfigKeys()" style="padding:11px;background:#f59e0b;color:#1e293b;border:none;border-radius:10px;font-weight:700;cursor:pointer">💾 Guardar</button>
+  </div>`;
+}
+
+window.guardarConfigKeys=function(){
+  const c=document.getElementById("ck_claude")?.value?.trim();
+  const g=document.getElementById("ck_gpt")?.value?.trim();
+  if(c) localStorage.setItem("scp_claude_key",c);
+  if(g) localStorage.setItem("scp_gpt_key",g);
+  apiKeys.claude=localStorage.getItem("scp_claude_key")||null;
+  apiKeys.gpt=localStorage.getItem("scp_gpt_key")||null;
+  document.getElementById("modal").style.display="none";
+  mostrarStatusBar();
+  agregarMensaje("ai","✅ API Keys guardadas. Ya podés usar el asistente. ¿En qué te ayudo?");
+};
+
 // Exponer globales
 window.enviar=enviar;window.toggleVoz=toggleVoz;window.limpiarChat=limpiarChat;
 window.accionRapida=accionRapida;window.mostrarDesbloqueo=mostrarDesbloqueo;
+window.mostrarConfigKeys=mostrarConfigKeys;
 window.desbloquearRapido=desbloquearRapido;window.bloquearRapido=bloquearRapido;
 
 init();

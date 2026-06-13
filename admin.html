@@ -770,8 +770,7 @@ window.cargarFacturaImg=function(){
 window.analizarFactura=async function(){
   if(!facturaImg){alert("Primero subí una imagen");return;}
   if(!facturaApiKey){
-    const{data}=await SB.from("config").select("valor").eq("clave","claude_api_key").single();
-    facturaApiKey=data?.valor||null;
+    facturaApiKey=localStorage.getItem("scp_claude_key")||null;
   }
   if(!facturaApiKey){alert("Necesitás configurar la API Key de Claude en la pestaña Configuración");return;}
   const btn=$$("btn_analizar");if(btn){btn.disabled=true;btn.textContent="Analizando imagen...";}
@@ -856,8 +855,8 @@ window.registrarFactura=async function(){
 let configKeys={claude:"",gpt:""};
 
 async function cargarConfigKeys(){
-  const{data}=await SB.from("config").select("clave,valor").in("clave",["claude_api_key","chatgpt_api_key"]);
-  if(data){data.forEach(r=>{if(r.clave==="claude_api_key")configKeys.claude=r.valor||"";if(r.clave==="chatgpt_api_key")configKeys.gpt=r.valor||"";});}
+  configKeys.claude=localStorage.getItem("scp_claude_key")||"";
+  configKeys.gpt=localStorage.getItem("scp_gpt_key")||"";
   actualizarContenido();
 }
 
@@ -879,7 +878,7 @@ CREATE TABLE IF NOT EXISTS acceso_especial (
   <div class="card">
     <div style="color:#f59e0b;font-size:11px;font-weight:700;text-transform:uppercase;margin-bottom:14px">API Keys de Inteligencia Artificial</div>
     <div style="background:#f59e0b08;border:1px solid #f59e0b20;border-radius:10px;padding:10px 12px;margin-bottom:16px">
-      <div style="color:#94a3b8;font-size:11px;line-height:1.5">Las API Keys se guardan en Supabase y son usadas por todos los módulos de IA (Wilfredo IA, Asistente de Trabajo, Facturas). No se comparten.</div>
+      <div style="color:#94a3b8;font-size:11px;line-height:1.5">Las API Keys se guardan en <strong style="color:#fbbf24">este dispositivo</strong> (localStorage). Son usadas por Wilfredo IA, Asistente de Trabajo y Facturas. Tenés que configurarlas una vez por dispositivo. No se comparten con nadie.</div>
     </div>
     <div style="margin-bottom:16px">
       <div class="label">Claude API Key (Anthropic)</div>
@@ -911,14 +910,13 @@ CREATE TABLE IF NOT EXISTS acceso_especial (
 
 window.guardarKey=async function(tipo){
   const id=tipo==="claude"?"cfg_claude":"cfg_gpt";
-  const clave=tipo==="claude"?"claude_api_key":"chatgpt_api_key";
+  const lsKey=tipo==="claude"?"scp_claude_key":"scp_gpt_key";
   const val=v(id);if(!val){alert("Ingresá la API Key primero");return;}
-  const{error}=await SB.from("config").upsert({clave,valor:val,updated_at:new Date().toISOString()},{onConflict:"clave"});
-  if(error){alert("Error: "+error.message);return;}
+  localStorage.setItem(lsKey,val);
   if(tipo==="claude")configKeys.claude=val;else configKeys.gpt=val;
   $$(id).value="";
-  const res=$$(id+"_res");if(res){res.style.color="#16a34a";res.textContent="API Key guardada correctamente";}
-  setTimeout(actualizarContenido,1500);
+  const res=$$(id+"_res");if(res){res.style.color="#16a34a";res.textContent="✅ API Key guardada en este dispositivo";}
+  setTimeout(actualizarContenido,1200);
 };
 
 window.probarClaude=async function(){

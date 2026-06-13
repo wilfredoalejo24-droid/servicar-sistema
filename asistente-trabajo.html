@@ -96,8 +96,7 @@ async function init(){
 }
 
 async function cargarApiKey(){
-  const{data}=await SB.from("config").select("valor").eq("clave","claude_api_key").single();
-  apiKey=data?.valor||null;
+  apiKey=localStorage.getItem("scp_claude_key")||null;
 }
 
 async function cargarInventario(){
@@ -182,7 +181,7 @@ const HERRAMIENTAS_TRABAJO=[
 
 /* ── Llamada a Claude ── */
 async function llamarClaude(msgs){
-  if(!apiKey) throw new Error("Sin API Key de Claude. Pedile a Wilfredo que la configure en Admin.");
+  if(!apiKey) throw new Error("Sin API Key de Claude. Wilfredo debe configurarla en Admin → Configuración → guardar la Claude API Key.");
   const res=await fetch("https://api.anthropic.com/v1/messages",{
     method:"POST",
     headers:{"x-api-key":apiKey,"anthropic-version":"2023-06-01","content-type":"application/json","anthropic-dangerous-direct-browser-access":"true"},
