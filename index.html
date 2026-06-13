@@ -42,8 +42,8 @@ const MODULOS = [
   { k:"admin",      icon:"⚙️", label:"Administración",  desc:"Inventario · CRM · Personal · Vacaciones",  url:"/admin.html",             color:"#7c3aed", roles:["admin","encargado"] },
   { k:"dashboard",  icon:"📊", label:"Dashboard",       desc:"KPIs en tiempo real · Punto de equilibrio", url:"/dashboard.html",         color:"#a21caf", roles:["admin"] },
   { k:"usuarios",   icon:"👥", label:"Usuarios",        desc:"Gestionar accesos y contraseñas",           url:"/usuarios.html",          color:"#be185d", roles:["admin"] },
-  { k:"wilfredo-ia",icon:"🤖", label:"Wilfredo IA",     desc:"Panel IA con acceso total al sistema",      url:"/wilfredo-ia.html",       color:"#f59e0b", roles:["admin"] },
-  { k:"asistente",  icon:"🔧", label:"Asistente IA",    desc:"Guía inteligente para trabajo diario",      url:"/asistente-trabajo.html", color:"#16a34a", roles:["vendedor","mecanico","encargado"] },
+  { k:"claude",    icon:"🤖", label:"Consultar a Claude", desc:"Abrir Claude AI en nueva pestaña",      url:"https://claude.ai",        color:"#f59e0b", roles:["admin","encargado"], target:"_blank" },
+  { k:"wa-help",   icon:"💬", label:"Asistente Técnico", desc:"Contactar a Wilfredo por WhatsApp",     url:"https://wa.me/59168167264", color:"#16a34a", roles:["vendedor","mecanico"],  target:"_blank" },
   { k:"asistencia", icon:"⏰", label:"Mi Asistencia",   desc:"Marcar entrada y salida del turno",         url:"/asistencia.html",        color:"#0891b2", roles:["admin","encargado","vendedor","mecanico"] },
 ];
 
@@ -229,7 +229,7 @@ function Inicio({ usuario, onSalir }) {
             </div>
           : <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:20}}>
               {mods.map(m => (
-                <a key={m.k} href={m.url}
+                <a key={m.k} href={m.url} target={m.target||"_self"} rel={m.target==="_blank"?"noopener noreferrer":undefined}
                   style={{textDecoration:"none",background:"#1e293b",border:`1px solid ${m.color}22`,
                     borderRadius:14,padding:"16px 14px",display:"block",transition:"all .18s"}}
                   onMouseEnter={e=>{

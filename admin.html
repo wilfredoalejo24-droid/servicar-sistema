@@ -85,7 +85,7 @@ async function init(){
   if(!usuario){location.href="/";return;}
   if(!esEnc()){alert("❌ Sin acceso al panel admin");location.href="/";return;}
   render();
-  await Promise.all([cargarInventario(),cargarCRM(),cargarConfigKeys()]);
+  await Promise.all([cargarInventario(),cargarCRM()]);
   actualizarContenido();
 }
 
@@ -99,7 +99,6 @@ function render(){
     {k:"herramientas",l:"🔧 Herramientas"},
     {k:"personal",    l:"🏖️ Personal"},
     {k:"facturas",    l:"🖼️ Facturas IA"},
-    {k:"config",      l:"🔑 Configuración"},
   ];
   document.getElementById("app").innerHTML=`
   <div style="background:#1e293b;border-bottom:1px solid #334155;padding:12px 16px;position:sticky;top:0;z-index:100" class="noprint">
@@ -131,7 +130,6 @@ function renderTab(){
   if(tab==="herramientas") return renderHerramientas();
   if(tab==="personal")     return renderPersonal();
   if(tab==="facturas")     return renderFacturas();
-  if(tab==="config")       return renderConfig();
   return "";
 }
 
@@ -148,7 +146,6 @@ async function cambiarTab(t){
     await Promise.all([cargarVacaciones(),!workers?cargarWorkers():Promise.resolve()]);
     actualizarContenido();
   }
-  if(t==="config") cargarConfigKeys();
 }
 
 /* ══════════════════════════════════════════════════════
@@ -732,10 +729,21 @@ let facturaImg=null, facturaProductos=[], facturaApiKey=null;
 
 function renderFacturas(){
   if(!esAdmin()) return `<div class="card" style="text-align:center;padding:30px;color:#475569">Solo Wilfredo puede usar Facturas IA</div>`;
+  const keyGuardada=localStorage.getItem("gemini_api_key")||"";
+  const keyMask=keyGuardada?keyGuardada.slice(0,8)+"••••••••":""
   return `
+  <div class="card" style="margin-bottom:12px">
+    <div style="color:#64748b;font-size:11px;font-weight:700;margin-bottom:8px">🔑 Gemini API Key</div>
+    <div style="display:flex;gap:6px;align-items:center">
+      <input id="fac_key" type="password" class="input" placeholder="AIza..." value="${keyGuardada}"
+        style="flex:1;font-family:monospace;font-size:12px"/>
+      <button onclick="guardarFacturaKey()" style="padding:9px 12px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">Guardar</button>
+    </div>
+    <div id="fac_key_res" style="font-size:10px;color:#64748b;margin-top:4px">${keyMask?"✅ Key guardada: "+keyMask+"...":"Obtenela gratis en <strong style='color:#1a73e8'>aistudio.google.com</strong>"}</div>
+  </div>
   <div class="card">
     <div style="color:#a78bfa;font-size:11px;font-weight:700;text-transform:uppercase;margin-bottom:14px">🖼️ Escanear Factura o Lista de Compra</div>
-    <div style="color:#64748b;font-size:12px;margin-bottom:14px;line-height:1.5">Subí una foto de una factura o lista de compra. Claude leerá la imagen, extraerá los productos con precios y los registrará en el inventario con tu confirmación.</div>
+    <div style="color:#64748b;font-size:12px;margin-bottom:14px;line-height:1.5">Subí una foto de una factura o lista de compra. Gemini leerá la imagen, extraerá los productos con precios y los registrará en el inventario con tu confirmación.</div>
     <div style="margin-bottom:12px">
       <div class="label">📷 Foto de factura o lista de compra</div>
       <input type="file" accept="image/*" id="fac_img" onchange="cargarFacturaImg()"
@@ -770,9 +778,9 @@ window.cargarFacturaImg=function(){
 window.analizarFactura=async function(){
   if(!facturaImg){alert("Primero subí una imagen");return;}
   if(!facturaApiKey){
-    facturaApiKey=configKeys.gemini||localStorage.getItem("gemini_api_key")||null;
+    facturaApiKey=localStorage.getItem("gemini_api_key")||null;
   }
-  if(!facturaApiKey){alert("Necesitás configurar la API Key de Gemini en la pestaña Configuración");return;}
+  if(!facturaApiKey){alert("Pegá tu API Key de Gemini arriba y presioná Guardar antes de analizar.");return;}
   const btn=$$("btn_analizar");if(btn){btn.disabled=true;btn.textContent="Analizando imagen...";}
   const res=$$("fac_resultado");if(res) res.innerHTML=`<div class="card" style="text-align:center;padding:20px;color:#475569">Gemini está leyendo la factura...</div>`;
   try{
@@ -852,81 +860,11 @@ window.registrarFactura=async function(){
   alert(`Registrados: ${ok} productos${err?` · Errores: ${err}`:""}`);
 };
 
-/* ══════════════════════════════════════════════════════
-   TAB: CONFIGURACIÓN (API Keys)
-══════════════════════════════════════════════════════ */
-let configKeys={gemini:""};
-
-async function cargarConfigKeys(){
-  configKeys.gemini=localStorage.getItem("gemini_api_key")||"";
-  actualizarContenido();
-}
-
-function renderConfig(){
-  if(!esAdmin()) return `<div class="card" style="text-align:center;padding:30px;color:#475569">Solo Wilfredo puede configurar las API Keys</div>`;
-  const maskKey=k=>k?k.slice(0,8)+"•".repeat(Math.max(0,k.length-12))+k.slice(-4):"No configurada";
-  const sqlText=`CREATE TABLE IF NOT EXISTS config (
-  id SERIAL PRIMARY KEY, clave TEXT UNIQUE NOT NULL, valor TEXT, updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-CREATE TABLE IF NOT EXISTS asistencia (
-  id SERIAL PRIMARY KEY, user_name TEXT NOT NULL, nombre TEXT,
-  tipo TEXT CHECK (tipo IN ('entrada','salida')), fecha TEXT, hora_registro TEXT, created_at TIMESTAMPTZ DEFAULT NOW()
-);
-CREATE TABLE IF NOT EXISTS acceso_especial (
-  id SERIAL PRIMARY KEY, user_name TEXT UNIQUE NOT NULL, activo BOOLEAN DEFAULT FALSE,
-  motivo TEXT, activado_por TEXT, expires_at TIMESTAMPTZ, updated_at TIMESTAMPTZ DEFAULT NOW()
-);`;
-  return `
-  <div class="card">
-    <div style="color:#f59e0b;font-size:11px;font-weight:700;text-transform:uppercase;margin-bottom:14px">API Keys de Inteligencia Artificial</div>
-    <div style="background:#f59e0b08;border:1px solid #f59e0b20;border-radius:10px;padding:10px 12px;margin-bottom:16px">
-      <div style="color:#94a3b8;font-size:11px;line-height:1.5">Las API Keys se guardan en <strong style="color:#fbbf24">este dispositivo</strong> (localStorage). Son usadas por Wilfredo IA, Asistente de Trabajo y Facturas. Tenés que configurarlas una vez por dispositivo. No se comparten con nadie.</div>
-    </div>
-    <div style="margin-bottom:16px">
-      <div class="label">✨ Google Gemini API Key</div>
-      <div style="background:#0f172a;border:1px solid #334155;border-radius:8px;padding:9px 12px;color:#64748b;font-size:11px;font-family:monospace;margin-bottom:6px">${maskKey(configKeys.gemini)}</div>
-      <div style="display:flex;gap:6px">
-        <input id="cfg_gemini" type="password" class="input" placeholder="AIza..." style="flex:1;font-family:monospace;font-size:12px"/>
-        <button onclick="probarGemini()" style="padding:9px 12px;background:#1a73e820;color:#60a5fa;border:1px solid #1a73e830;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer">Probar</button>
-        <button onclick="guardarKey('gemini')" style="padding:9px 12px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer">Guardar</button>
-      </div>
-      <div id="cfg_gemini_res" style="font-size:11px;margin-top:5px;color:#64748b"></div>
-      <div style="color:#475569;font-size:10px;margin-top:4px">Obtenela gratis en <strong style="color:#1a73e8">aistudio.google.com</strong> → Get API Key. Usada por Wilfredo IA, Asistente de Trabajo y Facturas IA.</div>
-    </div>
-    <div style="border-top:1px solid #334155;padding-top:14px">
-      <div style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:8px">SQL necesario en Supabase (una sola vez)</div>
-      <div style="background:#0f172a;border:1px solid #334155;border-radius:8px;padding:12px;font-size:11px;font-family:monospace;color:#94a3b8;white-space:pre;overflow-x:auto">${sqlText.replace(/</g,"&lt;")}</div>
-      <button onclick="copiarSQL()" style="margin-top:8px;padding:7px 12px;background:#334155;color:#94a3b8;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer">Copiar SQL</button>
-    </div>
-  </div>`;
-}
-
-window.guardarKey=function(tipo){
-  const val=v("cfg_gemini");if(!val){alert("Ingresá la API Key primero");return;}
-  localStorage.setItem("gemini_api_key",val);
-  configKeys.gemini=val;
-  $$("cfg_gemini").value="";
-  const res=$$("cfg_gemini_res");if(res){res.style.color="#16a34a";res.textContent="✅ API Key guardada en este dispositivo";}
-  setTimeout(actualizarContenido,1200);
-};
-
-window.probarGemini=async function(){
-  const key=v("cfg_gemini")||configKeys.gemini;if(!key){alert("Ingresá una API Key primero");return;}
-  const res=$$("cfg_gemini_res");if(res){res.style.color="#64748b";res.textContent="Probando...";}
-  try{
-    const resp=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,{
-      method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({contents:[{role:"user",parts:[{text:"Di hola en 2 palabras"}]}],generationConfig:{maxOutputTokens:20}})
-    });
-    const data=await resp.json();
-    if(resp.ok){const txt=data.candidates?.[0]?.content?.parts?.[0]?.text||"OK";if(res){res.style.color="#16a34a";res.textContent="✅ Conectado: "+txt;}}
-    else{if(res){res.style.color="#ef4444";res.textContent="Error: "+data.error?.message;}}
-  }catch(e){if(res){res.style.color="#ef4444";res.textContent="Error de red: "+e.message;}}
-};
-
-window.copiarSQL=function(){
-  const sql=`CREATE TABLE IF NOT EXISTS config (id SERIAL PRIMARY KEY, clave TEXT UNIQUE NOT NULL, valor TEXT, updated_at TIMESTAMPTZ DEFAULT NOW()); CREATE TABLE IF NOT EXISTS asistencia (id SERIAL PRIMARY KEY, user_name TEXT NOT NULL, nombre TEXT, tipo TEXT CHECK (tipo IN ('entrada','salida')), fecha TEXT, hora_registro TEXT, created_at TIMESTAMPTZ DEFAULT NOW()); CREATE TABLE IF NOT EXISTS acceso_especial (id SERIAL PRIMARY KEY, user_name TEXT UNIQUE NOT NULL, activo BOOLEAN DEFAULT FALSE, motivo TEXT, activado_por TEXT, expires_at TIMESTAMPTZ, updated_at TIMESTAMPTZ DEFAULT NOW());`;
-  navigator.clipboard?.writeText(sql).then(()=>alert("SQL copiado")).catch(()=>alert("No se pudo copiar automáticamente"));
+window.guardarFacturaKey=function(){
+  const k=v("fac_key");if(!k){return;}
+  localStorage.setItem("gemini_api_key",k);
+  facturaApiKey=k;
+  const r=$$("fac_key_res");if(r){r.innerHTML="✅ Key guardada: "+k.slice(0,8)+"••••••••...";}
 };
 
 /* ── Exponer globales ───────────────────────────────── */
@@ -936,7 +874,7 @@ window.copiarSQL=function(){
   "exportarCRMCSV",
   "selWorker","cambiarEstH","eliminarHerr","modalNuevaHerr","imprimirActa",
   "calcVsDias","enviarSolicitud","aprobarVac","rechazarVac","modalEditarSaldo",
-  "renderFacturas","renderConfig","cargarConfigKeys","mostrarProductosFactura",
+  "renderFacturas","guardarFacturaKey","mostrarProductosFactura",
 ].forEach(fn=>window[fn]=eval(fn));
 
 init();
