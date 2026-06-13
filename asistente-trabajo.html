@@ -96,10 +96,7 @@ async function init(){
 }
 
 async function cargarApiKey(){
-  try{
-    const{data}=await SB.from("config").select("valor").eq("clave","groq_api_key").maybeSingle();
-    apiKey=data?.valor||null;
-  }catch{apiKey=null;}
+  apiKey=localStorage.getItem("scp_groq_key")||null;
 }
 
 async function cargarInventario(){

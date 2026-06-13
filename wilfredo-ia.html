@@ -113,12 +113,9 @@ async function init(){
   agregarMensaje("ai",`¡Hola **${usuario.nombre}**! 🤖 Soy tu asistente con acceso total al sistema.\n\nPuedo:\n• 🛒 Registrar compras al inventario\n• 📋 Agregar repuestos a OTs por nombre de cliente\n• 💰 Consultar ventas, caja y ganancias\n• 📊 Generar informes\n• 🔓 Gestionar acceso de trabajadores\n\n¿Qué necesitas?`);
 }
 
-/* ── API Keys (Supabase config) ─────────────────── */
+/* ── API Keys (localStorage) ────────────────────── */
 async function cargarApiKeys(){
-  try{
-    const{data}=await SB.from("config").select("valor").eq("clave","groq_api_key").maybeSingle();
-    apiKeys.groq=data?.valor||null;
-  }catch{apiKeys.groq=null;}
+  apiKeys.groq=localStorage.getItem("scp_groq_key")||null;
 }
 
 async function cargarInventarioCache(){
@@ -659,19 +656,13 @@ function mostrarConfigKeys(){
   </div>`;
 }
 
-window.guardarConfigKeys=async function(){
+window.guardarConfigKeys=function(){
   const k=document.getElementById("ck_groq")?.value?.trim();
-  if(!k){agregarMensaje("error","❌ Ingresá la API Key antes de guardar.");return;}
-  try{
-    const{error}=await SB.from("config").upsert({clave:"groq_api_key",valor:k,updated_at:new Date().toISOString()},{onConflict:"clave"});
-    if(error) throw new Error(error.message);
-    apiKeys.groq=k;
-    document.getElementById("modal").style.display="none";
-    mostrarStatusBar();
-    agregarMensaje("ai","✅ Groq API Key guardada en Supabase (todos los dispositivos). ¿En qué te ayudo?");
-  }catch(e){
-    agregarMensaje("error","❌ Error al guardar: "+e.message+"\n\n¿Creaste la tabla `config` en Supabase? Pedile a Wilfredo el SQL en Admin → Configuración.");
-  }
+  if(k) localStorage.setItem("scp_groq_key",k);
+  apiKeys.groq=localStorage.getItem("scp_groq_key")||null;
+  document.getElementById("modal").style.display="none";
+  mostrarStatusBar();
+  agregarMensaje("ai","✅ Groq API Key guardada. Ya podés usar el asistente. ¿En qué te ayudo?");
 };
 
 // Exponer globales

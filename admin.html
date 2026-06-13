@@ -770,7 +770,7 @@ window.cargarFacturaImg=function(){
 window.analizarFactura=async function(){
   if(!facturaImg){alert("Primero subí una imagen");return;}
   if(!facturaApiKey){
-    facturaApiKey=configKeys.groq||null;
+    facturaApiKey=configKeys.groq||localStorage.getItem("scp_groq_key")||null;
   }
   if(!facturaApiKey){alert("Necesitás configurar la API Key de Groq en la pestaña Configuración");return;}
   const btn=$$("btn_analizar");if(btn){btn.disabled=true;btn.textContent="Analizando imagen...";}
@@ -855,10 +855,7 @@ window.registrarFactura=async function(){
 let configKeys={groq:""};
 
 async function cargarConfigKeys(){
-  try{
-    const{data}=await SB.from("config").select("valor").eq("clave","groq_api_key").maybeSingle();
-    configKeys.groq=data?.valor||"";
-  }catch{configKeys.groq="";}
+  configKeys.groq=localStorage.getItem("scp_groq_key")||"";
   actualizarContenido();
 }
 
@@ -901,19 +898,13 @@ CREATE TABLE IF NOT EXISTS acceso_especial (
   </div>`;
 }
 
-window.guardarKey=async function(tipo){
+window.guardarKey=function(tipo){
   const val=v("cfg_groq");if(!val){alert("Ingresá la API Key primero");return;}
-  const res=$$("cfg_groq_res");if(res){res.style.color="#64748b";res.textContent="Guardando...";}
-  try{
-    const{error}=await SB.from("config").upsert({clave:"groq_api_key",valor:val,updated_at:new Date().toISOString()},{onConflict:"clave"});
-    if(error) throw new Error(error.message);
-    configKeys.groq=val;
-    $$("cfg_groq").value="";
-    if(res){res.style.color="#16a34a";res.textContent="✅ API Key guardada en Supabase (disponible en todos los dispositivos)";}
-    setTimeout(actualizarContenido,1500);
-  }catch(e){
-    if(res){res.style.color="#ef4444";res.textContent="❌ Error: "+e.message+". ¿Creaste la tabla config en Supabase?";}
-  }
+  localStorage.setItem("scp_groq_key",val);
+  configKeys.groq=val;
+  $$("cfg_groq").value="";
+  const res=$$("cfg_groq_res");if(res){res.style.color="#16a34a";res.textContent="✅ API Key guardada en este dispositivo";}
+  setTimeout(actualizarContenido,1200);
 };
 
 window.probarGroq=async function(){
