@@ -30,15 +30,17 @@ const EMPRESA = { nombre:"SERVI CAR PLATINIUM", ciudad:"Viacha - La Paz", tel1:"
 const SESSION_KEY = "scp_user";
 
 // Módulos filtrados por ROL según plan maestro
+// Roles: admin=Wilfredo | encargado=William/Selena | vendedor=Diego/Evo/Joel/Adolfo
 const MODULOS = [
   { k:"ventas",     icon:"🏠", label:"Ventas",         desc:"Venta de productos de tienda",             url:"/ventas.html",     color:"#1d4ed8", roles:["admin","encargado","vendedor"] },
   { k:"servicios",  icon:"🔧", label:"Servicios",      desc:"Aceite · Lavado · Alineado · Grúa",        url:"/servicios.html",  color:"#16a34a", roles:["admin","encargado","vendedor"] },
-  { k:"ot",         icon:"📋", label:"Órdenes (OT)",   desc:"Crear y gestionar órdenes de trabajo",     url:"/ot.html",         color:"#0891b2", roles:["admin","encargado","vendedor","mecanico"] },
+  { k:"ot",         icon:"📋", label:"Mis OTs",        desc:"Ver órdenes de trabajo asignadas",         url:"/ot.html",         color:"#0891b2", roles:["admin","encargado","vendedor","mecanico"] },
   { k:"caja",       icon:"💵", label:"Caja",           desc:"Apertura · Cierre · Informes",             url:"/caja.html",       color:"#f59e0b", roles:["admin","encargado"] },
   { k:"compras",    icon:"🛒", label:"Compras",        desc:"Registrar compras e insumos",              url:"/compras.html",    color:"#8b5cf6", roles:["admin"] },
   { k:"produccion", icon:"🏭", label:"Producción",     desc:"Envasado y fabricación de aceites",        url:"/produccion.html", color:"#f97316", roles:["admin","encargado"] },
   { k:"creditos",   icon:"💳", label:"Créditos",       desc:"Control de deudas con proveedores",        url:"/creditos.html",   color:"#ec4899", roles:["admin"] },
   { k:"admin",      icon:"⚙️", label:"Administración", desc:"Inventario · CRM · Personal · Vacaciones", url:"/admin.html",      color:"#7c3aed", roles:["admin","encargado"] },
+  { k:"dashboard",  icon:"📊", label:"Dashboard",      desc:"KPIs en tiempo real · Punto de equilibrio",url:"/dashboard.html",  color:"#a21caf", roles:["admin"] },
   { k:"usuarios",   icon:"👥", label:"Usuarios",       desc:"Gestionar accesos y contraseñas",          url:"/usuarios.html",   color:"#be185d", roles:["admin"] },
 ];
 
@@ -152,8 +154,15 @@ function Inicio({ usuario, onSalir }) {
     return () => clearInterval(t);
   }, []);
 
-  // Filtrar por rol del plan maestro
-  const mods = MODULOS.filter(m => m.roles.includes(usuario.rol));
+  // Filtrar por rol del plan maestro y adaptar labels según rol
+  const esEnc = ["admin","encargado"].includes(usuario.rol);
+  const mods = MODULOS
+    .filter(m => m.roles.includes(usuario.rol))
+    .map(m => m.k === "ot" ? {
+      ...m,
+      label: esEnc ? "Órdenes (OT)" : "Mis OTs",
+      desc:  esEnc ? "Crear y gestionar órdenes de trabajo" : "Ver órdenes asignadas a mí",
+    } : m);
 
   const h     = new Date().getHours();
   const sal   = h < 12 ? "¡Buen día" : h < 19 ? "¡Buenas tardes" : "¡Buenas noches";

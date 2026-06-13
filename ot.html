@@ -65,7 +65,8 @@ function spinnerCargando(){
 /* ── Queries ──────────────────────────────────────────── */
 async function cargarOTs(){
   let q=SB.from("ots").select("*").order("id",{ascending:false});
-  if(usuario.rol==="mecanico"){
+  // mecanico y vendedor solo ven sus OTs asignadas (tecnico = su user_name)
+  if(usuario.rol==="mecanico"||usuario.rol==="vendedor"){
     q=q.eq("tecnico",usuario.user_name);
   } else if(usuario.taller && usuario.taller!=="ambos"){
     q=q.eq("taller",usuario.taller);
@@ -104,7 +105,8 @@ function getOTsFiltradas(){
 /* ── Render lista ─────────────────────────────────────── */
 function renderLista(){
   const filtradas=getOTsFiltradas();
-  const puedeCrear=["admin","encargado","vendedor"].includes(usuario.rol);
+  // Solo encargados y admin crean OTs; vendedor/mecanico solo consultan
+  const puedeCrear=["admin","encargado"].includes(usuario.rol);
   const esAdmin=usuario.rol==="admin";
   const tieneAmbos=usuario.taller==="ambos";
   const cRol=ROL_COLOR[usuario.rol]||"#64748b";
@@ -244,6 +246,7 @@ async function confirmarBorrar(id){
 
 /* ── Modal crear OT ───────────────────────────────────── */
 function mostrarCrear(){
+  if(!["admin","encargado"].includes(usuario.rol))return;
   const puedeAsignar=["admin","encargado"].includes(usuario.rol);
   const tallerOpts=usuario.taller==="ambos"
     ?`<option value="Taller 1 · Montes">Taller 1 · Montes</option>
@@ -321,6 +324,7 @@ async function buscarCliente(){
 }
 
 async function crearOT(){
+  if(!["admin","encargado"].includes(usuario.rol))return;
   const placa=(document.getElementById("n_placa")?.value||"").trim().toUpperCase();
   const cliente=(document.getElementById("n_cliente")?.value||"").trim();
   const problema=(document.getElementById("n_problema")?.value||"").trim();
