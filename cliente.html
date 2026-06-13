@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<meta name="theme-color" content="#0f172a"/>
+<title>Mi Vehículo — Servi Car Platinium</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!--
+  TABLAS SUPABASE REQUERIDAS (crear si no existen):
+
+  create table aceite_km (
+    id bigserial primary key,
+    placa text not null,
+    cliente text,
+    km_cambio int not null,
+    km_proximo int,
+    fecha text,
+    taller text,
+    observaciones text,
+    created_at timestamptz default now()
+  );
+
+  create table encuestas (
+    id bigserial primary key,
+    placa text not null,
+    ot_num text,
+    estrellas int,
+    nps int,
+    aspecto_bueno text,
+    aspecto_mejora text,
+    comentario text,
+    created_at timestamptz default now()
+  );
+-->
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;background:#0f172a;color:#fff;min-height:100vh}
+input,select,textarea{outline:none;font-family:inherit}
+input:focus,select:focus,textarea:focus{border-color:#f59e0b!important}
+.input{width:100%;padding:11px 14px;background:#0f172a;border:1px solid #334155;border-radius:10px;color:#fff;font-size:14px}
+.card{background:#1e293b;border:1px solid #334155;border-radius:16px;padding:18px;margin-bottom:12px}
+.badge{padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;white-space:nowrap}
+@keyframes fi{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.fi{animation:fi .3s ease both}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+.pulse{animation:pulse 1.5s infinite}
+
+/* Stars */
+.star{font-size:36px;cursor:pointer;transition:transform .15s;color:#334155;line-height:1}
+.star.on,.star.prev{color:#fbbf24}
+.star:hover{transform:scale(1.15)}
+
+/* NPS buttons */
+.nps-btn{width:100%;padding:8px 4px;border:1px solid #334155;border-radius:8px;color:#64748b;font-size:13px;font-weight:700;cursor:pointer;background:#0f172a;transition:all .15s}
+.nps-btn.sel-r{background:#ef4444;border-color:#ef4444;color:#fff}
+.nps-btn.sel-y{background:#f59e0b;border-color:#f59e0b;color:#1e293b}
+.nps-btn.sel-g{background:#16a34a;border-color:#16a34a;color:#fff}
+
+/* Progress bar */
+.prog-track{background:#0f172a;border-radius:99px;height:10px;overflow:hidden;margin:8px 0}
+.prog-fill{height:100%;border-radius:99px;transition:width .5s ease}
+
+/* Tab buttons */
+.tab-btn{flex:1;padding:9px 5px;border:1px solid #334155;border-radius:10px;color:#64748b;font-size:11px;font-weight:700;cursor:pointer;background:#1e293b;transition:all .15s;text-align:center}
+.tab-btn.on{background:#f59e0b;border-color:#f59e0b;color:#1e293b}
+</style>
+</head>
+<body>
+<div id="app">
+  <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;color:#475569">
+    <div style="text-align:center"><div style="font-size:42px;margin-bottom:8px">🚗</div>Cargando...</div>
+  </div>
+</div>
+
+<script>
+const SB=window.supabase.createClient(
+  "https://epirsbudngwbxgcsryvv.supabase.co",
+  "sb_publishable_zsqvMzJMc80Ypf3UQqs-SA_IrV-XIGc"
+);
+const EMPRESA={nombre:"SERVI CAR PLATINIUM",ciudad:"Viacha - La Paz",tel:"68167264",wa:"59168167264"};
+const KM_INTERVALO=5000; // km entre cambios de aceite
+
+/* ── Estado ─────────────────────────────────────────── */
+let placa="", datos=null, tab="historial", estado="landing";
+let estrellas=0, nps=-1, encOtNum="", encEnviada=false;
+let kmInput=0;
+
+/* ── Utils ──────────────────────────────────────────── */
+const fmt=n=>`Bs. ${parseFloat(n||0).toFixed(2)}`;
+function $$(id){return document.getElementById(id);}
+function v(id){return ($$(id)?.value||"").trim();}
+function vn(id){return parseInt($$(id)?.value)||0;}
+
+function diasDesde(fechaStr){
+  if(!fechaStr)return null;
+  // Attempt parsing dd/m/yyyy (es-BO) or ISO
+  let d;
+  if(fechaStr.includes("-"))d=new Date(fechaStr);
+  else{const[dd,mm,yyyy]=fechaStr.split("/");d=new Date(+yyyy,+mm-1,+dd);}
+  if(isNaN(d))return null;
+  return Math.floor((Date.now()-d)/86400000);
+}
+
+function setProg(id,pct,color){
+  const el=$$(id);if(el)el.style.width=Math.min(100,pct)+"%;background:"+color;
+}
+
+/* ── Init ───────────────────────────────────────────── */
+async function init(){
+  const p=new URLSearchParams(location.search);
+  const urlPlaca=p.get("placa");
+  const urlOT=p.get("ot");
+  if(urlPlaca){
+    placa=urlPlaca.toUpperCase().trim();
+    if(urlOT){encOtNum=urlOT;tab="encuesta";}
+    await buscar();
+  } else {
+    estado="landing";renderApp();
+  }
+}
+
+/* ── Buscar vehículo ────────────────────────────────── */
+async function buscar(){
+  placa=($$(  "inp_placa")?.value||placa).toUpperCase().trim().replace(/\s+/g,"");
+  if(!placa){alert("Ingresa la placa de tu vehículo");return;}
+  estado="cargando";renderApp();
+
+  const[r1,r2,r3,r4]=await Promise.all([
+    SB.from("crm").select("*").ilike("placa",placa).order("created_at",{ascending:false}),
+    SB.from("ots").select("id,num,placa,cliente,vehiculo,taller,tecnico,paso,fecha,created_at").ilike("placa",placa).order("created_at",{ascending:false}),
+    SB.from("aceite_km").select("*").ilike("placa",placa).order("created_at",{ascending:false}).limit(10),
+    SB.from("encuestas").select("*").ilike("placa",placa).order("created_at",{ascending:false}),
+  ]);
+
+  const ref=r1.data?.[0]||r2.data?.[0];
+  datos={
+    placa,
+    cliente:ref?.cliente||"—",
+    vehiculo:ref?.vehiculo||"—",
+    crm:r1.data||[],
+    ots:r2.data||[],
+    aceite:r3.data||[],
+    encuestas:r4.data||[],
+  };
+
+  // Auto-select latest unrated completed OT for survey
+  if(!encOtNum){
+    const completadas=datos.crm.map(c=>c.num).filter(Boolean);
+    const yaCalificados=new Set(datos.encuestas.map(e=>e.ot_num));
+    const sinCalificar=completadas.find(n=>!yaCalificados.has(n));
+    encOtNum=sinCalificar||completadas[0]||"";
+  }
+
+  encEnviada=false;estrellas=0;nps=-1;
+  estado="ok";renderApp();
+}
+
+/* ══════════════════════════════════════════════════════
+   RENDER
+══════════════════════════════════════════════════════ */
+function renderApp(){
+  const app=document.getElementById("app");
+  if(estado==="landing")    {app.innerHTML=renderLanding();return;}
+  if(estado==="cargando")   {app.innerHTML=renderCargando();return;}
+  if(estado==="ok"&&datos)  {app.innerHTML=renderPortal();}
+}
+
+/* ── Landing ────────────────────────────────────────── */
+function renderLanding(){
+  return `
+  <div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px 16px">
+    <!-- Logo -->
+    <div style="text-align:center;margin-bottom:32px">
+      <div style="font-size:56px;margin-bottom:10px">🚗</div>
+      <div style="color:#fbbf24;font-weight:900;font-size:20px">${EMPRESA.nombre}</div>
+      <div style="color:#475569;font-size:12px;margin-top:4px">${EMPRESA.ciudad}</div>
+    </div>
+    <!-- Search card -->
+    <div class="card fi" style="width:100%;max-width:380px;text-align:center">
+      <div style="color:#fbbf24;font-weight:900;font-size:16px;margin-bottom:4px">Portal del Cliente</div>
+      <div style="color:#64748b;font-size:12px;margin-bottom:20px">Consulta el historial de tu vehículo, seguimiento de aceite y califica nuestro servicio</div>
+      <div style="text-align:left;margin-bottom:14px">
+        <div style="color:#64748b;font-size:11px;font-weight:700;margin-bottom:6px">🔍 INGRESA TU PLACA</div>
+        <input id="inp_placa" class="input" placeholder="Ej: 2345-ABC · B-1234" maxlength="10" autocapitalize="characters"
+          onkeydown="if(event.key==='Enter')buscar()"
+          style="text-align:center;font-size:18px;font-weight:700;letter-spacing:2px;text-transform:uppercase"/>
+      </div>
+      <button onclick="buscar()" style="width:100%;padding:13px;background:#f59e0b;color:#1e293b;border:none;border-radius:10px;font-weight:900;font-size:15px;cursor:pointer">
+        🔍 Ver mi vehículo
+      </button>
+      <div style="color:#334155;font-size:11px;margin-top:14px">¿Problemas? Escríbenos al
+        <a href="https://wa.me/${EMPRESA.wa}" target="_blank" style="color:#25d366;font-weight:700">WhatsApp 📱</a>
+      </div>
+    </div>
+    <div style="color:#1e293b;font-size:11px;margin-top:24px">© 2026 ${EMPRESA.nombre}</div>
+  </div>`;
+}
+
+function renderCargando(){
+  return `<div style="min-height:100vh;display:flex;align-items:center;justify-content:center">
+    <div style="text-align:center">
+      <div class="pulse" style="font-size:44px;margin-bottom:12px">🔍</div>
+      <div style="color:#64748b">Buscando tu vehículo...</div>
+    </div>
+  </div>`;
+}
+
+/* ── Portal ─────────────────────────────────────────── */
+function renderPortal(){
+  const noEncontrado=!datos.crm.length&&!datos.ots.length;
+  return `
+  <!-- Header -->
+  <div style="background:#1e293b;border-bottom:1px solid #334155;padding:12px 16px;position:sticky;top:0;z-index:100">
+    <div style="max-width:480px;margin:0 auto;display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div style="color:#fbbf24;font-weight:900;font-size:14px">🚗 ${EMPRESA.nombre}</div>
+        <div style="color:#475569;font-size:10px">Portal del cliente</div>
+      </div>
+      <button onclick="estado='landing';placa='';datos=null;renderApp()"
+        style="padding:6px 12px;background:#334155;color:#94a3b8;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer">
+        🔍 Otra placa
+      </button>
+    </div>
+  </div>
+
+  <div class="fi" style="padding:14px 16px;max-width:480px;margin:0 auto">
+
+  ${noEncontrado ? renderNoEncontrado() : `
+  <!-- Vehicle card -->
+  <div style="background:linear-gradient(135deg,#1e293b,#0f172a);border:1px solid #334155;border-radius:16px;padding:16px;margin-bottom:14px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start">
+      <div>
+        <div style="font-size:22px;font-weight:900;color:#fbbf24;letter-spacing:2px">${datos.placa}</div>
+        <div style="color:#94a3b8;font-size:13px;margin-top:3px">${datos.vehiculo}</div>
+        <div style="color:#64748b;font-size:11px;margin-top:2px">👤 ${datos.cliente}</div>
+      </div>
+      <div style="text-align:right">
+        <div style="color:#16a34a;font-size:11px;font-weight:700">${datos.crm.length} servicio(s)</div>
+        <div style="color:#475569;font-size:10px;margin-top:2px">${datos.ots.filter(o=>o.paso<6).length} en proceso</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div style="display:flex;gap:5px;margin-bottom:14px">
+    ${[["historial","📋 Historial"],["aceite","🛢️ Aceite"],["encuesta","⭐ Encuesta"]].map(([k,l])=>`
+    <button class="tab-btn ${tab===k?"on":""}" onclick="cambiarTab('${k}')">${l}</button>`).join("")}
+  </div>
+
+  <!-- Tab content -->
+  ${tab==="historial" ? renderHistorial()  : ""}
+  ${tab==="aceite"    ? renderAceite()     : ""}
+  ${tab==="encuesta"  ? renderEncuesta()   : ""}
+  `}
+
+  <!-- WA flotante -->
+  <a href="https://wa.me/${EMPRESA.wa}?text=${encodeURIComponent(`Hola Servi Car, soy cliente con placa ${datos?.placa||""}`)}" target="_blank"
+    style="position:fixed;bottom:20px;right:16px;width:52px;height:52px;background:#25d366;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:26px;text-decoration:none;box-shadow:0 4px 20px rgba(37,211,102,.4)">
+    💬
+  </a>
+
+  <div style="height:32px"></div>
+  </div>`;
+}
+
+function renderNoEncontrado(){
+  return `
+  <div class="card" style="text-align:center;padding:30px">
+    <div style="font-size:48px;margin-bottom:12px">🔎</div>
+    <div style="font-weight:700;font-size:15px;margin-bottom:6px">Placa no encontrada</div>
+    <div style="color:#64748b;font-size:12px;margin-bottom:16px">No encontramos registros para <strong style="color:#fbbf24">${datos.placa}</strong>.<br/>Verifica que la placa esté correcta.</div>
+    <button onclick="estado='landing';placa='';datos=null;renderApp()"
+      style="padding:10px 20px;background:#f59e0b;color:#1e293b;border:none;border-radius:10px;font-weight:700;cursor:pointer">
+      🔍 Buscar otra placa
+    </button>
+  </div>`;
+}
+
+/* ── HISTORIAL ──────────────────────────────────────── */
+function renderHistorial(){
+  const completados=datos.crm;
+  const enProceso=datos.ots.filter(o=>o.paso<6);
+  const PASOS=["","Recepción","Diagnóstico","Cotización","Aprobación","Ejecución","Entrega"];
+
+  return `
+  ${enProceso.length?`
+  <div style="background:#f59e0b15;border:1px solid #f59e0b30;border-radius:14px;padding:14px;margin-bottom:12px">
+    <div style="color:#fbbf24;font-size:11px;font-weight:700;margin-bottom:10px">🔧 EN PROCESO AHORA (${enProceso.length})</div>
+    ${enProceso.map(o=>{
+      const pct=Math.round((o.paso/6)*100);
+      return `<div style="background:#0f172a;border-radius:10px;padding:12px;margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <div style="font-weight:700;font-size:13px">OT ${o.num||o.id}</div>
+          <span class="badge" style="background:#f59e0b20;color:#f59e0b">Paso ${o.paso}/6</span>
+        </div>
+        <div style="color:#64748b;font-size:11px;margin-bottom:6px">${PASOS[o.paso]||"En proceso"} · ${o.taller||"—"}</div>
+        <div class="prog-track"><div class="prog-fill" style="width:${pct}%;background:#f59e0b"></div></div>
+        <div style="color:#475569;font-size:10px;margin-top:3px">Técnico: ${o.tecnico||"—"}</div>
+      </div>`;
+    }).join("")}
+  </div>`:""}
+
+  ${completados.length===0&&!enProceso.length?`
+  <div class="card" style="text-align:center;padding:28px;color:#334155">
+    <div style="font-size:36px;margin-bottom:8px">📋</div>Sin servicios completados aún
+  </div>`:
+  completados.length?`
+  <div style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:8px;padding:0 2px">
+    ✅ Servicios completados (${completados.length})
+  </div>
+  ${completados.map(c=>{
+    const yaCalif=datos.encuestas.some(e=>e.ot_num===c.num);
+    const total=parseFloat(c.ganancia_neta||0)+parseFloat(c.capital||0);
+    return `<div class="card" style="padding:14px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+        <div>
+          <div style="font-weight:700;font-size:13px">OT ${c.num||"—"}</div>
+          <div style="color:#64748b;font-size:11px;margin-top:2px">📅 ${c.fecha||"—"} · 🏢 ${c.taller||"—"}</div>
+        </div>
+        ${total?`<div style="color:#fbbf24;font-weight:900;font-size:15px">${fmt(total)}</div>`:""}
+      </div>
+      <div style="color:#64748b;font-size:11px;margin-bottom:10px">👨‍🔧 Técnico: ${c.tecnico||"—"}</div>
+      <div style="display:flex;gap:6px;align-items:center">
+        ${yaCalif?`<span class="badge" style="background:#16a34a20;color:#16a34a">⭐ Ya calificado</span>`:
+          `<button onclick="abrirEncuesta('${c.num||""}')"
+            style="padding:6px 12px;background:#f59e0b;color:#1e293b;border:none;border-radius:8px;font-weight:700;font-size:11px;cursor:pointer">
+            ⭐ Calificar
+          </button>`}
+        <a href="https://wa.me/${EMPRESA.wa}?text=${encodeURIComponent(`Hola, consulto sobre mi OT ${c.num||""}, placa ${datos.placa}`)}" target="_blank"
+          style="padding:6px 12px;background:#25d36620;color:#25d366;border:1px solid #25d36640;border-radius:8px;font-weight:700;font-size:11px;text-decoration:none">
+          💬 Consultar
+        </a>
+      </div>
+    </div>`;
+  }).join("")}`:""}`;
+}
+
+function abrirEncuesta(otNum){
+  encOtNum=otNum;estrellas=0;nps=-1;encEnviada=false;
+  tab="encuesta";renderApp();
+  setTimeout(()=>$$("enc_top")?.scrollIntoView({behavior:"smooth"}),50);
+}
+
+/* ── ACEITE ─────────────────────────────────────────── */
+function renderAceite(){
+  const ultimo=datos.aceite[0];
+  const diasU=ultimo?diasDesde(ultimo.fecha):null;
+  const kmProx=ultimo?(ultimo.km_proximo||(ultimo.km_cambio+KM_INTERVALO)):null;
+
+  return `
+  <div class="card">
+    <div style="color:#f97316;font-size:12px;font-weight:700;text-transform:uppercase;margin-bottom:14px">🛢️ Cambio de aceite</div>
+
+    ${!ultimo?`
+    <div style="text-align:center;padding:20px 0;color:#334155">
+      <div style="font-size:36px;margin-bottom:8px">🛢️</div>
+      <div style="font-size:13px">Sin registro de cambio de aceite</div>
+      <div style="color:#475569;font-size:11px;margin-top:6px">Tu taller registrará la información en cada servicio.</div>
+    </div>`:`
+
+    <!-- Último cambio -->
+    <div style="background:#f9741612;border:1px solid #f9741620;border-radius:12px;padding:14px;margin-bottom:14px">
+      <div style="font-size:10px;color:#64748b;font-weight:700;margin-bottom:6px">ÚLTIMO CAMBIO</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
+        <div>
+          <div style="font-weight:700;font-size:15px">📅 ${ultimo.fecha||"—"}</div>
+          <div style="color:#64748b;font-size:11px;margin-top:2px">
+            Km al cambio: <strong style="color:#94a3b8">${(ultimo.km_cambio||0).toLocaleString("es")} km</strong>
+          </div>
+          ${ultimo.taller?`<div style="color:#475569;font-size:10px;margin-top:1px">🏢 ${ultimo.taller}</div>`:""}
+          ${ultimo.observaciones?`<div style="color:#475569;font-size:10px;margin-top:1px">📝 ${ultimo.observaciones}</div>`:""}
+        </div>
+        <div style="text-align:right">
+          ${diasU!=null?`<div style="font-size:${diasU>180?"16":"14"}px;font-weight:700;color:${diasU>180?"#ef4444":diasU>150?"#f59e0b":"#16a34a"}">${diasU} días</div><div style="color:#64748b;font-size:10px">desde el cambio</div>`:""}
+        </div>
+      </div>
+    </div>
+
+    <!-- Próximo cambio -->
+    <div style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:12px;margin-bottom:14px">
+      <div style="font-size:10px;color:#64748b;font-weight:700;margin-bottom:4px">PRÓXIMO CAMBIO</div>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="font-weight:700;font-size:15px">📍 ${(kmProx||0).toLocaleString("es")} km</div>
+        <div style="color:#475569;font-size:11px">cada ${KM_INTERVALO.toLocaleString("es")} km</div>
+      </div>
+    </div>
+
+    <!-- Calculadora km actual -->
+    <div style="margin-bottom:14px">
+      <div style="color:#64748b;font-size:11px;font-weight:700;margin-bottom:8px">🔢 ¿CUÁNTO MARCA TU ODÓMETRO?</div>
+      <div style="display:flex;gap:8px">
+        <input id="km_actual" type="number" min="0" max="999999" placeholder="Ej: 87500" class="input"
+          style="font-size:16px;font-weight:700;text-align:center;flex:1" oninput="calcularAceite()"/>
+        <span style="align-self:center;color:#475569;font-size:12px;white-space:nowrap">km</span>
+      </div>
+    </div>
+
+    <!-- Estado calculado -->
+    <div id="aceite_estado"></div>`}
+
+    <!-- Historial -->
+    ${datos.aceite.length>1?`
+    <div style="margin-top:14px;border-top:1px solid #334155;padding-top:12px">
+      <div style="color:#64748b;font-size:10px;font-weight:700;margin-bottom:8px">HISTORIAL DE CAMBIOS</div>
+      ${datos.aceite.map((a,i)=>`
+      <div style="display:flex;justify-content:space-between;font-size:11px;padding:5px 0;border-bottom:1px solid #0f172a;${i===datos.aceite.length-1?"border:none":""}">
+        <span style="color:#64748b">${a.fecha||"—"}</span>
+        <span style="color:#94a3b8">${(a.km_cambio||0).toLocaleString("es")} km</span>
+        <span style="color:#475569">${a.taller||"—"}</span>
+      </div>`).join("")}
+    </div>`:""}
+
+    <!-- Botón agendar -->
+    <a href="https://wa.me/${EMPRESA.wa}?text=${encodeURIComponent(`Hola, quiero agendar cambio de aceite para mi vehículo con placa ${datos.placa}`)}" target="_blank"
+      style="display:block;width:100%;padding:11px;background:#25d36620;color:#25d366;border:1px solid #25d36640;border-radius:10px;font-weight:700;font-size:13px;text-align:center;text-decoration:none;margin-top:14px">
+      📱 Agendar cambio de aceite por WhatsApp
+    </a>
+  </div>`;
+}
+
+function calcularAceite(){
+  const ultimo=datos.aceite[0];
+  if(!ultimo)return;
+  const kmActual=vn("km_actual");
+  if(!kmActual){$$("aceite_estado").innerHTML="";return;}
+  const kmProx=ultimo.km_proximo||(ultimo.km_cambio+KM_INTERVALO);
+  const restante=kmProx-kmActual;
+  const pct=Math.min(100,Math.round(((kmActual-ultimo.km_cambio)/KM_INTERVALO)*100));
+  const ok=restante>KM_INTERVALO*0.1; // >10% remaining
+  const warn=restante<=KM_INTERVALO*0.1&&restante>0;
+  const over=restante<=0;
+  const color=over?"#ef4444":warn?"#f59e0b":"#16a34a";
+  const icon=over?"🔴":warn?"🟡":"🟢";
+  $$("aceite_estado").innerHTML=`
+  <div style="background:${color}15;border:1px solid ${color}30;border-radius:12px;padding:14px;text-align:center">
+    <div class="prog-track"><div id="prog_aceite" class="prog-fill" style="width:${pct}%;background:${color}"></div></div>
+    <div style="font-size:22px;font-weight:900;color:${color};margin:8px 0">${icon} ${Math.abs(restante).toLocaleString("es")} km</div>
+    <div style="color:#94a3b8;font-size:12px">
+      ${over?`de retraso · ¡Cambia tu aceite lo antes posible!`:warn?`para el próximo cambio · ¡Ya casi es hora!`:`para el próximo cambio`}
+    </div>
+    <div style="color:#475569;font-size:10px;margin-top:6px">Tu km actual: ${kmActual.toLocaleString("es")} · Próximo: ${kmProx.toLocaleString("es")}</div>
+  </div>`;
+}
+
+/* ── ENCUESTA ───────────────────────────────────────── */
+function renderEncuesta(){
+  // Check if current encOtNum already rated
+  const yaCalif=encOtNum&&datos.encuestas.some(e=>e.ot_num===encOtNum);
+  const servicioRef=datos.crm.find(c=>c.num===encOtNum)||datos.crm[0];
+
+  if(encEnviada){
+    return renderGracias();
+  }
+  if(yaCalif){
+    const enc=datos.encuestas.find(e=>e.ot_num===encOtNum);
+    return renderYaCalificado(enc);
+  }
+
+  // OT selector if there are multiple unrated
+  const completadas=datos.crm;
+  const yaCalificados=new Set(datos.encuestas.map(e=>e.ot_num));
+  const sinCalif=completadas.filter(c=>!yaCalificados.has(c.num));
+
+  return `
+  <div class="card" id="enc_top">
+    <div style="color:#fbbf24;font-size:12px;font-weight:700;text-transform:uppercase;margin-bottom:14px">⭐ Encuesta de satisfacción</div>
+
+    ${sinCalif.length===0&&completadas.length>0?`
+    <div style="text-align:center;padding:16px;color:#16a34a">
+      <div style="font-size:36px;margin-bottom:8px">✅</div>
+      <div style="font-weight:700">¡Ya calificaste todos tus servicios!</div>
+      <div style="color:#64748b;font-size:12px;margin-top:6px">Gracias por tus comentarios. Nos ayudan a mejorar.</div>
+    </div>`:`
+
+    ${!completadas.length?`
+    <div style="text-align:center;padding:20px;color:#334155">
+      <div style="font-size:36px;margin-bottom:8px">📋</div>Completa un servicio primero para poder calificarnos.
+    </div>`:`
+
+    <!-- Selector de OT -->
+    ${sinCalif.length>1?`
+    <div style="margin-bottom:14px">
+      <div style="color:#64748b;font-size:11px;font-weight:700;margin-bottom:6px">SERVICIO A CALIFICAR</div>
+      <select id="enc_ot_sel" class="input" onchange="encOtNum=this.value;estrellas=0;nps=-1;actualizarEncuesta()">
+        ${sinCalif.map(c=>`<option value="${c.num||""}" ${encOtNum===c.num?"selected":""}>OT ${c.num||"—"} · ${c.fecha||"—"}</option>`).join("")}
+      </select>
+    </div>`:""}
+
+    <!-- Info del servicio -->
+    ${servicioRef?`
+    <div style="background:#0f172a;border-radius:10px;padding:12px;margin-bottom:16px">
+      <div style="color:#64748b;font-size:10px;margin-bottom:4px">SERVICIO CALIFICADO</div>
+      <div style="font-weight:700">OT ${servicioRef.num||"—"} · ${servicioRef.fecha||"—"}</div>
+      <div style="color:#64748b;font-size:11px;margin-top:2px">🏢 ${servicioRef.taller||"—"} · 👨‍🔧 ${servicioRef.tecnico||"—"}</div>
+    </div>`:""}
+
+    <!-- Estrellas -->
+    <div style="margin-bottom:20px">
+      <div style="color:#64748b;font-size:11px;font-weight:700;margin-bottom:10px;text-align:center">
+        ¿CÓMO CALIFICARÍAS EL SERVICIO EN GENERAL?
+      </div>
+      <div style="display:flex;justify-content:center;gap:10px" id="stars_container">
+        ${[1,2,3,4,5].map(i=>`<span class="star ${estrellas>=i?"on":""}" onclick="setEstrellas(${i})">★</span>`).join("")}
+      </div>
+      <div id="stars_label" style="text-align:center;font-size:12px;color:#64748b;margin-top:8px;min-height:18px">
+        ${estrellas?["","Muy malo 😞","Malo 😕","Regular 😐","Bueno 😊","Excelente 🤩"][estrellas]:"Toca para calificar"}
+      </div>
+    </div>
+
+    <!-- NPS -->
+    <div style="margin-bottom:20px">
+      <div style="color:#64748b;font-size:11px;font-weight:700;margin-bottom:10px;text-align:center">
+        ¿DEL 0 AL 10, QUÉ TAN PROBABLE ES QUE NOS RECOMIENDES?
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(11,1fr);gap:3px;margin-bottom:6px">
+        ${Array.from({length:11},(_,i)=>{
+          const color=i<=6?"r":i<=8?"y":"g";
+          return `<button class="nps-btn ${nps===i?"sel-"+color:""}" onclick="setNPS(${i})">${i}</button>`;
+        }).join("")}
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:#475569">
+        <span>0 = Nada probable</span><span>10 = Muy probable</span>
+      </div>
+    </div>
+
+    <!-- Texto libre -->
+    <div style="margin-bottom:12px">
+      <div style="color:#64748b;font-size:11px;font-weight:700;margin-bottom:6px">👍 ¿Qué estuvo bien? (opcional)</div>
+      <input id="enc_bueno" class="input" placeholder="Ej: Rapidez, amabilidad, precio..."/>
+    </div>
+    <div style="margin-bottom:16px">
+      <div style="color:#64748b;font-size:11px;font-weight:700;margin-bottom:6px">💡 ¿Qué podría mejorar? (opcional)</div>
+      <input id="enc_mejora" class="input" placeholder="Tu opinión nos ayuda a crecer..."/>
+    </div>
+
+    <!-- Submit -->
+    <button onclick="enviarEncuesta()"
+      style="width:100%;padding:13px;background:${estrellas&&nps>=0?"#f59e0b":"#334155"};color:${estrellas&&nps>=0?"#1e293b":"#64748b"};border:none;border-radius:10px;font-weight:900;font-size:15px;cursor:pointer;transition:all .2s"
+      ${!estrellas||nps<0?"disabled":""}>
+      📨 Enviar calificación
+    </button>
+    ${!estrellas||nps<0?`<div style="color:#475569;font-size:11px;text-align:center;margin-top:8px">Selecciona estrellas y tu puntuación de recomendación</div>`:""}
+    `}`}
+  </div>`;
+}
+
+function actualizarEncuesta(){
+  const el=$$("contenido_enc")||$$("app");
+  const card=$$("enc_top");
+  if(card)card.outerHTML=renderEncuesta();
+}
+
+function setEstrellas(n){
+  estrellas=n;
+  // Update stars display
+  const cont=$$("stars_container");
+  const lbl=$$("stars_label");
+  if(cont)cont.innerHTML=[1,2,3,4,5].map(i=>`<span class="star ${n>=i?"on":""}" onclick="setEstrellas(${i})">★</span>`).join("");
+  if(lbl)lbl.textContent=["","Muy malo 😞","Malo 😕","Regular 😐","Bueno 😊","Excelente 🤩"][n]||"";
+  // Re-enable submit button
+  const btn=document.querySelector("button[onclick='enviarEncuesta()']");
+  if(btn){btn.disabled=nps<0;btn.style.background=estrellas&&nps>=0?"#f59e0b":"#334155";btn.style.color=estrellas&&nps>=0?"#1e293b":"#64748b";}
+}
+
+function setNPS(n){
+  nps=n;
+  // Update NPS buttons
+  document.querySelectorAll(".nps-btn").forEach((btn,i)=>{
+    btn.className="nps-btn"+(i===n?" sel-"+(i<=6?"r":i<=8?"y":"g"):"");
+  });
+  const btn=document.querySelector("button[onclick='enviarEncuesta()']");
+  if(btn){btn.disabled=estrellas<1;btn.style.background=estrellas&&nps>=0?"#f59e0b":"#334155";btn.style.color=estrellas&&nps>=0?"#1e293b":"#64748b";}
+}
+
+async function enviarEncuesta(){
+  if(!estrellas||nps<0){alert("Selecciona estrellas y puntuación de recomendación");return;}
+  const payload={
+    placa:datos.placa,ot_num:encOtNum||null,
+    estrellas,nps,
+    aspecto_bueno:v("enc_bueno"),
+    aspecto_mejora:v("enc_mejora"),
+  };
+  const{error}=await SB.from("encuestas").insert(payload);
+  if(error){alert("Error al enviar: "+error.message);return;}
+  datos.encuestas=[{...payload,created_at:new Date().toISOString()},...datos.encuestas];
+  encEnviada=true;
+  renderApp();
+}
+
+function renderGracias(){
+  const msgWA=`¡Atendieron mi vehículo (${datos.placa}) en Servi Car Platinium y quedé muy satisfecho! ⭐${estrellas}/5 · Lo recomiendo ${nps}/10 📱 Puedes contactarlos al ${EMPRESA.tel}`;
+  return `
+  <div class="card fi" style="text-align:center;padding:30px">
+    <div style="font-size:56px;margin-bottom:14px">🎉</div>
+    <div style="font-weight:900;font-size:18px;color:#fbbf24;margin-bottom:8px">¡Gracias por calificar!</div>
+    <div style="color:#64748b;font-size:13px;margin-bottom:20px">Tu opinión es muy importante para seguir mejorando nuestro servicio.</div>
+    <div style="display:flex;justify-content:center;gap:4px;font-size:28px;margin-bottom:16px">
+      ${"★".repeat(estrellas)}${"☆".repeat(5-estrellas)}
+    </div>
+    ${estrellas>=4?`
+    <a href="https://wa.me/?text=${encodeURIComponent(msgWA)}" target="_blank"
+      style="display:block;padding:11px;background:#25d36620;color:#25d366;border:1px solid #25d36640;border-radius:10px;font-weight:700;font-size:13px;text-decoration:none;margin-bottom:10px">
+      📱 Compartir mi experiencia por WhatsApp
+    </a>`:""}
+    <button onclick="tab='historial';encEnviada=false;renderApp()"
+      style="width:100%;padding:10px;background:#334155;color:#94a3b8;border:none;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer">
+      ← Volver al historial
+    </button>
+  </div>`;
+}
+
+function renderYaCalificado(enc){
+  return `
+  <div class="card" style="text-align:center;padding:24px">
+    <div style="font-size:40px;margin-bottom:10px">✅</div>
+    <div style="font-weight:700;font-size:15px;margin-bottom:6px">Ya calificaste este servicio</div>
+    <div style="display:flex;justify-content:center;gap:4px;font-size:26px;margin-bottom:10px;color:#fbbf24">
+      ${"★".repeat(enc?.estrellas||0)}${"☆".repeat(5-(enc?.estrellas||0))}
+    </div>
+    <div style="color:#64748b;font-size:12px">NPS: ${enc?.nps??"-"}/10</div>
+    ${enc?.aspecto_bueno?`<div style="color:#475569;font-size:11px;margin-top:6px">👍 ${enc.aspecto_bueno}</div>`:""}
+    ${enc?.aspecto_mejora?`<div style="color:#475569;font-size:11px;margin-top:4px">💡 ${enc.aspecto_mejora}</div>`:""}
+    <div style="color:#334155;font-size:11px;margin-top:10px">¡Gracias por tomarte el tiempo de calificarnos!</div>
+  </div>`;
+}
+
+/* ── Nav ────────────────────────────────────────────── */
+function cambiarTab(t){tab=t;renderApp();}
+
+/* ── Exponer globales ───────────────────────────────── */
+[
+  "buscar","cambiarTab","renderApp","abrirEncuesta",
+  "setEstrellas","setNPS","enviarEncuesta","calcularAceite",
+].forEach(fn=>window[fn]=eval(fn));
+
+init();
+</script>
+</body>
+</html>
