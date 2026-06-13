@@ -96,7 +96,7 @@ async function init(){
 }
 
 async function cargarApiKey(){
-  apiKey=localStorage.getItem("scp_groq_key")||null;
+  apiKey=localStorage.getItem("scp_gemini_key")||null;
 }
 
 async function cargarInventario(){
@@ -179,21 +179,24 @@ const HERRAMIENTAS_TRABAJO=[
   }
 ];
 
-/* ── Llamada a Groq ── */
-async function llamarGroq(msgs){
-  if(!apiKey) throw new Error("Sin API Key de Groq. Wilfredo debe configurarla en Admin → Configuración → guardar la Groq API Key.");
-  const res=await fetch("https://api.groq.com/openai/v1/chat/completions",{
-    method:"POST",
-    headers:{"Authorization":`Bearer ${apiKey}`,"Content-Type":"application/json"},
-    body:JSON.stringify({
-      model:"llama-3.3-70b-versatile",
-      max_tokens:1500,
-      messages:[{role:"system",content:buildSystemPrompt()},...msgs],
-      tools:HERRAMIENTAS_TRABAJO.map(h=>({type:"function",function:{name:h.name,description:h.description,parameters:h.input_schema}})),
-      tool_choice:"auto"
-    })
-  });
-  if(!res.ok){const e=await res.json();throw new Error(e.error?.message||"Error de API Groq");}
+/* ── Llamada a Gemini Flash ── */
+async function llamarGemini(msgs){
+  if(!apiKey) throw new Error("Sin API Key de Gemini. Wilfredo debe configurarla en Admin → Configuración → guardar la Gemini API Key.");
+  const historial=msgs.slice(-6);
+  const res=await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+    {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        system_instruction:{parts:[{text:buildSystemPrompt()}]},
+        contents:historial,
+        tools:[{function_declarations:HERRAMIENTAS_TRABAJO.map(h=>({name:h.name,description:h.description,parameters:h.input_schema}))}],
+        generationConfig:{maxOutputTokens:1500}
+      })
+    }
+  );
+  if(!res.ok){const e=await res.json();throw new Error(e.error?.message||"Error de Gemini API");}
   return res.json();
 }
 
@@ -328,54 +331,55 @@ async function ejecutarCrearServicio(datos){
   return{agregado:true,ot_num:ot.num,servicio:datos.nombre,total_nuevo:total};
 }
 
-/* ── Bucle de procesamiento ── */
+/* ── Bucle de procesamiento (Gemini format) ── */
 async function procesarMensaje(texto){
-  conversacion.push({role:"user",content:texto});
+  conversacion.push({role:"user",parts:[{text:texto}]});
   const idTyping=agregarMensaje("typing","");
   let iter=0;const MAX=6;
 
   try{
     while(iter<MAX){
       iter++;
-      const resp=await llamarGroq(conversacion);
-      const msg=resp.choices[0].message;
-      const finish=resp.choices[0].finish_reason;
+      const resp=await llamarGemini(conversacion);
+      const candidate=resp.candidates?.[0];
+      if(!candidate) throw new Error("Gemini no devolvió respuesta");
 
-      if(finish==="tool_calls"&&msg.tool_calls?.length){
-        conversacion.push({role:"assistant",content:msg.content||null,tool_calls:msg.tool_calls});
+      const parts=candidate.content?.parts||[];
+      const funcCalls=parts.filter(p=>p.functionCall);
 
-        for(const tc of msg.tool_calls){
-          const nombre=tc.function.name;
-          const input=JSON.parse(tc.function.arguments);
+      if(funcCalls.length){
+        conversacion.push({role:"model",parts});
 
-          if(nombre==="solicitar_confirmacion"){
-            // Remove typing, await user confirmation modal
+        for(const p of funcCalls){
+          const{name,args}=p.functionCall;
+
+          if(name==="solicitar_confirmacion"){
             quitarMensaje(idTyping);
-            const res=await ejecutarHerramienta(nombre,input);
-            conversacion.push({role:"tool",tool_call_id:tc.id,content:JSON.stringify(res)});
-            const respFinal=await llamarGroq(conversacion);
-            const txtFinal=respFinal.choices[0].message.content||"";
+            const res=await ejecutarHerramienta(name,args);
+            conversacion.push({role:"user",parts:[{functionResponse:{name,response:{result:res}}}]});
+            const respFinal=await llamarGemini(conversacion);
+            const txtFinal=respFinal.candidates?.[0]?.content?.parts?.find(p=>p.text)?.text||"";
             agregarMensaje("ai",txtFinal);
-            conversacion.push({role:"assistant",content:txtFinal});
+            conversacion.push({role:"model",parts:[{text:txtFinal}]});
             return;
           } else {
-            const res=await ejecutarHerramienta(nombre,input);
-            conversacion.push({role:"tool",tool_call_id:tc.id,content:JSON.stringify(res)});
+            const res=await ejecutarHerramienta(name,args);
+            conversacion.push({role:"user",parts:[{functionResponse:{name,response:{result:res}}}]});
           }
         }
 
       } else {
-        const txt=msg.content||"";
+        const txt=parts.find(p=>p.text)?.text||"";
         quitarMensaje(idTyping);
         agregarMensaje("ai",txt);
-        conversacion.push({role:"assistant",content:txt});
+        conversacion.push({role:"model",parts:[{text:txt}]});
         break;
       }
     }
   } catch(e){
     quitarMensaje(idTyping);
     if(e.message.includes("Sin API Key")){
-      agregarMensaje("ai","⚠️ El asistente IA no está configurado todavía. **Pedile a Wilfredo que configure la API Key de Groq** en Admin → Configuración.\n\nMientras tanto, podés:\n• Ver el inventario en [Admin](/admin.html)\n• Ver tus OTs en [Órdenes](/ot.html)");
+      agregarMensaje("ai","⚠️ El asistente IA no está configurado todavía. **Pedile a Wilfredo que configure la API Key de Gemini** en Admin → Configuración.\n\nMientras tanto, podés:\n• Ver el inventario en [Admin](/admin.html)\n• Ver tus OTs en [Órdenes](/ot.html)");
     } else {
       agregarMensaje("error","❌ Error: "+e.message);
     }
