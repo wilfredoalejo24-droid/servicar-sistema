@@ -98,6 +98,8 @@ function render(){
     {k:"crm",         l:"👥 CRM"},
     {k:"herramientas",l:"🔧 Herramientas"},
     {k:"personal",    l:"🏖️ Personal"},
+    {k:"facturas",    l:"🖼️ Facturas IA"},
+    {k:"config",      l:"🔑 Configuración"},
   ];
   document.getElementById("app").innerHTML=`
   <div style="background:#1e293b;border-bottom:1px solid #334155;padding:12px 16px;position:sticky;top:0;z-index:100" class="noprint">
@@ -128,6 +130,8 @@ function renderTab(){
   if(tab==="crm")          return renderCRM();
   if(tab==="herramientas") return renderHerramientas();
   if(tab==="personal")     return renderPersonal();
+  if(tab==="facturas")     return renderFacturas();
+  if(tab==="config")       return renderConfig();
   return "";
 }
 
@@ -144,6 +148,7 @@ async function cambiarTab(t){
     await Promise.all([cargarVacaciones(),!workers?cargarWorkers():Promise.resolve()]);
     actualizarContenido();
   }
+  if(t==="config") cargarConfigKeys();
 }
 
 /* ══════════════════════════════════════════════════════
@@ -462,7 +467,7 @@ function renderListaHerrs(){
             <button onclick="cambiarEstH(${h.id},'Faltante',true)" style="padding:2px 7px;background:#ef444420;color:#ef4444;border:1px solid #ef444440;border-radius:5px;font-size:10px;cursor:pointer;font-weight:700">Faltante</button>
             <button onclick="cambiarEstH(${h.id},'Dada de baja',false)" style="padding:2px 7px;background:#33415520;color:#64748b;border:1px solid #33415540;border-radius:5px;font-size:10px;cursor:pointer;font-weight:700">Baja</button>
           `:`<button onclick="cambiarEstH(${h.id},'Activa',false)" style="padding:2px 7px;background:#16a34a20;color:#16a34a;border:1px solid #16a34a40;border-radius:5px;font-size:10px;cursor:pointer;font-weight:700">Activar</button>`}
-          <button onclick="eliminarHerr(${h.id})" style="padding:2px 7px;background:#ef444412;color:#ef4444;border:1px solid #ef444430;border-radius:5px;font-size:10px;cursor:pointer">🗑️</button>
+          ${esAdmin()?`<button onclick="eliminarHerr(${h.id})" style="padding:2px 7px;background:#ef444412;color:#ef4444;border:1px solid #ef444430;border-radius:5px;font-size:10px;cursor:pointer" title="Solo Wilfredo puede borrar">🗑️</button>`:""}
         </div></td>`:""}
       </tr>`).join("")}
       </tbody>
@@ -720,6 +725,229 @@ function modalEditarSaldo(id){
   };
 }
 
+/* ══════════════════════════════════════════════════════
+   TAB: FACTURAS IA
+══════════════════════════════════════════════════════ */
+let facturaImg=null, facturaProductos=[], facturaApiKey=null;
+
+function renderFacturas(){
+  if(!esAdmin()) return `<div class="card" style="text-align:center;padding:30px;color:#475569">Solo Wilfredo puede usar Facturas IA</div>`;
+  return `
+  <div class="card">
+    <div style="color:#a78bfa;font-size:11px;font-weight:700;text-transform:uppercase;margin-bottom:14px">🖼️ Escanear Factura o Lista de Compra</div>
+    <div style="color:#64748b;font-size:12px;margin-bottom:14px;line-height:1.5">Subí una foto de una factura o lista de compra. Claude leerá la imagen, extraerá los productos con precios y los registrará en el inventario con tu confirmación.</div>
+    <div style="margin-bottom:12px">
+      <div class="label">📷 Foto de factura o lista de compra</div>
+      <input type="file" accept="image/*" id="fac_img" onchange="cargarFacturaImg()"
+        style="width:100%;padding:10px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#94a3b8;font-size:12px;cursor:pointer"/>
+    </div>
+    <div id="fac_preview"></div>
+    ${facturaImg?`<button onclick="analizarFactura()" id="btn_analizar" style="width:100%;padding:12px;background:#7c3aed;color:#fff;border:none;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer;margin-top:10px">🤖 Analizar con Claude IA</button>`:""}
+  </div>
+  <div id="fac_resultado"></div>`;
+}
+
+window.cargarFacturaImg=function(){
+  const f=$$("fac_img")?.files?.[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=ev=>{
+    const img=new Image();
+    img.onload=()=>{
+      const cv=document.createElement("canvas");
+      const MAX=1200;let w=img.width,h=img.height;
+      if(w>MAX){h=h*(MAX/w);w=MAX;}else if(h>MAX){w=w*(MAX/h);h=MAX;}
+      cv.width=w;cv.height=h;cv.getContext("2d").drawImage(img,0,0,w,h);
+      facturaImg=cv.toDataURL("image/jpeg",0.85).split(",")[1];
+      const prev=$$("fac_preview");
+      if(prev) prev.innerHTML=`<img src="data:image/jpeg;base64,${facturaImg}" style="width:100%;border-radius:8px;max-height:280px;object-fit:contain;margin-bottom:8px"/>`;
+      actualizarContenido();
+    };
+    img.src=ev.target.result;
+  };
+  r.readAsDataURL(f);
+};
+
+window.analizarFactura=async function(){
+  if(!facturaImg){alert("Primero subí una imagen");return;}
+  if(!facturaApiKey){
+    const{data}=await SB.from("config").select("valor").eq("clave","claude_api_key").single();
+    facturaApiKey=data?.valor||null;
+  }
+  if(!facturaApiKey){alert("Necesitás configurar la API Key de Claude en la pestaña Configuración");return;}
+  const btn=$$("btn_analizar");if(btn){btn.disabled=true;btn.textContent="Analizando imagen...";}
+  const res=$$("fac_resultado");if(res) res.innerHTML=`<div class="card" style="text-align:center;padding:20px;color:#475569">Claude está leyendo la factura...</div>`;
+  try{
+    const resp=await fetch("https://api.anthropic.com/v1/messages",{
+      method:"POST",
+      headers:{"x-api-key":facturaApiKey,"anthropic-version":"2023-06-01","content-type":"application/json","anthropic-dangerous-direct-browser-access":"true"},
+      body:JSON.stringify({model:"claude-opus-4-5-20251001",max_tokens:1500,messages:[{role:"user",content:[
+        {type:"image",source:{type:"base64",media_type:"image/jpeg",data:facturaImg}},
+        {type:"text",text:`Esta es una factura o lista de compras de un taller automotriz en Bolivia. Extrae TODOS los productos con sus precios en Bolivianos. Responde SOLO con JSON: {"productos":[{"nombre":"...","costo":0,"cantidad":1,"precio_venta":0}]}. Sin texto adicional.`}
+      ]}]})
+    });
+    if(!resp.ok){const e=await resp.json();throw new Error(e.error?.message||"Error de API");}
+    const data=await resp.json();
+    const jsonStr=(data.content?.[0]?.text||"{}").replace(/```json\n?/g,"").replace(/```\n?/g,"").trim();
+    const parsed=JSON.parse(jsonStr);
+    facturaProductos=(parsed.productos||[]).map(p=>({...p,categoria:"Repuestos mecánicos",precio_venta:p.precio_venta||Math.round((p.costo||0)*1.3)||0}));
+    mostrarProductosFactura();
+  }catch(e){
+    if(res) res.innerHTML=`<div class="card" style="border-color:#ef444430;text-align:center;padding:20px;color:#ef4444">Error: ${e.message}</div>`;
+  }
+  if(btn){btn.disabled=false;btn.textContent="Analizar con Claude IA";}
+};
+
+function mostrarProductosFactura(){
+  const res=$$("fac_resultado");
+  if(!res||!facturaProductos.length){if(res) res.innerHTML=`<div class="card" style="text-align:center;padding:20px;color:#ef4444">No se encontraron productos.</div>`;return;}
+  res.innerHTML=`
+  <div class="card">
+    <div style="color:#16a34a;font-size:11px;font-weight:700;text-transform:uppercase;margin-bottom:12px">${facturaProductos.length} productos detectados — Revisá y confirmá</div>
+    <div class="ovf">
+      <table class="tbl">
+        <thead><tr><th>Producto</th><th>Costo Bs.</th><th>P.Venta Bs.</th><th>Cant.</th><th>Categoría</th></tr></thead>
+        <tbody>
+        ${facturaProductos.map((p,i)=>`<tr>
+          <td><input style="width:100%;padding:4px 6px;background:#0f172a;border:1px solid #334155;border-radius:5px;color:#fff;font-size:12px" value="${p.nombre||""}" onchange="facturaProductos[${i}].nombre=this.value"/></td>
+          <td><input type="number" style="width:75px;padding:4px 6px;background:#0f172a;border:1px solid #334155;border-radius:5px;color:#fff;font-size:12px" value="${p.costo||0}" onchange="facturaProductos[${i}].costo=parseFloat(this.value)||0"/></td>
+          <td><input type="number" style="width:75px;padding:4px 6px;background:#0f172a;border:1px solid #334155;border-radius:5px;color:#f59e0b;font-size:12px;font-weight:700" value="${p.precio_venta||0}" onchange="facturaProductos[${i}].precio_venta=parseFloat(this.value)||0"/></td>
+          <td><input type="number" style="width:55px;padding:4px 6px;background:#0f172a;border:1px solid #334155;border-radius:5px;color:#fff;font-size:12px" value="${p.cantidad||1}" onchange="facturaProductos[${i}].cantidad=parseInt(this.value)||1"/></td>
+          <td><select style="padding:4px 6px;background:#0f172a;border:1px solid #334155;border-radius:5px;color:#fff;font-size:11px" onchange="facturaProductos[${i}].categoria=this.value">${CATS_INV.map(c=>`<option value="${c}" ${p.categoria===c?"selected":""}>${c}</option>`).join("")}</select></td>
+        </tr>`).join("")}
+        </tbody>
+      </table>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px">
+      <button onclick="cancelarFactura()" style="padding:11px;background:#334155;color:#94a3b8;border:none;border-radius:10px;font-weight:700;cursor:pointer">Cancelar</button>
+      <button onclick="registrarFactura()" style="padding:11px;background:#16a34a;color:#fff;border:none;border-radius:10px;font-weight:700;cursor:pointer">Registrar ${facturaProductos.length} productos</button>
+    </div>
+  </div>`;
+}
+
+window.cancelarFactura=function(){facturaProductos=[];facturaImg=null;actualizarContenido();};
+
+window.registrarFactura=async function(){
+  if(!facturaProductos.length)return;
+  let ok=0,err=0;
+  for(const p of facturaProductos){
+    if(!p.nombre)continue;
+    const cat=p.categoria||"Repuestos mecánicos";
+    const pref=PREF_INV[cat]||"PR";
+    const{data:ex}=await SB.from("inventario").select("id,stock").ilike("nom",p.nombre).limit(1);
+    if(ex?.length){
+      const{error}=await SB.from("inventario").update({stock:ex[0].stock+(p.cantidad||1),costo:p.costo||ex[0].costo,precio:p.precio_venta||ex[0].precio}).eq("id",ex[0].id);
+      if(error)err++;else ok++;
+    } else {
+      const{data:existing}=await SB.from("inventario").select("cod").like("cod",`${pref}-%`);
+      const nums=(existing||[]).map(i=>parseInt(i.cod?.split("-")[1])||0);
+      const cod=`${pref}-${String(Math.max(0,...(nums.length?nums:[0]))+1).padStart(3,"0")}`;
+      const{error}=await SB.from("inventario").insert({nom:p.nombre,costo:p.costo||0,precio:p.precio_venta||0,stock:p.cantidad||1,cat,cod});
+      if(error)err++;else ok++;
+    }
+  }
+  await cargarInventario();
+  facturaProductos=[];facturaImg=null;tab="inventario";actualizarContenido();
+  alert(`Registrados: ${ok} productos${err?` · Errores: ${err}`:""}`);
+};
+
+/* ══════════════════════════════════════════════════════
+   TAB: CONFIGURACIÓN (API Keys)
+══════════════════════════════════════════════════════ */
+let configKeys={claude:"",gpt:""};
+
+async function cargarConfigKeys(){
+  const{data}=await SB.from("config").select("clave,valor").in("clave",["claude_api_key","chatgpt_api_key"]);
+  if(data){data.forEach(r=>{if(r.clave==="claude_api_key")configKeys.claude=r.valor||"";if(r.clave==="chatgpt_api_key")configKeys.gpt=r.valor||"";});}
+  actualizarContenido();
+}
+
+function renderConfig(){
+  if(!esAdmin()) return `<div class="card" style="text-align:center;padding:30px;color:#475569">Solo Wilfredo puede configurar las API Keys</div>`;
+  const maskKey=k=>k?k.slice(0,8)+"•".repeat(Math.max(0,k.length-12))+k.slice(-4):"No configurada";
+  const sqlText=`CREATE TABLE IF NOT EXISTS config (
+  id SERIAL PRIMARY KEY, clave TEXT UNIQUE NOT NULL, valor TEXT, updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS asistencia (
+  id SERIAL PRIMARY KEY, user_name TEXT NOT NULL, nombre TEXT,
+  tipo TEXT CHECK (tipo IN ('entrada','salida')), fecha TEXT, hora_registro TEXT, created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS acceso_especial (
+  id SERIAL PRIMARY KEY, user_name TEXT UNIQUE NOT NULL, activo BOOLEAN DEFAULT FALSE,
+  motivo TEXT, activado_por TEXT, expires_at TIMESTAMPTZ, updated_at TIMESTAMPTZ DEFAULT NOW()
+);`;
+  return `
+  <div class="card">
+    <div style="color:#f59e0b;font-size:11px;font-weight:700;text-transform:uppercase;margin-bottom:14px">API Keys de Inteligencia Artificial</div>
+    <div style="background:#f59e0b08;border:1px solid #f59e0b20;border-radius:10px;padding:10px 12px;margin-bottom:16px">
+      <div style="color:#94a3b8;font-size:11px;line-height:1.5">Las API Keys se guardan en Supabase y son usadas por todos los módulos de IA (Wilfredo IA, Asistente de Trabajo, Facturas). No se comparten.</div>
+    </div>
+    <div style="margin-bottom:16px">
+      <div class="label">Claude API Key (Anthropic)</div>
+      <div style="background:#0f172a;border:1px solid #334155;border-radius:8px;padding:9px 12px;color:#64748b;font-size:11px;font-family:monospace;margin-bottom:6px">${maskKey(configKeys.claude)}</div>
+      <div style="display:flex;gap:6px">
+        <input id="cfg_claude" type="password" class="input" placeholder="sk-ant-api03-..." style="flex:1;font-family:monospace;font-size:12px"/>
+        <button onclick="probarClaude()" style="padding:9px 12px;background:#7c3aed20;color:#a78bfa;border:1px solid #7c3aed30;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer">Probar</button>
+        <button onclick="guardarKey('claude')" style="padding:9px 12px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer">Guardar</button>
+      </div>
+      <div id="cfg_claude_res" style="font-size:11px;margin-top:5px;color:#64748b"></div>
+    </div>
+    <div style="margin-bottom:16px">
+      <div class="label">ChatGPT API Key (OpenAI)</div>
+      <div style="background:#0f172a;border:1px solid #334155;border-radius:8px;padding:9px 12px;color:#64748b;font-size:11px;font-family:monospace;margin-bottom:6px">${maskKey(configKeys.gpt)}</div>
+      <div style="display:flex;gap:6px">
+        <input id="cfg_gpt" type="password" class="input" placeholder="sk-proj-..." style="flex:1;font-family:monospace;font-size:12px"/>
+        <button onclick="probarGPT()" style="padding:9px 12px;background:#16a34a20;color:#4ade80;border:1px solid #16a34a30;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer">Probar</button>
+        <button onclick="guardarKey('gpt')" style="padding:9px 12px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer">Guardar</button>
+      </div>
+      <div id="cfg_gpt_res" style="font-size:11px;margin-top:5px;color:#64748b"></div>
+    </div>
+    <div style="border-top:1px solid #334155;padding-top:14px">
+      <div style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:8px">SQL necesario en Supabase (una sola vez)</div>
+      <div style="background:#0f172a;border:1px solid #334155;border-radius:8px;padding:12px;font-size:11px;font-family:monospace;color:#94a3b8;white-space:pre;overflow-x:auto">${sqlText.replace(/</g,"&lt;")}</div>
+      <button onclick="copiarSQL()" style="margin-top:8px;padding:7px 12px;background:#334155;color:#94a3b8;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer">Copiar SQL</button>
+    </div>
+  </div>`;
+}
+
+window.guardarKey=async function(tipo){
+  const id=tipo==="claude"?"cfg_claude":"cfg_gpt";
+  const clave=tipo==="claude"?"claude_api_key":"chatgpt_api_key";
+  const val=v(id);if(!val){alert("Ingresá la API Key primero");return;}
+  const{error}=await SB.from("config").upsert({clave,valor:val,updated_at:new Date().toISOString()},{onConflict:"clave"});
+  if(error){alert("Error: "+error.message);return;}
+  if(tipo==="claude")configKeys.claude=val;else configKeys.gpt=val;
+  $$(id).value="";
+  const res=$$(id+"_res");if(res){res.style.color="#16a34a";res.textContent="API Key guardada correctamente";}
+  setTimeout(actualizarContenido,1500);
+};
+
+window.probarClaude=async function(){
+  const key=v("cfg_claude")||configKeys.claude;if(!key){alert("Ingresá una API Key primero");return;}
+  const res=$$("cfg_claude_res");if(res){res.style.color="#64748b";res.textContent="Probando...";}
+  try{
+    const resp=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"x-api-key":key,"anthropic-version":"2023-06-01","content-type":"application/json","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:20,messages:[{role:"user",content:"Di hola en 2 palabras"}]})});
+    const data=await resp.json();
+    if(resp.ok){if(res){res.style.color="#16a34a";res.textContent="Conectado: "+data.content?.[0]?.text;}}
+    else{if(res){res.style.color="#ef4444";res.textContent="Error: "+data.error?.message;}}
+  }catch(e){if(res){res.style.color="#ef4444";res.textContent="Error de red: "+e.message;}}
+};
+
+window.probarGPT=async function(){
+  const key=v("cfg_gpt")||configKeys.gpt;if(!key){alert("Ingresá una API Key primero");return;}
+  const res=$$("cfg_gpt_res");if(res){res.style.color="#64748b";res.textContent="Probando...";}
+  try{
+    const resp=await fetch("https://api.openai.com/v1/chat/completions",{method:"POST",headers:{"Authorization":"Bearer "+key,"Content-Type":"application/json"},body:JSON.stringify({model:"gpt-4o-mini",max_tokens:20,messages:[{role:"user",content:"Di hola en 2 palabras"}]})});
+    const data=await resp.json();
+    if(resp.ok){if(res){res.style.color="#16a34a";res.textContent="Conectado: "+data.choices?.[0]?.message?.content;}}
+    else{if(res){res.style.color="#ef4444";res.textContent="Error: "+data.error?.message;}}
+  }catch(e){if(res){res.style.color="#ef4444";res.textContent="Error de red: "+e.message;}}
+};
+
+window.copiarSQL=function(){
+  const sql=`CREATE TABLE IF NOT EXISTS config (id SERIAL PRIMARY KEY, clave TEXT UNIQUE NOT NULL, valor TEXT, updated_at TIMESTAMPTZ DEFAULT NOW()); CREATE TABLE IF NOT EXISTS asistencia (id SERIAL PRIMARY KEY, user_name TEXT NOT NULL, nombre TEXT, tipo TEXT CHECK (tipo IN ('entrada','salida')), fecha TEXT, hora_registro TEXT, created_at TIMESTAMPTZ DEFAULT NOW()); CREATE TABLE IF NOT EXISTS acceso_especial (id SERIAL PRIMARY KEY, user_name TEXT UNIQUE NOT NULL, activo BOOLEAN DEFAULT FALSE, motivo TEXT, activado_por TEXT, expires_at TIMESTAMPTZ, updated_at TIMESTAMPTZ DEFAULT NOW());`;
+  navigator.clipboard?.writeText(sql).then(()=>alert("SQL copiado")).catch(()=>alert("No se pudo copiar automáticamente"));
+};
+
 /* ── Exponer globales ───────────────────────────────── */
 [
   "cambiarTab","actualizarContenido","closeModal","salir",
@@ -727,6 +955,7 @@ function modalEditarSaldo(id){
   "exportarCRMCSV",
   "selWorker","cambiarEstH","eliminarHerr","modalNuevaHerr","imprimirActa",
   "calcVsDias","enviarSolicitud","aprobarVac","rechazarVac","modalEditarSaldo",
+  "renderFacturas","renderConfig","cargarConfigKeys","mostrarProductosFactura",
 ].forEach(fn=>window[fn]=eval(fn));
 
 init();

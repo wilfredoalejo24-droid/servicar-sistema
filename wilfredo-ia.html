@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Wilfredo IA — Servi Car Platinium</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;background:#0f172a;color:#fff;min-height:100vh;display:flex;flex-direction:column}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:#0f172a}::-webkit-scrollbar-thumb{background:#334155;border-radius:2px}
+.btn{padding:7px 13px;border:none;border-radius:8px;font-weight:700;font-size:11px;cursor:pointer;transition:all .15s}
+@keyframes fi{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.fi{animation:fi .2s ease both}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.typing{animation:pulse 1.2s infinite}
+.msg-user{background:linear-gradient(135deg,#1d4ed8,#1e40af);border-radius:18px 18px 4px 18px;padding:11px 15px;margin-left:40px;word-break:break-word}
+.msg-ai{background:#1e293b;border:1px solid #334155;border-radius:18px 18px 18px 4px;padding:11px 15px;word-break:break-word}
+.msg-tool{background:#0f172a;border:1px solid #334155;border-radius:10px;padding:8px 12px;font-size:11px;font-family:monospace;color:#94a3b8;overflow-x:auto;margin:4px 0}
+.chip{padding:5px 11px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid;transition:all .15s;white-space:nowrap}
+input:focus,textarea:focus{outline:none;border-color:#f59e0b!important}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div style="background:#1e293b;border-bottom:1px solid #334155;padding:11px 15px;position:sticky;top:0;z-index:100;flex-shrink:0">
+  <div style="max-width:640px;margin:0 auto;display:flex;justify-content:space-between;align-items:center">
+    <div>
+      <a href="/" style="color:#475569;text-decoration:none;font-size:10px;font-weight:700">← Inicio</a>
+      <div style="color:#fbbf24;font-weight:900;font-size:15px;margin-top:1px">🤖 Wilfredo IA</div>
+      <div style="color:#475569;font-size:10px" id="hdr-status">Cargando...</div>
+    </div>
+    <div style="display:flex;gap:6px;align-items:center">
+      <select id="modelo-sel" style="padding:5px 8px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#fff;font-size:11px;cursor:pointer">
+        <option value="claude">🧠 Claude</option>
+        <option value="gpt">🤖 ChatGPT</option>
+      </select>
+      <button onclick="limpiarChat()" class="btn" style="background:#334155;color:#94a3b8">🗑 Limpiar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Status bar -->
+<div id="status-bar" style="max-width:640px;width:100%;margin:10px auto 0;padding:0 14px;flex-shrink:0"></div>
+
+<!-- Quick actions -->
+<div style="max-width:640px;width:100%;margin:10px auto 0;padding:0 14px;flex-shrink:0">
+  <div style="color:#334155;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:7px">Acciones rápidas</div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap">
+    <button onclick="accionRapida('¿Cuánto ganamos hoy? Dame el total de ingresos, egresos y utilidad de la caja de hoy')" class="chip" style="background:#16a34a15;color:#16a34a;border-color:#16a34a30">💰 Ventas hoy</button>
+    <button onclick="accionRapida('Muéstrame las OTs abiertas en este momento con su estado y cliente')" class="chip" style="background:#1d4ed815;color:#60a5fa;border-color:#1d4ed830">📋 OTs abiertas</button>
+    <button onclick="accionRapida('¿Cuáles son los productos con stock bajo o agotados en el inventario?')" class="chip" style="background:#ef444415;color:#ef4444;border-color:#ef444430">⚠️ Stock bajo</button>
+    <button onclick="accionRapida('Dame un resumen de los ingresos de los últimos 7 días sumando por fecha')" class="chip" style="background:#7c3aed15;color:#a78bfa;border-color:#7c3aed30">📊 Informe semanal</button>
+    <button onclick="accionRapida('Muéstrame todos los trabajadores y si están con turno activo o no')" class="chip" style="background:#f59e0b15;color:#fbbf24;border-color:#f59e0b30">👷 Personal</button>
+    <button onclick="mostrarDesbloqueo()" class="chip" style="background:#334155;color:#94a3b8;border-color:#475569">🔓 Desbloquear turno</button>
+  </div>
+</div>
+
+<!-- Chat area -->
+<div id="chat" style="flex:1;overflow-y:auto;padding:14px;max-width:640px;width:100%;margin:10px auto 0;display:flex;flex-direction:column;gap:12px"></div>
+
+<!-- Input area -->
+<div style="background:#1e293b;border-top:1px solid #334155;padding:12px 14px;position:sticky;bottom:0;flex-shrink:0">
+  <div style="max-width:640px;margin:0 auto">
+    <div style="display:flex;gap:8px;align-items:flex-end">
+      <button id="btn-voz" onclick="toggleVoz()" class="btn" style="background:#334155;color:#94a3b8;padding:9px 11px;flex-shrink:0;font-size:15px">🎤</button>
+      <textarea id="inp" rows="1" placeholder="Escribe una instrucción... Ej: registra compra pastillas cerámicas costo 100 venta 200"
+        style="flex:1;padding:10px 12px;background:#0f172a;border:1px solid #334155;border-radius:10px;color:#fff;font-size:13px;resize:none;max-height:100px;overflow-y:auto;line-height:1.4"
+        oninput="autoResize(this)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();enviar()}"></textarea>
+      <button id="btn-env" onclick="enviar()" class="btn" style="background:#f59e0b;color:#1e293b;padding:9px 14px;flex-shrink:0;font-size:15px">→</button>
+    </div>
+    <div style="color:#334155;font-size:10px;text-align:center;margin-top:5px">
+      Shift+Enter para nueva línea · Enter para enviar · 🎤 para dictar
+    </div>
+  </div>
+</div>
+
+<!-- Modal desbloqueo -->
+<div id="modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:999;display:none;align-items:flex-end;justify-content:center">
+  <div id="modal-box" style="background:#1e293b;border-radius:16px 16px 0 0;padding:22px;width:100%;max-width:520px;max-height:80vh;overflow-y:auto">
+  </div>
+</div>
+
+<script>
+const SB=window.supabase.createClient("https://epirsbudngwbxgcsryvv.supabase.co","sb_publishable_zsqvMzJMc80Ypf3UQqs-SA_IrV-XIGc");
+
+const PREF_INV={Aceites:"AC",Lubricantes:"LB",Filtros:"FI","Líquidos":"LQ","Repuestos mecánicos":"RM","Repuestos electrónicos":"RE",Accesorios:"ACC","Prod. lavado":"PL",Herramientas:"HE",Insumos:"IN"};
+const CATS_INV=Object.keys(PREF_INV);
+const hoy=()=>new Date().toLocaleDateString("es-BO");
+const fmt=n=>`Bs. ${parseFloat(n||0).toFixed(2)}`;
+
+let usuario=null, apiKeys={claude:null,gpt:null}, conversacion=[], invCache=null;
+let escuchando=false, recognition=null;
+
+/* ── Sesión ─────────────────────────────────────── */
+function getSession(){try{return JSON.parse(localStorage.getItem("scp_user"))||null;}catch{return null;}}
+
+/* ── Init ───────────────────────────────────────── */
+async function init(){
+  usuario=getSession();
+  if(!usuario){location.href="/";return;}
+  if(usuario.rol!=="admin"){
+    document.getElementById("hdr-status").textContent="Solo Wilfredo puede acceder a este panel";
+    agregarMensaje("sistema","❌ Solo Wilfredo tiene acceso al Panel IA.");
+    document.getElementById("btn-env").disabled=true;
+    return;
+  }
+  document.getElementById("hdr-status").textContent=`${usuario.nombre} · Administrador`;
+
+  // Cargar API keys y datos en paralelo
+  await Promise.all([cargarApiKeys(), cargarInventarioCache()]);
+  mostrarStatusBar();
+  iniciarVoz();
+
+  agregarMensaje("ai",`¡Hola **${usuario.nombre}**! 🤖 Soy tu asistente con acceso total al sistema.\n\nPuedo:\n• 🛒 Registrar compras al inventario\n• 📋 Agregar repuestos a OTs por nombre de cliente\n• 💰 Consultar ventas, caja y ganancias\n• 📊 Generar informes\n• 🔓 Gestionar acceso de trabajadores\n\n¿Qué necesitas?`);
+}
+
+/* ── API Keys ───────────────────────────────────── */
+async function cargarApiKeys(){
+  const{data}=await SB.from("config").select("clave,valor").in("clave",["claude_api_key","chatgpt_api_key"]);
+  if(data){
+    data.forEach(r=>{
+      if(r.clave==="claude_api_key") apiKeys.claude=r.valor;
+      if(r.clave==="chatgpt_api_key") apiKeys.gpt=r.valor;
+    });
+  }
+}
+
+async function cargarInventarioCache(){
+  const{data}=await SB.from("inventario").select("id,nom,cod,cat,stock,costo,precio").order("nom");
+  invCache=data||[];
+}
+
+function mostrarStatusBar(){
+  const cOk=!!apiKeys.claude, gOk=!!apiKeys.gpt;
+  document.getElementById("status-bar").innerHTML=`
+  <div style="display:flex;gap:6px;flex-wrap:wrap">
+    <span style="padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;background:${cOk?"#16a34a":"#ef4444"}15;color:${cOk?"#16a34a":"#ef4444"};border:1px solid ${cOk?"#16a34a":"#ef4444"}30">
+      ${cOk?"🟢":"🔴"} Claude ${cOk?"OK":"sin key"}
+    </span>
+    <span style="padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;background:${gOk?"#16a34a":"#475569"}15;color:${gOk?"#16a34a":"#475569"};border:1px solid ${gOk?"#16a34a":"#475569"}30">
+      ${gOk?"🟢":"⚫"} ChatGPT ${gOk?"OK":"sin key"}
+    </span>
+    <span style="padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;background:#3b82f615;color:#3b82f6;border:1px solid #3b82f630">
+      📦 ${invCache?.length||0} productos
+    </span>
+    ${!cOk&&!gOk?`<a href="/admin.html" style="padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;background:#f59e0b15;color:#f59e0b;border:1px solid #f59e0b30;text-decoration:none">⚙️ Configurar keys en Admin</a>`:""}
+  </div>`;
+}
+
+/* ── Sistema de chat ────────────────────────────── */
+const SYSTEM_PROMPT=`Eres el asistente IA personal de Wilfredo, dueño y administrador del taller automotriz SERVI CAR PLATINIUM en Viacha, La Paz, Bolivia.
+
+ACCESO TOTAL: Inventario, Órdenes de Trabajo, Caja, CRM, Personal.
+IDIOMA: Responde en español boliviano, directo y conciso.
+MONEDA: Bolivianos (Bs.)
+FECHA HOY: ${hoy()}
+
+Cuando el usuario pide una acción (registrar, agregar, consultar, etc.) usa las herramientas disponibles.
+Si necesitas buscar una OT por nombre de cliente, primero usa buscar_ot, luego ejecuta la acción.
+Cuando registres compras, si el producto ya existe actualiza el stock; si no, créalo.
+Al mostrar datos numéricos, usa formato Bs. X.XX.
+Sé proactivo: si ves algo importante (stock bajo, OT urgente), menciónalo.`;
+
+const HERRAMIENTAS=[
+  {
+    name:"buscar_inventario",
+    description:"Busca productos en el inventario por nombre, código o categoría. Úsala para consultar precios, stock y disponibilidad.",
+    input_schema:{
+      type:"object",
+      properties:{
+        busqueda:{type:"string",description:"Nombre, código o parte del nombre del producto"},
+        categoria:{type:"string",description:"Categoría del producto"},
+        solo_bajos:{type:"boolean",description:"Si true, solo muestra productos con stock bajo o agotado"}
+      }
+    }
+  },
+  {
+    name:"registrar_compra",
+    description:"Registra un producto nuevo o actualiza stock/precios de uno existente en el inventario. Usar cuando el usuario dice 'compré', 'registra', 'llegó mercadería', etc.",
+    input_schema:{
+      type:"object",
+      properties:{
+        nombre:{type:"string",description:"Nombre del producto"},
+        costo:{type:"number",description:"Precio de costo (lo que pagamos)"},
+        precio_venta:{type:"number",description:"Precio de venta al cliente"},
+        stock:{type:"number",description:"Cantidad que llegó"},
+        categoria:{type:"string",description:"Categoría del producto"},
+        marca:{type:"string"},
+        medida:{type:"string",description:"500ml, 1L, 14mm, etc."}
+      },
+      required:["nombre"]
+    }
+  },
+  {
+    name:"buscar_ot",
+    description:"Busca Órdenes de Trabajo por número OT, nombre de cliente o placa de vehículo.",
+    input_schema:{
+      type:"object",
+      properties:{
+        busqueda:{type:"string",description:"Número OT (ej: OT-12345), nombre cliente o placa"},
+        solo_abiertas:{type:"boolean",description:"Si true, solo busca OTs sin entregar"}
+      },
+      required:["busqueda"]
+    }
+  },
+  {
+    name:"agregar_a_ot",
+    description:"Agrega un repuesto o servicio a una Orden de Trabajo existente. Usar tras buscar_ot para obtener el ID.",
+    input_schema:{
+      type:"object",
+      properties:{
+        ot_id:{type:"number",description:"ID de la OT (obtenido de buscar_ot)"},
+        nombre:{type:"string",description:"Nombre del repuesto o servicio"},
+        precio:{type:"number",description:"Precio unitario en Bs."},
+        cantidad:{type:"number",description:"Cantidad"},
+        costo:{type:"number",description:"Costo unitario en Bs. (opcional)"},
+        tipo:{type:"string",enum:["repuesto","servicio"],description:"Si es repuesto físico o servicio de mano de obra"}
+      },
+      required:["ot_id","nombre","precio"]
+    }
+  },
+  {
+    name:"consultar_caja",
+    description:"Consulta movimientos de caja: ingresos, egresos y utilidad. Para 'hoy', 'esta semana', una fecha específica o rango.",
+    input_schema:{
+      type:"object",
+      properties:{
+        fecha:{type:"string",description:"'hoy', 'ayer', fecha en dd/mm/yyyy, o rango 'del X al Y'"},
+        taller:{type:"string",description:"'Taller 1 · Montes', 'Taller 2 · Bella Vista', o vacío para ambos"}
+      }
+    }
+  },
+  {
+    name:"consultar_ots",
+    description:"Lista Órdenes de Trabajo con filtros. Úsala para ver OTs activas, de un cliente específico, de hoy, etc.",
+    input_schema:{
+      type:"object",
+      properties:{
+        estado:{type:"string",enum:["abiertas","entregadas","todas"]},
+        cliente:{type:"string"},
+        tecnico:{type:"string"},
+        limite:{type:"number",description:"Máximo de resultados, default 10"}
+      }
+    }
+  },
+  {
+    name:"gestionar_acceso_turno",
+    description:"Bloquea o desbloquea el acceso de un trabajador al sistema (para turnos de emergencia o auxilios).",
+    input_schema:{
+      type:"object",
+      properties:{
+        user_name:{type:"string",description:"Nombre de usuario del trabajador"},
+        accion:{type:"string",enum:["desbloquear","bloquear"]},
+        motivo:{type:"string"},
+        horas:{type:"number",description:"Horas de acceso temporal (default 4)"}
+      },
+      required:["user_name","accion"]
+    }
+  },
+  {
+    name:"consultar_personal",
+    description:"Muestra estado de trabajadores: turnos activos, vacaciones, acceso al sistema.",
+    input_schema:{type:"object",properties:{}}
+  }
+];
+
+/* ── Llamada a Claude ───────────────────────────── */
+async function llamarClaude(mensajes){
+  if(!apiKeys.claude) throw new Error("No hay API Key de Claude. Configurala en Admin → Configuración.");
+  const res=await fetch("https://api.anthropic.com/v1/messages",{
+    method:"POST",
+    headers:{
+      "x-api-key":apiKeys.claude,
+      "anthropic-version":"2023-06-01",
+      "content-type":"application/json",
+      "anthropic-dangerous-direct-browser-access":"true"
+    },
+    body:JSON.stringify({
+      model:"claude-opus-4-5-20251001",
+      max_tokens:2048,
+      system:SYSTEM_PROMPT,
+      tools:HERRAMIENTAS,
+      messages:mensajes
+    })
+  });
+  if(!res.ok){const e=await res.json();throw new Error(e.error?.message||"Error de API Claude");}
+  return res.json();
+}
+
+/* ── Llamada a ChatGPT ──────────────────────────── */
+async function llamarGPT(mensajes){
+  if(!apiKeys.gpt) throw new Error("No hay API Key de ChatGPT. Configurala en Admin → Configuración.");
+  // Convertir formato Claude → OpenAI
+  const msgs=[{role:"system",content:SYSTEM_PROMPT},...mensajes.map(m=>({
+    role:m.role==="user"&&Array.isArray(m.content)?"user":m.role,
+    content:Array.isArray(m.content)?JSON.stringify(m.content):m.content
+  }))];
+  const res=await fetch("https://api.openai.com/v1/chat/completions",{
+    method:"POST",
+    headers:{"Authorization":`Bearer ${apiKeys.gpt}`,"Content-Type":"application/json"},
+    body:JSON.stringify({
+      model:"gpt-4o-mini",
+      messages:msgs,
+      tools:HERRAMIENTAS.map(h=>({type:"function",function:{name:h.name,description:h.description,parameters:h.input_schema}})),
+      max_tokens:2048
+    })
+  });
+  if(!res.ok){const e=await res.json();throw new Error(e.error?.message||"Error de API OpenAI");}
+  const data=await res.json();
+  // Normalizar respuesta GPT al formato de Claude
+  const msg=data.choices[0].message;
+  if(msg.tool_calls){
+    return {
+      stop_reason:"tool_use",
+      content:msg.tool_calls.map(tc=>({
+        type:"tool_use",id:tc.id,name:tc.function.name,
+        input:JSON.parse(tc.function.arguments)
+      }))
+    };
+  }
+  return{stop_reason:"end_turn",content:[{type:"text",text:msg.content}]};
+}
+
+/* ── Ejecutar herramienta ───────────────────────── */
+async function ejecutarHerramienta(nombre,input){
+  switch(nombre){
+    case "buscar_inventario":{
+      let q=SB.from("inventario").select("id,cod,nom,marca,cat,stock,costo,precio,min");
+      if(input.busqueda) q=q.ilike("nom",`%${input.busqueda}%`);
+      if(input.categoria) q=q.eq("cat",input.categoria);
+      if(input.solo_bajos) q=q.or("stock.eq.0,stock.lt.min");
+      const{data,error}=await q.order("nom").limit(20);
+      if(error) return{error:error.message};
+      invCache=invCache; // mantener cache
+      return{productos:data,total:data?.length||0};
+    }
+
+    case "registrar_compra":{
+      // Buscar si ya existe
+      const{data:ex}=await SB.from("inventario").select("*").ilike("nom",input.nombre).limit(1);
+      if(ex?.length){
+        const prod=ex[0];
+        const nuevoStock=prod.stock+(input.stock||1);
+        const upd={stock:nuevoStock};
+        if(input.costo>0) upd.costo=input.costo;
+        if(input.precio_venta>0) upd.precio=input.precio_venta;
+        const{data,error}=await SB.from("inventario").update(upd).eq("id",prod.id).select().single();
+        if(error) return{error:error.message};
+        // Actualizar cache
+        invCache=invCache.map(i=>i.id===prod.id?{...i,...upd}:i);
+        return{accion:"actualizado",producto:data.nom,stock_anterior:prod.stock,stock_nuevo:nuevoStock,cod:prod.cod};
+      } else {
+        const cat=input.categoria||"Repuestos mecánicos";
+        const p=PREF_INV[cat]||"PR";
+        const{data:ex2}=await SB.from("inventario").select("cod").like("cod",`${p}-%`);
+        const nums=(ex2||[]).map(i=>parseInt(i.cod?.split("-")[1])||0);
+        const cod=`${p}-${String(Math.max(0,...(nums.length?nums:[0]))+1).padStart(3,"0")}`;
+        const nuevo={
+          nom:input.nombre,costo:input.costo||0,precio:input.precio_venta||0,
+          stock:input.stock||1,cat,marca:input.marca||"",
+          medida:input.medida||"",cod
+        };
+        const{data,error}=await SB.from("inventario").insert(nuevo).select().single();
+        if(error) return{error:error.message};
+        invCache=[...invCache,data].sort((a,b)=>a.nom.localeCompare(b.nom));
+        mostrarStatusBar();
+        return{accion:"registrado",producto:data.nom,cod:data.cod,precio_venta:data.precio,costo:data.costo};
+      }
+    }
+
+    case "buscar_ot":{
+      const b=input.busqueda;
+      let q=SB.from("ots").select("id,num,cliente,placa,paso,fecha,tecnico,repuestos,servicios,total,taller").order("id",{ascending:false}).limit(5);
+      q=q.or(`cliente.ilike.%${b}%,num.ilike.%${b}%,placa.ilike.%${b}%`);
+      if(input.solo_abiertas) q=q.lt("paso",8);
+      const{data,error}=await q;
+      if(error) return{error:error.message};
+      return{ots:data,encontradas:data?.length||0};
+    }
+
+    case "agregar_a_ot":{
+      const{data:ot,error:er1}=await SB.from("ots").select("*").eq("id",input.ot_id).single();
+      if(er1||!ot) return{error:"OT no encontrada con ID "+input.ot_id};
+      const cant=input.cantidad||1;
+      const precio=input.precio||0;
+      const costo=input.costo||0;
+      const subtotal=precio*cant;
+      const tipo=input.tipo||"repuesto";
+
+      if(tipo==="servicio"){
+        const svs=Array.isArray(ot.servicios)?ot.servicios:[];
+        svs.push({nom:input.nombre,precio,costo});
+        const total=(ot.repuestos||[]).reduce((s,r)=>s+(r.subtotal||0),0)+svs.reduce((s,sv)=>s+(sv.precio||0),0);
+        const{error}=await SB.from("ots").update({servicios:svs,total}).eq("id",input.ot_id);
+        if(error) return{error:error.message};
+        return{accion:"servicio_agregado",ot_num:ot.num,cliente:ot.cliente,servicio:input.nombre,precio,total_nuevo:total};
+      } else {
+        const reps=Array.isArray(ot.repuestos)?ot.repuestos:[];
+        reps.push({nom:input.nombre,precio,cant,costo,subtotal});
+        const total=reps.reduce((s,r)=>s+(r.subtotal||0),0)+(ot.servicios||[]).reduce((s,sv)=>s+(sv.precio||0),0);
+        const{error}=await SB.from("ots").update({repuestos:reps,total}).eq("id",input.ot_id);
+        if(error) return{error:error.message};
+        // Reducir stock si el producto está en inventario
+        const prod=invCache?.find(i=>i.nom?.toLowerCase()===input.nombre.toLowerCase());
+        if(prod&&prod.stock>0){
+          await SB.from("inventario").update({stock:prod.stock-cant}).eq("id",prod.id);
+          invCache=invCache.map(i=>i.id===prod.id?{...i,stock:i.stock-cant}:i);
+        }
+        return{accion:"repuesto_agregado",ot_num:ot.num,cliente:ot.cliente,repuesto:input.nombre,precio,cantidad:cant,total_nuevo:total};
+      }
+    }
+
+    case "consultar_caja":{
+      const fecha=(!input.fecha||input.fecha==="hoy")?hoy():
+                  input.fecha==="ayer"?new Date(Date.now()-86400000).toLocaleDateString("es-BO"):input.fecha;
+      let q=SB.from("caja").select("tipo,monto,descripcion,taller,fecha").eq("fecha",fecha);
+      if(input.taller) q=q.eq("taller",input.taller);
+      const{data,error}=await q;
+      if(error) return{error:error.message};
+      const ingresos=(data||[]).filter(c=>c.tipo==="ingreso").reduce((s,c)=>s+parseFloat(c.monto||0),0);
+      const egresos=(data||[]).filter(c=>c.tipo==="egreso").reduce((s,c)=>s+parseFloat(c.monto||0),0);
+      return{fecha,ingresos,egresos,utilidad:ingresos-egresos,movimientos:data?.length||0};
+    }
+
+    case "consultar_ots":{
+      let q=SB.from("ots").select("id,num,cliente,placa,paso,fecha,tecnico,total,taller").order("id",{ascending:false});
+      if(input.estado==="abiertas") q=q.lt("paso",8);
+      else if(input.estado==="entregadas") q=q.gte("paso",8);
+      if(input.cliente) q=q.ilike("cliente",`%${input.cliente}%`);
+      if(input.tecnico) q=q.ilike("tecnico",`%${input.tecnico}%`);
+      q=q.limit(input.limite||10);
+      const{data,error}=await q;
+      if(error) return{error:error.message};
+      const PASOS=["","Recepción","Diagnóstico","Cotización","Aprobación","Ejecución","Trab.adicional","Calidad","Entregada"];
+      return{ots:(data||[]).map(o=>({...o,estado:PASOS[o.paso]||""})),total:data?.length||0};
+    }
+
+    case "gestionar_acceso_turno":{
+      const expires=new Date(Date.now()+(input.horas||4)*3600000).toISOString();
+      const{error}=await SB.from("acceso_especial").upsert({
+        user_name:input.user_name,
+        activo:input.accion==="desbloquear",
+        motivo:input.motivo||"Auxilio autorizado por Wilfredo",
+        activado_por:"Wilfredo",
+        expires_at:input.accion==="desbloquear"?expires:null,
+        updated_at:new Date().toISOString()
+      },{onConflict:"user_name"});
+      if(error) return{error:error.message};
+      return{accion:input.accion,user_name:input.user_name,
+        acceso_hasta:input.accion==="desbloquear"?new Date(expires).toLocaleTimeString("es-BO"):null};
+    }
+
+    case "consultar_personal":{
+      const[{data:users},{data:asist},{data:accEsp}]=await Promise.all([
+        SB.from("usuarios").select("nombre,user_name,rol,taller"),
+        SB.from("asistencia").select("user_name,tipo,hora_registro,fecha").order("id",{ascending:false}),
+        SB.from("acceso_especial").select("*").eq("activo",true)
+      ]);
+      // Estado de cada trabajador
+      const personal=(users||[]).map(u=>{
+        const historial=(asist||[]).filter(a=>a.user_name===u.user_name);
+        const ultimo=historial[0];
+        const enTurno=ultimo?.tipo==="entrada";
+        const accEspecial=(accEsp||[]).find(a=>a.user_name===u.user_name);
+        return{
+          nombre:u.nombre,rol:u.rol,taller:u.taller,
+          en_turno:enTurno,ultimo_registro:ultimo?.tipo,
+          hora:ultimo?.hora_registro,acceso_especial:!!accEspecial
+        };
+      });
+      return{personal,total:personal.length};
+    }
+
+    default:
+      return{error:"Herramienta desconocida: "+nombre};
+  }
+}
+
+/* ── Bucle de procesamiento ─────────────────────── */
+async function procesarMensaje(texto){
+  const modelo=document.getElementById("modelo-sel").value;
+  conversacion.push({role:"user",content:texto});
+
+  const idTyping=agregarMensaje("typing","");
+  let iteraciones=0;
+  const MAX=6;
+
+  try {
+    while(iteraciones<MAX){
+      iteraciones++;
+      const resp=modelo==="gpt"?await llamarGPT(conversacion):await llamarClaude(conversacion);
+
+      if(resp.stop_reason==="tool_use"){
+        const bloques=Array.isArray(resp.content)?resp.content:[];
+        const resultados=[];
+
+        for(const blk of bloques){
+          if(blk.type==="tool_use"){
+            // Mostrar herramienta ejecutándose
+            actualizarMensaje(idTyping,"tool",`🔧 Ejecutando: **${blk.name}**\n\`\`\`\n${JSON.stringify(blk.input,null,1)}\n\`\`\``);
+
+            const res=await ejecutarHerramienta(blk.name,blk.input);
+            resultados.push({type:"tool_result",tool_use_id:blk.id,content:JSON.stringify(res)});
+
+            // Log del resultado
+            agregarMensaje("tool",`✅ ${blk.name}: ${JSON.stringify(res).substring(0,120)}...`);
+          }
+        }
+
+        conversacion.push({role:"assistant",content:resp.content});
+        conversacion.push({role:"user",content:resultados});
+
+        actualizarMensaje(idTyping,"typing","");
+
+      } else if(resp.stop_reason==="end_turn"){
+        const texto=resp.content?.find?.(b=>b.type==="text")?.text||resp.content||"";
+        quitarMensaje(idTyping);
+        agregarMensaje("ai",texto);
+        conversacion.push({role:"assistant",content:Array.isArray(resp.content)?resp.content:texto});
+        break;
+      } else {
+        break;
+      }
+    }
+  } catch(e){
+    quitarMensaje(idTyping);
+    agregarMensaje("error","❌ Error: "+e.message+"\n\n¿Configuraste las API Keys en Admin → Configuración?");
+  }
+}
+
+/* ── Enviar mensaje ─────────────────────────────── */
+async function enviar(){
+  const inp=document.getElementById("inp");
+  const texto=inp.value.trim();
+  if(!texto)return;
+  inp.value="";inp.style.height="auto";
+  agregarMensaje("user",texto);
+  document.getElementById("btn-env").disabled=true;
+  await procesarMensaje(texto);
+  document.getElementById("btn-env").disabled=false;
+}
+
+function accionRapida(texto){
+  document.getElementById("inp").value=texto;
+  enviar();
+}
+
+/* ── Render de mensajes ─────────────────────────── */
+let msgId=0;
+function agregarMensaje(tipo,texto){
+  const id="msg-"+(++msgId);
+  const chat=document.getElementById("chat");
+  const div=document.createElement("div");
+  div.id=id;div.className="fi";
+  div.style.cssText="display:flex;flex-direction:column;gap:4px";
+  chat.appendChild(div);
+  actualizarMensaje(id,tipo,texto);
+  chat.scrollTop=chat.scrollHeight;
+  return id;
+}
+
+function actualizarMensaje(id,tipo,texto){
+  const div=document.getElementById(id);
+  if(!div)return;
+  const ts=new Date().toLocaleTimeString("es-BO",{hour:"2-digit",minute:"2-digit"});
+  if(tipo==="user"){
+    div.innerHTML=`<div style="text-align:right"><div class="msg-user"><div style="font-size:13px;line-height:1.5">${esc(texto)}</div></div><div style="font-size:9px;color:#334155;margin-right:4px;margin-top:2px">Tú · ${ts}</div></div>`;
+  } else if(tipo==="ai"){
+    div.innerHTML=`<div style="display:flex;gap:8px;align-items:flex-start"><div style="flex-shrink:0;width:28px;height:28px;background:#1d4ed8;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;margin-top:2px">🤖</div><div style="flex:1"><div class="msg-ai"><div style="font-size:13px;line-height:1.6">${mdToHtml(texto)}</div></div><div style="font-size:9px;color:#334155;margin-left:4px;margin-top:2px">IA · ${ts}</div></div></div>`;
+  } else if(tipo==="typing"){
+    div.innerHTML=`<div style="display:flex;gap:8px;align-items:center"><div style="width:28px;height:28px;background:#1d4ed8;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px">🤖</div><div class="msg-ai typing" style="padding:12px 16px;display:flex;gap:4px;align-items:center">${texto||"<span>Pensando</span><span style='font-size:18px'>...</span>"}</div></div>`;
+  } else if(tipo==="tool"){
+    div.innerHTML=`<div style="padding:0 10px"><div class="msg-tool">${esc(texto)}</div></div>`;
+  } else if(tipo==="error"){
+    div.innerHTML=`<div class="msg-ai" style="border-color:#ef4444;background:#ef444410"><div style="font-size:13px;color:#f87171;line-height:1.5">${esc(texto)}</div></div>`;
+  } else if(tipo==="sistema"){
+    div.innerHTML=`<div style="text-align:center;padding:8px;color:#475569;font-size:11px">${esc(texto)}</div>`;
+  }
+  document.getElementById("chat").scrollTop=document.getElementById("chat").scrollHeight;
+}
+
+function quitarMensaje(id){const el=document.getElementById(id);if(el)el.remove();}
+
+function esc(t){return(t||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+
+function mdToHtml(t){
+  return (t||"")
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+    .replace(/\*\*(.*?)\*\*/g,"<strong>$1</strong>")
+    .replace(/\*(.*?)\*/g,"<em>$1</em>")
+    .replace(/`([^`]+)`/g,'<code style="background:#0f172a;padding:1px 5px;border-radius:4px;font-family:monospace">$1</code>')
+    .replace(/\n/g,"<br>");
+}
+
+function limpiarChat(){
+  conversacion=[];
+  document.getElementById("chat").innerHTML="";
+  agregarMensaje("ai","Chat limpiado. ¿En qué te ayudo?");
+}
+
+function autoResize(el){el.style.height="auto";el.style.height=Math.min(el.scrollHeight,100)+"px";}
+
+/* ── Voz ────────────────────────────────────────── */
+function iniciarVoz(){
+  if(!("webkitSpeechRecognition" in window||"SpeechRecognition" in window)){
+    document.getElementById("btn-voz").title="Voz no disponible en este navegador";
+    return;
+  }
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  recognition=new SR();
+  recognition.lang="es-BO";recognition.continuous=false;recognition.interimResults=true;
+  recognition.onresult=e=>{
+    const t=Array.from(e.results).map(r=>r[0].transcript).join("");
+    document.getElementById("inp").value=t;
+    autoResize(document.getElementById("inp"));
+  };
+  recognition.onend=()=>{
+    escuchando=false;
+    document.getElementById("btn-voz").style.background="#334155";
+    document.getElementById("btn-voz").style.color="#94a3b8";
+  };
+  recognition.onerror=()=>{escuchando=false;};
+}
+
+function toggleVoz(){
+  if(!recognition){alert("Voz no disponible en este navegador");return;}
+  if(escuchando){recognition.stop();escuchando=false;}
+  else{
+    recognition.start();escuchando=true;
+    document.getElementById("btn-voz").style.background="#ef4444";
+    document.getElementById("btn-voz").style.color="#fff";
+  }
+}
+
+/* ── Modal desbloqueo rápido ────────────────────── */
+async function mostrarDesbloqueo(){
+  const modal=document.getElementById("modal");
+  const box=document.getElementById("modal-box");
+  modal.style.display="flex";
+  box.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><div style="color:#fbbf24;font-weight:900">🔓 Desbloquear turno</div><button onclick="document.getElementById('modal').style.display='none'" style="background:none;border:none;color:#64748b;font-size:20px;cursor:pointer">✕</button></div>
+  <div id="dbl-cargando" style="text-align:center;padding:20px;color:#64748b">Cargando trabajadores...</div>`;
+
+  const[{data:users},{data:asist},{data:esp}]=await Promise.all([
+    SB.from("usuarios").select("nombre,user_name,rol"),
+    SB.from("asistencia").select("user_name,tipo").order("id",{ascending:false}),
+    SB.from("acceso_especial").select("*")
+  ]);
+
+  const trabajadores=(users||[]).filter(u=>!["admin","encargado"].includes(u.rol));
+  const estadoTurno=u=>{
+    const hist=(asist||[]).filter(a=>a.user_name===u.user_name);
+    return hist[0]?.tipo||"sin_registro";
+  };
+  const tieneEsp=u=>(esp||[]).find(a=>a.user_name===u.user_name&&a.activo);
+
+  box.innerHTML=`
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <div style="color:#fbbf24;font-weight:900">🔓 Control de acceso</div>
+    <button onclick="document.getElementById('modal').style.display='none'" style="background:none;border:none;color:#64748b;font-size:20px;cursor:pointer">✕</button>
+  </div>
+  <div style="color:#64748b;font-size:11px;margin-bottom:12px">Trabajadores vendedores/mecánicos. Wilfredo y encargados tienen acceso 24/7.</div>
+  ${trabajadores.map(u=>{
+    const estado=estadoTurno(u);
+    const accEsp=tieneEsp(u);
+    const bloqueado=estado==="salida"&&!accEsp;
+    return`<div style="background:#0f172a;border:1px solid ${bloqueado?"#ef444430":"#334155"};border-radius:10px;padding:12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div style="font-weight:700">${u.nombre}</div>
+        <div style="font-size:10px;color:#64748b">${u.rol}${accEsp?" · 🔓 Auxilio activo":""}</div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <span style="font-size:10px;padding:2px 8px;border-radius:10px;background:${estado==="entrada"?"#16a34a15":estado==="salida"?"#ef444415":"#33415515"};color:${estado==="entrada"?"#16a34a":estado==="salida"?"#ef4444":"#64748b"}">${estado==="entrada"?"En turno":estado==="salida"?"Salió":"Sin registro"}</span>
+        ${bloqueado?`<button onclick="desbloquearRapido('${u.user_name}','${u.nombre}')" style="padding:4px 10px;background:#f59e0b;color:#1e293b;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">Desbloquear</button>`:
+        accEsp?`<button onclick="bloquearRapido('${u.user_name}','${u.nombre}')" style="padding:4px 10px;background:#ef444420;color:#ef4444;border:1px solid #ef444430;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">Revocar</button>`:""}
+      </div>
+    </div>`;
+  }).join("")}`;
+}
+
+async function desbloquearRapido(user_name,nombre){
+  const horas=prompt(`¿Cuántas horas de acceso para ${nombre}? (default: 4)`)?.trim()||"4";
+  const h=parseInt(horas)||4;
+  await ejecutarHerramienta("gestionar_acceso_turno",{user_name,accion:"desbloquear",motivo:"Auxilio autorizado desde panel IA",horas:h});
+  alert(`✅ ${nombre} tiene acceso por ${h} hora(s)`);
+  mostrarDesbloqueo();
+}
+
+async function bloquearRapido(user_name,nombre){
+  if(!confirm(`¿Revocar acceso especial de ${nombre}?`))return;
+  await ejecutarHerramienta("gestionar_acceso_turno",{user_name,accion:"bloquear"});
+  alert(`✅ Acceso especial revocado para ${nombre}`);
+  mostrarDesbloqueo();
+}
+
+// Exponer globales
+window.enviar=enviar;window.toggleVoz=toggleVoz;window.limpiarChat=limpiarChat;
+window.accionRapida=accionRapida;window.mostrarDesbloqueo=mostrarDesbloqueo;
+window.desbloquearRapido=desbloquearRapido;window.bloquearRapido=bloquearRapido;
+
+init();
+</script>
+</body>
+</html>

@@ -32,16 +32,19 @@ const SESSION_KEY = "scp_user";
 // Módulos filtrados por ROL según plan maestro
 // Roles: admin=Wilfredo | encargado=William/Selena | vendedor=Diego/Evo/Joel/Adolfo
 const MODULOS = [
-  { k:"ventas",     icon:"🏠", label:"Ventas",         desc:"Venta de productos de tienda",             url:"/ventas.html",     color:"#1d4ed8", roles:["admin","encargado","vendedor"] },
-  { k:"servicios",  icon:"🔧", label:"Servicios",      desc:"Aceite · Lavado · Alineado · Grúa",        url:"/servicios.html",  color:"#16a34a", roles:["admin","encargado","vendedor"] },
-  { k:"ot",         icon:"📋", label:"Mis OTs",        desc:"Ver órdenes de trabajo asignadas",         url:"/ot.html",         color:"#0891b2", roles:["admin","encargado","vendedor","mecanico"] },
-  { k:"caja",       icon:"💵", label:"Caja",           desc:"Apertura · Cierre · Informes",             url:"/caja.html",       color:"#f59e0b", roles:["admin","encargado"] },
-  { k:"compras",    icon:"🛒", label:"Compras",        desc:"Registrar compras e insumos",              url:"/compras.html",    color:"#8b5cf6", roles:["admin"] },
-  { k:"produccion", icon:"🏭", label:"Producción",     desc:"Envasado y fabricación de aceites",        url:"/produccion.html", color:"#f97316", roles:["admin","encargado"] },
-  { k:"creditos",   icon:"💳", label:"Créditos",       desc:"Control de deudas con proveedores",        url:"/creditos.html",   color:"#ec4899", roles:["admin"] },
-  { k:"admin",      icon:"⚙️", label:"Administración", desc:"Inventario · CRM · Personal · Vacaciones", url:"/admin.html",      color:"#7c3aed", roles:["admin","encargado"] },
-  { k:"dashboard",  icon:"📊", label:"Dashboard",      desc:"KPIs en tiempo real · Punto de equilibrio",url:"/dashboard.html",  color:"#a21caf", roles:["admin"] },
-  { k:"usuarios",   icon:"👥", label:"Usuarios",       desc:"Gestionar accesos y contraseñas",          url:"/usuarios.html",   color:"#be185d", roles:["admin"] },
+  { k:"ventas",     icon:"🏪", label:"Ventas",          desc:"Venta de productos de tienda",              url:"/ventas.html",            color:"#1d4ed8", roles:["admin","encargado","vendedor"] },
+  { k:"servicios",  icon:"🔧", label:"Servicios",       desc:"Aceite · Lavado · Alineado · Grúa",         url:"/servicios.html",         color:"#16a34a", roles:["admin","encargado","vendedor"] },
+  { k:"ot",         icon:"📋", label:"Mis OTs",         desc:"Ver órdenes de trabajo asignadas",          url:"/ot.html",                color:"#0891b2", roles:["admin","encargado","vendedor","mecanico"] },
+  { k:"caja",       icon:"💵", label:"Caja",            desc:"Apertura · Cierre · Informes",              url:"/caja.html",              color:"#f59e0b", roles:["admin","encargado"] },
+  { k:"compras",    icon:"🛒", label:"Compras",         desc:"Registrar compras e insumos",               url:"/compras.html",           color:"#8b5cf6", roles:["admin"] },
+  { k:"produccion", icon:"🏭", label:"Producción",      desc:"Envasado y fabricación de aceites",         url:"/produccion.html",        color:"#f97316", roles:["admin","encargado"] },
+  { k:"creditos",   icon:"💳", label:"Créditos",        desc:"Control de deudas con proveedores",         url:"/creditos.html",          color:"#ec4899", roles:["admin"] },
+  { k:"admin",      icon:"⚙️", label:"Administración",  desc:"Inventario · CRM · Personal · Vacaciones",  url:"/admin.html",             color:"#7c3aed", roles:["admin","encargado"] },
+  { k:"dashboard",  icon:"📊", label:"Dashboard",       desc:"KPIs en tiempo real · Punto de equilibrio", url:"/dashboard.html",         color:"#a21caf", roles:["admin"] },
+  { k:"usuarios",   icon:"👥", label:"Usuarios",        desc:"Gestionar accesos y contraseñas",           url:"/usuarios.html",          color:"#be185d", roles:["admin"] },
+  { k:"wilfredo-ia",icon:"🤖", label:"Wilfredo IA",     desc:"Panel IA con acceso total al sistema",      url:"/wilfredo-ia.html",       color:"#f59e0b", roles:["admin"] },
+  { k:"asistente",  icon:"🔧", label:"Asistente IA",    desc:"Guía inteligente para trabajo diario",      url:"/asistente-trabajo.html", color:"#16a34a", roles:["vendedor","mecanico","encargado"] },
+  { k:"asistencia", icon:"⏰", label:"Mi Asistencia",   desc:"Marcar entrada y salida del turno",         url:"/asistencia.html",        color:"#0891b2", roles:["admin","encargado","vendedor","mecanico"] },
 ];
 
 const ROL = {
@@ -276,18 +279,95 @@ function Inicio({ usuario, onSalir }) {
   );
 }
 
+/* ─── PANTALLA BLOQUEADA POR TURNO ──────────────────────── */
+function Bloqueado({ usuario, onSalir }) {
+  const wa = "https://wa.me/59168167264?text=" + encodeURIComponent(
+    `Hola Wilfredo, soy ${usuario.nombre}. Necesito acceso de emergencia al sistema.`
+  );
+  return (
+    <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#0f172a,#1e293b)",
+      display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+      <div className="fi" style={{width:"100%",maxWidth:340,textAlign:"center"}}>
+        <div style={{fontSize:64,marginBottom:16}}>🔒</div>
+        <div style={{color:"#f1f5f9",fontWeight:900,fontSize:20,marginBottom:8}}>Turno terminado</div>
+        <div style={{color:"#64748b",fontSize:13,marginBottom:24,lineHeight:1.5}}>
+          Marcaste tu salida. Para acceder de nuevo necesitás marcar entrada en tu próximo turno,<br/>
+          o pedirle autorización de emergencia a <strong style={{color:"#fbbf24"}}>Wilfredo</strong>.
+        </div>
+        <div style={{background:"#1e293b",border:"1px solid #334155",borderRadius:14,padding:20,marginBottom:16}}>
+          <div style={{color:"#94a3b8",fontSize:11,marginBottom:4}}>Sesión activa</div>
+          <div style={{color:"#f1f5f9",fontWeight:700,fontSize:16}}>{usuario.nombre}</div>
+          <div style={{color:"#475569",fontSize:11,marginTop:2}}>{usuario.rol}</div>
+        </div>
+        <a href={wa} target="_blank" rel="noopener noreferrer"
+          style={{display:"block",padding:14,background:"#25d366",color:"#fff",borderRadius:12,
+            fontWeight:900,fontSize:14,textDecoration:"none",marginBottom:10}}>
+          📲 Pedir acceso de emergencia (WhatsApp)
+        </a>
+        <a href="/asistencia.html"
+          style={{display:"block",padding:12,background:"#1d4ed820",color:"#60a5fa",
+            border:"1px solid #1d4ed840",borderRadius:12,fontWeight:700,fontSize:13,textDecoration:"none",marginBottom:10}}>
+          ⏰ Marcar entrada (inicio de turno)
+        </a>
+        <button onClick={onSalir}
+          style={{width:"100%",padding:11,background:"none",border:"1px solid #334155",
+            borderRadius:10,color:"#475569",fontWeight:700,fontSize:12,cursor:"pointer"}}>
+          Cerrar sesión
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /* ─── APP ────────────────────────────────────────────────── */
 function App() {
   const [usuario, setUsuario] = React.useState(() => {
     try { return JSON.parse(localStorage.getItem(SESSION_KEY)) || null; }
     catch { return null; }
   });
+  const [bloqueado, setBloqueado] = React.useState(false);
+  const [verificando, setVerificando] = React.useState(false);
 
-  const salir = () => { localStorage.removeItem(SESSION_KEY); setUsuario(null); };
+  React.useEffect(() => {
+    if (!usuario) { setBloqueado(false); return; }
+    // Admins y encargados nunca quedan bloqueados
+    if (["admin","encargado"].includes(usuario.rol)) { setBloqueado(false); return; }
+    verificarTurno(usuario);
+  }, [usuario]);
 
-  return usuario
-    ? <Inicio usuario={usuario} onSalir={salir}/>
-    : <Login onLogin={setUsuario}/>;
+  const verificarTurno = async (u) => {
+    setVerificando(true);
+    try {
+      // Verificar acceso especial primero (auxilio de Wilfredo)
+      const { data: esp } = await sb.from("acceso_especial")
+        .select("activo,expires_at").eq("user_name", u.user_name).eq("activo", true).single();
+      if (esp?.activo) {
+        const exp = esp.expires_at ? new Date(esp.expires_at) : null;
+        if (!exp || exp > new Date()) { setBloqueado(false); setVerificando(false); return; }
+      }
+      // Verificar último registro de asistencia
+      const { data: asist } = await sb.from("asistencia")
+        .select("tipo").eq("user_name", u.user_name)
+        .order("id", { ascending: false }).limit(1).single();
+      setBloqueado(asist?.tipo === "salida");
+    } catch { setBloqueado(false); }
+    setVerificando(false);
+  };
+
+  const salir = () => { localStorage.removeItem(SESSION_KEY); setUsuario(null); setBloqueado(false); };
+
+  if (verificando) return (
+    <div style={{minHeight:"100vh",background:"#0f172a",display:"flex",alignItems:"center",justifyContent:"center"}}>
+      <div style={{textAlign:"center",color:"#475569"}}>
+        <div style={{fontSize:32,marginBottom:8}}>⏳</div>
+        <div>Verificando acceso...</div>
+      </div>
+    </div>
+  );
+
+  if (!usuario) return <Login onLogin={setUsuario}/>;
+  if (bloqueado) return <Bloqueado usuario={usuario} onSalir={salir}/>;
+  return <Inicio usuario={usuario} onSalir={salir}/>;
 }
 
 ReactDOM.createRoot(document.getElementById("root")).render(<App/>);

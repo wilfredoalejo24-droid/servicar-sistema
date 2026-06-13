@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Asistencia — Servi Car Platinium</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;background:#0f172a;color:#fff;min-height:100vh}
+@keyframes fi{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.fi{animation:fi .25s ease both}
+</style>
+</head>
+<body>
+<div id="app" style="min-height:100vh;display:flex;align-items:center;justify-content:center">
+  <div style="text-align:center;color:#475569"><div style="font-size:36px;margin-bottom:8px">⏰</div>Cargando...</div>
+</div>
+<script>
+const SB=window.supabase.createClient("https://epirsbudngwbxgcsryvv.supabase.co","sb_publishable_zsqvMzJMc80Ypf3UQqs-SA_IrV-XIGc");
+const hoy=()=>new Date().toLocaleDateString("es-BO");
+const horaActual=()=>new Date().toLocaleTimeString("es-BO",{hour:"2-digit",minute:"2-digit"});
+
+let usuario=null, historial=[], reloj=null;
+
+function getSession(){try{return JSON.parse(localStorage.getItem("scp_user"))||null;}catch{return null;}}
+function salir(){localStorage.removeItem("scp_user");location.href="/";}
+
+async function init(){
+  usuario=getSession();
+  if(!usuario){location.href="/";return;}
+  await cargarHistorial();
+  render();
+  reloj=setInterval(()=>{ const el=document.getElementById("reloj"); if(el)el.textContent=horaActual(); },10000);
+}
+
+async function cargarHistorial(){
+  const{data}=await SB.from("asistencia")
+    .select("id,tipo,hora_registro,fecha,created_at")
+    .eq("user_name",usuario.user_name)
+    .eq("fecha",hoy())
+    .order("id",{ascending:false});
+  historial=data||[];
+}
+
+function getEstado(){
+  if(!historial.length) return "sin_registro";
+  return historial[0].tipo; // "entrada" o "salida"
+}
+
+function render(){
+  const estado=getEstado();
+  const enTurno=estado==="entrada";
+  const total=historial.length;
+  const app=document.getElementById("app");
+
+  app.innerHTML=`
+  <div class="fi" style="width:100%;max-width:420px;padding:20px 16px">
+    <!-- Header -->
+    <div style="text-align:center;margin-bottom:24px">
+      <div style="font-size:42px;margin-bottom:6px">${enTurno?"✅":"🔴"}</div>
+      <div style="color:#fbbf24;font-weight:900;font-size:18px">SERVI CAR PLATINIUM</div>
+      <div style="color:#475569;font-size:11px;margin-top:3px">Control de Asistencia</div>
+    </div>
+
+    <!-- Usuario -->
+    <div style="background:#1e293b;border:1px solid #334155;border-radius:14px;padding:16px;margin-bottom:14px;text-align:center">
+      <div style="color:#64748b;font-size:11px;margin-bottom:4px">Trabajador</div>
+      <div style="font-weight:900;font-size:20px">${usuario.nombre}</div>
+      <div style="color:#475569;font-size:11px;margin-top:3px">${usuario.rol} · ${usuario.taller}</div>
+      <div style="margin-top:10px;display:inline-flex;align-items:center;gap:6px;padding:5px 14px;border-radius:20px;
+        background:${enTurno?"#16a34a":"#ef4444"}15;border:1px solid ${enTurno?"#16a34a":"#ef4444"}30;
+        color:${enTurno?"#16a34a":"#ef4444"};font-weight:700;font-size:12px">
+        <span style="width:7px;height:7px;background:${enTurno?"#16a34a":"#ef4444"};border-radius:50%;display:inline-block"></span>
+        ${enTurno?"EN TURNO":"FUERA DE TURNO"}
+      </div>
+    </div>
+
+    <!-- Hora actual -->
+    <div style="text-align:center;margin-bottom:14px">
+      <div style="color:#f1f5f9;font-weight:900;font-size:36px;font-variant-numeric:tabular-nums" id="reloj">${horaActual()}</div>
+      <div style="color:#475569;font-size:11px;margin-top:2px">${hoy()}</div>
+    </div>
+
+    <!-- Botón principal -->
+    ${["admin","encargado"].includes(usuario.rol)?`
+    <div style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:14px;margin-bottom:14px;text-align:center">
+      <div style="color:#f59e0b;font-size:12px;font-weight:700">👑 Administrador / Encargado</div>
+      <div style="color:#64748b;font-size:11px;margin-top:4px">Tienes acceso 24/7 al sistema sin restricción de turno.</div>
+    </div>
+    `:`
+    <button onclick="registrar()" id="btn-registro"
+      style="width:100%;padding:18px;border:none;border-radius:14px;font-weight:900;font-size:16px;cursor:pointer;
+        background:${enTurno?"#ef4444":"#16a34a"};color:#fff;margin-bottom:14px;transition:all .2s">
+      ${enTurno?"🚪 Marcar SALIDA":"🔑 Marcar ENTRADA"}
+    </button>
+    ${enTurno?`<div style="background:#ef444410;border:1px solid #ef444430;border-radius:10px;padding:10px;text-align:center;margin-bottom:14px">
+      <div style="color:#f87171;font-size:11px;font-weight:700">⚠️ Al marcar salida quedas bloqueado hasta el próximo turno.</div>
+      <div style="color:#64748b;font-size:10px;margin-top:3px">Solo Wilfredo puede darte acceso de emergencia.</div>
+    </div>`:""}`}
+
+    <!-- Historial del día -->
+    ${total?`
+    <div style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:14px">
+      <div style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">Registros de hoy (${total})</div>
+      ${historial.map(r=>`
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #0f172a">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;
+            background:${r.tipo==="entrada"?"#16a34a":"#ef4444"}15;color:${r.tipo==="entrada"?"#16a34a":"#ef4444"}">
+            ${r.tipo==="entrada"?"↗ ENTRADA":"↘ SALIDA"}
+          </span>
+        </div>
+        <div style="color:#64748b;font-size:11px">${r.hora_registro||"—"}</div>
+      </div>`).join("")}
+    </div>`:`
+    <div style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:20px;text-align:center;color:#475569;font-size:12px">
+      Sin registros hoy. Marcá tu entrada al comenzar el turno.
+    </div>`}
+
+    <!-- Navegación -->
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <a href="/" style="flex:1;text-align:center;padding:10px;background:#1e293b;border:1px solid #334155;border-radius:10px;color:#94a3b8;text-decoration:none;font-size:12px;font-weight:700">← Inicio</a>
+      <button onclick="salir()" style="padding:10px 16px;background:#ef444415;border:1px solid #ef444430;border-radius:10px;color:#ef4444;font-size:12px;font-weight:700;cursor:pointer">Salir</button>
+    </div>
+
+    <div style="text-align:center;margin-top:14px;color:#1e3a5f;font-size:9px">SERVI CAR PLATINIUM · v2.0</div>
+  </div>`;
+}
+
+async function registrar(){
+  const btn=document.getElementById("btn-registro");
+  if(btn){btn.disabled=true;btn.textContent="⏳ Registrando...";}
+
+  const estado=getEstado();
+  const tipo=estado==="entrada"?"salida":"entrada";
+
+  // Confirmación de salida
+  if(tipo==="salida"&&!confirm("⚠️ ¿Confirmas que estás marcando tu SALIDA?\n\nQuedarás bloqueado hasta el próximo turno.\n\nSolo Wilfredo puede darte acceso de emergencia.")){
+    if(btn){btn.disabled=false;btn.textContent="🚪 Marcar SALIDA";}
+    return;
+  }
+
+  const{data,error}=await SB.from("asistencia").insert({
+    user_name:usuario.user_name,
+    nombre:usuario.nombre,
+    tipo,
+    fecha:hoy(),
+    hora_registro:horaActual()
+  }).select().single();
+
+  if(error){
+    alert("Error al registrar: "+error.message);
+    if(btn){btn.disabled=false;btn.textContent=estado==="entrada"?"🚪 Marcar SALIDA":"🔑 Marcar ENTRADA";}
+    return;
+  }
+
+  historial=[data,...historial];
+
+  // Si marcó salida, redirigir a login después de 2 segundos
+  if(tipo==="salida"){
+    document.getElementById("app").innerHTML=`
+    <div class="fi" style="text-align:center;padding:30px">
+      <div style="font-size:54px;margin-bottom:16px">👋</div>
+      <div style="color:#f1f5f9;font-weight:900;font-size:20px;margin-bottom:8px">¡Hasta luego, ${usuario.nombre}!</div>
+      <div style="color:#64748b;font-size:13px;margin-bottom:20px">Tu salida fue registrada a las ${horaActual()}</div>
+      <div style="color:#475569;font-size:11px">Cerrando sesión...</div>
+    </div>`;
+    setTimeout(()=>{localStorage.removeItem("scp_user");location.href="/";},2500);
+    return;
+  }
+
+  render();
+}
+
+window.registrar=registrar;window.salir=salir;
+init();
+</script>
+</body>
+</html>

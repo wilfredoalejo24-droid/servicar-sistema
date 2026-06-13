@@ -219,8 +219,8 @@ async function agregarServicio(){
 }
 
 async function borrarServicio(idx){
-  if(!esEncargado())return;
-  if(!confirm("¿Borrar servicio?"))return;
+  if(!esAdmin())return;
+  if(!confirm("¿Borrar servicio? Solo Wilfredo puede eliminar registros."))return;
   const arr=[...(ot.procedimientos||[])];arr.splice(idx,1);
   await guardar({procedimientos:arr});
 }
@@ -731,7 +731,7 @@ function render(){
             <div style="font-size:11px;color:#64748b;margin-top:2px;line-height:1.4">${p.desc||""}</div>
             ${p.precio?`<div style="font-size:11px;color:#16a34a;margin-top:4px;font-weight:700">Bs. ${p.precio}</div>`:""}
           </div>
-          ${enc?`<button onclick="borrarServicio(${i})" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:14px;padding:0 0 0 8px;flex-shrink:0">🗑</button>`:""}
+          ${admin?`<button onclick="borrarServicio(${i})" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:14px;padding:0 0 0 8px;flex-shrink:0" title="Solo Wilfredo puede borrar">🗑</button>`:""}
         </div>
       </div>`).join("")}
 

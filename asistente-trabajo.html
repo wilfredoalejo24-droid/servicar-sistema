@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Asistente IA — Servi Car Platinium</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;background:#0f172a;color:#fff;min-height:100vh;display:flex;flex-direction:column}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:#0f172a}::-webkit-scrollbar-thumb{background:#334155;border-radius:2px}
+.btn{padding:7px 13px;border:none;border-radius:8px;font-weight:700;font-size:11px;cursor:pointer;transition:all .15s}
+@keyframes fi{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.fi{animation:fi .2s ease both}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.typing{animation:pulse 1.2s infinite}
+.msg-user{background:linear-gradient(135deg,#16a34a,#15803d);border-radius:18px 18px 4px 18px;padding:11px 15px;margin-left:40px}
+.msg-ai{background:#1e293b;border:1px solid #334155;border-radius:18px 18px 18px 4px;padding:11px 15px}
+.msg-conf{background:#f59e0b10;border:1px solid #f59e0b40;border-radius:12px;padding:12px;margin:4px 0}
+.chip{padding:5px 11px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid;transition:all .15s;white-space:nowrap;display:inline-block}
+input:focus,textarea:focus{outline:none;border-color:#16a34a!important}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div style="background:#1e293b;border-bottom:1px solid #334155;padding:11px 15px;position:sticky;top:0;z-index:100;flex-shrink:0">
+  <div style="max-width:540px;margin:0 auto;display:flex;justify-content:space-between;align-items:center">
+    <div>
+      <a href="/" style="color:#475569;text-decoration:none;font-size:10px;font-weight:700">← Inicio</a>
+      <div style="color:#16a34a;font-weight:900;font-size:15px;margin-top:1px">🔧 Asistente de Trabajo</div>
+      <div style="color:#475569;font-size:10px" id="hdr-user">Cargando...</div>
+    </div>
+    <div style="display:flex;gap:6px">
+      <div id="inv-badge" style="padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;background:#3b82f615;color:#3b82f6;border:1px solid #3b82f630">📦 ...</div>
+      <button onclick="limpiarChat()" class="btn" style="background:#334155;color:#94a3b8">🗑</button>
+    </div>
+  </div>
+</div>
+
+<!-- Ayudas rápidas -->
+<div style="max-width:540px;width:100%;margin:10px auto 0;padding:0 14px;flex-shrink:0">
+  <div style="color:#334155;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:7px">¿Qué necesitás hacer?</div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap">
+    <button onclick="ayuda('¿cuánto cuesta el aceite 15w40?')" class="chip" style="background:#16a34a15;color:#16a34a;border-color:#16a34a30">🔍 Consultar precio</button>
+    <button onclick="ayuda('ayúdame a crear una OT paso a paso')" class="chip" style="background:#1d4ed815;color:#60a5fa;border-color:#1d4ed830">📋 Crear OT</button>
+    <button onclick="ayuda('quiero registrar una venta')" class="chip" style="background:#7c3aed15;color:#a78bfa;border-color:#7c3aed30">🛒 Registrar venta</button>
+    <button onclick="ayuda('¿cuánto hay en stock de filtros de aceite?')" class="chip" style="background:#f59e0b15;color:#fbbf24;border-color:#f59e0b30">📦 Ver stock</button>
+    <button onclick="ayuda('muéstrame mis órdenes de trabajo asignadas')" class="chip" style="background:#ec489915;color:#f472b6;border-color:#ec489930">📁 Mis OTs</button>
+  </div>
+</div>
+
+<!-- Aviso de permisos -->
+<div style="max-width:540px;width:100%;margin:10px auto 0;padding:0 14px;flex-shrink:0">
+  <div style="background:#f59e0b08;border:1px solid #f59e0b20;border-radius:10px;padding:8px 12px;display:flex;gap:8px;align-items:center">
+    <span style="font-size:14px">ℹ️</span>
+    <span style="font-size:10px;color:#94a3b8">Solo podés consultar y registrar — <strong style="color:#f59e0b">no se pueden borrar registros</strong>. Toda acción requiere tu confirmación.</span>
+  </div>
+</div>
+
+<!-- Chat area -->
+<div id="chat" style="flex:1;overflow-y:auto;padding:14px;max-width:540px;width:100%;margin:10px auto 0;display:flex;flex-direction:column;gap:10px"></div>
+
+<!-- Input area -->
+<div style="background:#1e293b;border-top:1px solid #334155;padding:12px 14px;position:sticky;bottom:0;flex-shrink:0">
+  <div style="max-width:540px;margin:0 auto">
+    <div style="display:flex;gap:8px;align-items:flex-end">
+      <button id="btn-voz" onclick="toggleVoz()" class="btn" style="background:#334155;color:#94a3b8;padding:9px 11px;flex-shrink:0;font-size:15px">🎤</button>
+      <textarea id="inp" rows="1" placeholder="Pregunta o pide algo... Ej: ¿cuánto sale el filtro de aceite?"
+        style="flex:1;padding:10px 12px;background:#0f172a;border:1px solid #334155;border-radius:10px;color:#fff;font-size:13px;resize:none;max-height:100px;line-height:1.4"
+        oninput="autoResize(this)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();enviar()}"></textarea>
+      <button id="btn-env" onclick="enviar()" class="btn" style="background:#16a34a;color:#fff;padding:9px 14px;flex-shrink:0;font-size:15px">→</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const SB=window.supabase.createClient("https://epirsbudngwbxgcsryvv.supabase.co","sb_publishable_zsqvMzJMc80Ypf3UQqs-SA_IrV-XIGc");
+
+const hoy=()=>new Date().toLocaleDateString("es-BO");
+const fmt=n=>`Bs. ${parseFloat(n||0).toFixed(2)}`;
+
+let usuario=null, apiKey=null, conversacion=[], invCache=null;
+let escuchando=false, recognition=null;
+let pendingConfirm=null; // acción pendiente de confirmación
+
+function getSession(){try{return JSON.parse(localStorage.getItem("scp_user"))||null;}catch{return null;}}
+
+async function init(){
+  usuario=getSession();
+  if(!usuario){location.href="/";return;}
+  document.getElementById("hdr-user").textContent=`${usuario.nombre} · ${usuario.rol}`;
+  await Promise.all([cargarApiKey(),cargarInventario()]);
+  iniciarVoz();
+  mostrarBienvenida();
+}
+
+async function cargarApiKey(){
+  const{data}=await SB.from("config").select("valor").eq("clave","claude_api_key").single();
+  apiKey=data?.valor||null;
+}
+
+async function cargarInventario(){
+  const{data}=await SB.from("inventario").select("id,nom,cod,cat,stock,precio,min").order("nom");
+  invCache=data||[];
+  document.getElementById("inv-badge").textContent=`📦 ${invCache.length} productos`;
+}
+
+function mostrarBienvenida(){
+  const rol=usuario.rol;
+  const saludo=rol==="vendedor"?"Puedo ayudarte a consultar precios, registrar ventas y ver tus OTs.":
+               rol==="mecanico"?"Puedo ayudarte a consultar el inventario y manejar tus órdenes de trabajo.":
+               "Puedo ayudarte a gestionar OTs, ventas e inventario.";
+  agregarMensaje("ai",`¡Hola **${usuario.nombre}**! 🔧 ${saludo}\n\n**Recuerda:** Antes de ejecutar cualquier acción te voy a pedir confirmación.\n\n¿En qué te ayudo hoy?`);
+}
+
+/* ── SYSTEM PROMPT (más conservador que el de Wilfredo) ── */
+const buildSystemPrompt=()=>`Eres el asistente IA de Servi Car Platinium para ${usuario.nombre} (${usuario.rol}).
+
+REGLAS ESTRICTAS:
+1. SIEMPRE pide confirmación antes de registrar, modificar o crear algo
+2. NUNCA borres registros - si el usuario pide borrar, dile que solo Wilfredo puede hacerlo
+3. SOLO muestra datos del sistema (precios, stock, OTs) — no inventes información
+4. Si el usuario pide algo fuera de su rol, explícale amablemente qué no puede hacer
+5. Guía paso a paso en procesos complejos (crear OT, registrar venta)
+
+ROL DEL USUARIO: ${usuario.rol}
+- vendedor: Puede crear ventas, ver inventario y sus OTs asignadas. NO puede crear OTs (solo encargados).
+- mecanico: Puede ver y actualizar sus OTs asignadas, consultar inventario. NO puede crear OTs.
+- encargado: Puede todo excepto borrar. Puede crear OTs.
+
+FECHA: ${hoy()}
+IDIOMA: Español boliviano, claro y amigable.
+
+Al mostrar precios, usa formato Bs. X.XX.
+Cuando el usuario quiera ejecutar una acción de escritura, usa la herramienta "solicitar_confirmacion" para mostrar un resumen y pedir confirmación ANTES de ejecutar.`;
+
+/* ── Herramientas (limitadas por rol) ── */
+const HERRAMIENTAS_TRABAJO=[
+  {
+    name:"buscar_inventario",
+    description:"Busca productos en el inventario. Úsala para consultar precios, disponibilidad y stock.",
+    input_schema:{
+      type:"object",
+      properties:{
+        busqueda:{type:"string",description:"Nombre o parte del nombre del producto"},
+        categoria:{type:"string"}
+      }
+    }
+  },
+  {
+    name:"consultar_precio",
+    description:"Consulta el precio de venta de un producto específico.",
+    input_schema:{
+      type:"object",
+      properties:{nombre:{type:"string",description:"Nombre exacto o parcial del producto"}},
+      required:["nombre"]
+    }
+  },
+  {
+    name:"mis_ots",
+    description:"Muestra las órdenes de trabajo asignadas al usuario actual.",
+    input_schema:{
+      type:"object",
+      properties:{estado:{type:"string",enum:["abiertas","entregadas","todas"]}}
+    }
+  },
+  {
+    name:"solicitar_confirmacion",
+    description:"OBLIGATORIO: Antes de crear OT, registrar venta o agregar repuesto. Muestra al usuario un resumen de la acción para que confirme.",
+    input_schema:{
+      type:"object",
+      properties:{
+        accion:{type:"string",description:"Descripción clara de lo que se va a hacer"},
+        datos:{type:"object",description:"Los datos de la acción"},
+        tipo:{type:"string",enum:["crear_venta","agregar_repuesto_ot","crear_servicio"],description:"Tipo de acción"}
+      },
+      required:["accion","datos","tipo"]
+    }
+  }
+];
+
+/* ── Llamada a Claude ── */
+async function llamarClaude(msgs){
+  if(!apiKey) throw new Error("Sin API Key de Claude. Pedile a Wilfredo que la configure en Admin.");
+  const res=await fetch("https://api.anthropic.com/v1/messages",{
+    method:"POST",
+    headers:{"x-api-key":apiKey,"anthropic-version":"2023-06-01","content-type":"application/json","anthropic-dangerous-direct-browser-access":"true"},
+    body:JSON.stringify({model:"claude-opus-4-5-20251001",max_tokens:1500,system:buildSystemPrompt(),tools:HERRAMIENTAS_TRABAJO,messages:msgs})
+  });
+  if(!res.ok){const e=await res.json();throw new Error(e.error?.message||"Error de API");}
+  return res.json();
+}
+
+/* ── Ejecutar herramientas (solo lectura + confirmación) ── */
+async function ejecutarHerramienta(nombre,input){
+  switch(nombre){
+    case "buscar_inventario":
+    case "consultar_precio":{
+      const b=input.busqueda||input.nombre||"";
+      let q=SB.from("inventario").select("nom,cod,cat,stock,precio,min");
+      if(b) q=q.ilike("nom",`%${b}%`);
+      if(input.categoria) q=q.eq("cat",input.categoria);
+      const{data,error}=await q.order("nom").limit(15);
+      if(error) return{error:error.message};
+      return{productos:data,total:data?.length||0};
+    }
+
+    case "mis_ots":{
+      let q=SB.from("ots").select("id,num,cliente,placa,paso,fecha,total").order("id",{ascending:false});
+      q=q.eq("tecnico",usuario.user_name);
+      if(input.estado==="abiertas") q=q.lt("paso",8);
+      else if(input.estado==="entregadas") q=q.gte("paso",8);
+      const{data,error}=await q.limit(10);
+      if(error) return{error:error.message};
+      const PASOS=["","Recepción","Diagnóstico","Cotización","Aprobación","Ejecución","Trab.adicional","Calidad","Entregada"];
+      return{ots:(data||[]).map(o=>({...o,estado:PASOS[o.paso]||""}))};
+    }
+
+    case "solicitar_confirmacion":{
+      // Mostrar modal de confirmación al usuario
+      return new Promise(resolve=>{
+        pendingConfirm={accion:input.accion,datos:input.datos,tipo:input.tipo,resolve};
+        mostrarConfirmacion(input.accion,input.datos,input.tipo,resolve);
+      });
+    }
+
+    default:
+      return{error:"Herramienta no disponible: "+nombre};
+  }
+}
+
+/* ── Modal de confirmación ── */
+function mostrarConfirmacion(accion,datos,tipo,resolve){
+  const id="conf-"+(Date.now());
+  const div=document.createElement("div");
+  div.id=id;div.className="fi";
+  div.innerHTML=`
+  <div class="msg-conf">
+    <div style="color:#f59e0b;font-weight:700;font-size:12px;margin-bottom:8px">⚠️ Confirmar acción</div>
+    <div style="font-size:12px;color:#cbd5e1;margin-bottom:10px">${esc(accion)}</div>
+    <div style="background:#0f172a;border-radius:8px;padding:8px;font-size:11px;font-family:monospace;color:#94a3b8;margin-bottom:10px">${JSON.stringify(datos,null,1).replace(/\n/g,"<br>").replace(/ /g,"&nbsp;")}</div>
+    <div style="display:flex;gap:8px">
+      <button onclick="confirmarAccion('${id}',true)" style="flex:1;padding:9px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:12px;cursor:pointer">✅ Sí, confirmar</button>
+      <button onclick="confirmarAccion('${id}',false)" style="flex:1;padding:9px;background:#334155;color:#94a3b8;border:none;border-radius:8px;font-weight:700;font-size:12px;cursor:pointer">❌ Cancelar</button>
+    </div>
+  </div>`;
+  document.getElementById("chat").appendChild(div);
+  document.getElementById("chat").scrollTop=document.getElementById("chat").scrollHeight;
+}
+
+async function confirmarAccion(id,confirmado){
+  const el=document.getElementById(id);
+  if(!pendingConfirm)return;
+  const{accion,datos,tipo,resolve}=pendingConfirm;
+  pendingConfirm=null;
+
+  if(el){el.remove();}
+
+  if(!confirmado){
+    resolve({cancelado:true,mensaje:"Acción cancelada por el usuario"});
+    agregarMensaje("ai","Entendido, acción cancelada. ¿Hay algo más en que te pueda ayudar?");
+    return;
+  }
+
+  // Ejecutar la acción real
+  try{
+    let resultado;
+    if(tipo==="crear_venta"){
+      resultado=await ejecutarVenta(datos);
+    } else if(tipo==="agregar_repuesto_ot"){
+      resultado=await ejecutarAgregarRepuesto(datos);
+    } else if(tipo==="crear_servicio"){
+      resultado=await ejecutarCrearServicio(datos);
+    } else {
+      resultado={error:"Tipo de acción desconocido"};
+    }
+    resolve(resultado);
+  } catch(e){
+    resolve({error:e.message});
+  }
+}
+
+async function ejecutarVenta(datos){
+  const prod=invCache?.find(i=>i.nom?.toLowerCase().includes((datos.producto||"").toLowerCase()));
+  if(!prod) return{error:"Producto no encontrado en inventario"};
+  const cant=datos.cantidad||1;
+  if(prod.stock<cant) return{error:`Stock insuficiente. Disponible: ${prod.stock}`};
+  const total=prod.precio*cant;
+  // Registrar en caja
+  await SB.from("caja").insert({
+    tipo:"ingreso",monto:total,descripcion:`Venta: ${prod.nom} x${cant}`,
+    fecha:hoy(),taller:usuario.taller,vendedor:usuario.nombre
+  });
+  // Reducir stock
+  await SB.from("inventario").update({stock:prod.stock-cant}).eq("id",prod.id);
+  invCache=invCache.map(i=>i.id===prod.id?{...i,stock:i.stock-cant}:i);
+  return{venta_registrada:true,producto:prod.nom,cantidad:cant,total,stock_restante:prod.stock-cant};
+}
+
+async function ejecutarAgregarRepuesto(datos){
+  const{data:ot}=await SB.from("ots").select("*").eq("id",datos.ot_id).single();
+  if(!ot) return{error:"OT no encontrada"};
+  // Verificar que el técnico es el asignado o es encargado
+  if(usuario.rol!=="encargado"&&ot.tecnico!==usuario.user_name){
+    return{error:"Solo podés modificar tus propias OTs"};
+  }
+  const reps=Array.isArray(ot.repuestos)?ot.repuestos:[];
+  const nuevo={nom:datos.nombre,precio:datos.precio,cant:datos.cantidad||1,costo:datos.costo||0,subtotal:(datos.precio)*(datos.cantidad||1)};
+  reps.push(nuevo);
+  const total=reps.reduce((s,r)=>s+(r.subtotal||0),0)+(ot.servicios||[]).reduce((s,sv)=>s+(sv.precio||0),0);
+  await SB.from("ots").update({repuestos:reps,total}).eq("id",ot.id);
+  return{agregado:true,ot_num:ot.num,repuesto:datos.nombre,total_nuevo:total};
+}
+
+async function ejecutarCrearServicio(datos){
+  const{data:ot}=await SB.from("ots").select("*").eq("id",datos.ot_id).single();
+  if(!ot) return{error:"OT no encontrada"};
+  const svs=Array.isArray(ot.servicios)?ot.servicios:[];
+  svs.push({nom:datos.nombre,precio:datos.precio,costo:datos.costo||0});
+  const total=(ot.repuestos||[]).reduce((s,r)=>s+(r.subtotal||0),0)+svs.reduce((s,sv)=>s+(sv.precio||0),0);
+  await SB.from("ots").update({servicios:svs,total}).eq("id",ot.id);
+  return{agregado:true,ot_num:ot.num,servicio:datos.nombre,total_nuevo:total};
+}
+
+/* ── Bucle de procesamiento ── */
+async function procesarMensaje(texto){
+  conversacion.push({role:"user",content:texto});
+  const idTyping=agregarMensaje("typing","");
+  let iter=0;
+
+  try{
+    while(iter<5){
+      iter++;
+      const resp=await llamarClaude(conversacion);
+
+      if(resp.stop_reason==="tool_use"){
+        const resultados=[];
+        for(const blk of (resp.content||[])){
+          if(blk.type==="tool_use"){
+            if(blk.name==="solicitar_confirmacion"){
+              quitarMensaje(idTyping);
+              // Actualizar conversación con respuesta parcial del asistente
+              conversacion.push({role:"assistant",content:resp.content});
+              const res=await ejecutarHerramienta(blk.name,blk.input);
+              resultados.push({type:"tool_result",tool_use_id:blk.id,content:JSON.stringify(res)});
+              conversacion.push({role:"user",content:resultados});
+              const respFinal=await llamarClaude(conversacion);
+              const texto2=respFinal.content?.find?.(b=>b.type==="text")?.text||"";
+              agregarMensaje("ai",texto2);
+              conversacion.push({role:"assistant",content:respFinal.content||texto2});
+              return;
+            } else {
+              const res=await ejecutarHerramienta(blk.name,blk.input);
+              resultados.push({type:"tool_result",tool_use_id:blk.id,content:JSON.stringify(res)});
+            }
+          }
+        }
+        conversacion.push({role:"assistant",content:resp.content});
+        conversacion.push({role:"user",content:resultados});
+
+      } else {
+        const txt=resp.content?.find?.(b=>b.type==="text")?.text||resp.content||"";
+        quitarMensaje(idTyping);
+        agregarMensaje("ai",txt);
+        conversacion.push({role:"assistant",content:Array.isArray(resp.content)?resp.content:txt});
+        break;
+      }
+    }
+  } catch(e){
+    quitarMensaje(idTyping);
+    if(e.message.includes("Sin API Key")){
+      agregarMensaje("ai","⚠️ El asistente IA no está configurado todavía. **Pedile a Wilfredo que configure la API Key de Claude** en Admin → Configuración.\n\nMientras tanto, podés:\n• Ver el inventario en [Admin](/admin.html)\n• Ver tus OTs en [Órdenes](/ot.html)");
+    } else {
+      agregarMensaje("error","❌ Error: "+e.message);
+    }
+  }
+
+  document.getElementById("btn-env").disabled=false;
+}
+
+/* ── UI ── */
+async function enviar(){
+  const inp=document.getElementById("inp");
+  const texto=inp.value.trim();
+  if(!texto)return;
+  inp.value="";inp.style.height="auto";
+  agregarMensaje("user",texto);
+  document.getElementById("btn-env").disabled=true;
+  await procesarMensaje(texto);
+}
+
+function ayuda(texto){document.getElementById("inp").value=texto;enviar();}
+function limpiarChat(){conversacion=[];document.getElementById("chat").innerHTML="";mostrarBienvenida();}
+function autoResize(el){el.style.height="auto";el.style.height=Math.min(el.scrollHeight,100)+"px";}
+
+let msgId=0;
+function agregarMensaje(tipo,texto){
+  const id="msg-"+(++msgId);
+  const chat=document.getElementById("chat");
+  const div=document.createElement("div");
+  div.id=id;div.className="fi";div.style.cssText="display:flex;flex-direction:column;gap:3px";
+  chat.appendChild(div);
+  actualizarMensaje(id,tipo,texto);
+  chat.scrollTop=chat.scrollHeight;
+  return id;
+}
+
+function actualizarMensaje(id,tipo,texto){
+  const div=document.getElementById(id);if(!div)return;
+  const ts=new Date().toLocaleTimeString("es-BO",{hour:"2-digit",minute:"2-digit"});
+  if(tipo==="user"){
+    div.innerHTML=`<div style="text-align:right"><div class="msg-user"><div style="font-size:13px;line-height:1.5">${esc(texto)}</div></div><div style="font-size:9px;color:#334155;margin-right:4px;margin-top:2px">Vos · ${ts}</div></div>`;
+  } else if(tipo==="ai"){
+    div.innerHTML=`<div style="display:flex;gap:8px;align-items:flex-start"><div style="flex-shrink:0;width:28px;height:28px;background:#16a34a;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;margin-top:2px">🔧</div><div style="flex:1"><div class="msg-ai"><div style="font-size:13px;line-height:1.6">${mdToHtml(texto)}</div></div><div style="font-size:9px;color:#334155;margin-left:4px;margin-top:2px">Asistente · ${ts}</div></div></div>`;
+  } else if(tipo==="typing"){
+    div.innerHTML=`<div style="display:flex;gap:8px;align-items:center"><div style="width:28px;height:28px;background:#16a34a;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px">🔧</div><div class="msg-ai typing" style="padding:12px 16px">Pensando <span style="font-size:18px">...</span></div></div>`;
+  } else if(tipo==="error"){
+    div.innerHTML=`<div class="msg-ai" style="border-color:#ef4444;background:#ef444410"><div style="font-size:13px;color:#f87171;line-height:1.5">${esc(texto)}</div></div>`;
+  }
+  document.getElementById("chat").scrollTop=document.getElementById("chat").scrollHeight;
+}
+
+function quitarMensaje(id){const el=document.getElementById(id);if(el)el.remove();}
+
+function esc(t){return(t||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+function mdToHtml(t){
+  return(t||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+    .replace(/\*\*(.*?)\*\*/g,"<strong>$1</strong>")
+    .replace(/`([^`]+)`/g,'<code style="background:#0f172a;padding:1px 5px;border-radius:4px;font-family:monospace">$1</code>')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g,'<a href="$2" style="color:#60a5fa">$1</a>')
+    .replace(/\n/g,"<br>");
+}
+
+/* ── Voz ── */
+function iniciarVoz(){
+  if(!("webkitSpeechRecognition" in window||"SpeechRecognition" in window))return;
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  recognition=new SR();
+  recognition.lang="es-BO";recognition.continuous=false;recognition.interimResults=true;
+  recognition.onresult=e=>{
+    const t=Array.from(e.results).map(r=>r[0].transcript).join("");
+    document.getElementById("inp").value=t;autoResize(document.getElementById("inp"));
+  };
+  recognition.onend=()=>{escuchando=false;document.getElementById("btn-voz").style.background="#334155";document.getElementById("btn-voz").style.color="#94a3b8";};
+}
+
+function toggleVoz(){
+  if(!recognition)return;
+  if(escuchando){recognition.stop();escuchando=false;}
+  else{recognition.start();escuchando=true;document.getElementById("btn-voz").style.background="#16a34a";document.getElementById("btn-voz").style.color="#fff";}
+}
+
+window.enviar=enviar;window.ayuda=ayuda;window.toggleVoz=toggleVoz;window.limpiarChat=limpiarChat;
+window.confirmarAccion=confirmarAccion;
+init();
+</script>
+</body>
+</html>
