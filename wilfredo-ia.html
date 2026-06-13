@@ -33,6 +33,7 @@ input:focus,textarea:focus{outline:none;border-color:#f59e0b!important}
     </div>
     <div style="display:flex;gap:6px;align-items:center">
       <span style="padding:4px 10px;background:#1a73e8;color:#fff;border-radius:8px;font-size:10px;font-weight:700">✨ Gemini · Flash 2.0</span>
+      <button onclick="mostrarConfigKeys()" class="btn" style="background:#334155;color:#fbbf24">⚙️ API Key</button>
       <button onclick="limpiarChat()" class="btn" style="background:#334155;color:#94a3b8">🗑 Limpiar</button>
     </div>
   </div>
@@ -115,7 +116,7 @@ async function init(){
 
 /* ── API Keys (localStorage) ────────────────────── */
 async function cargarApiKeys(){
-  apiKeys.gemini=localStorage.getItem("scp_gemini_key")||null;
+  apiKeys.gemini=localStorage.getItem("gemini_api_key")||null;
 }
 
 async function cargarInventarioCache(){
@@ -686,11 +687,19 @@ function mostrarConfigKeys(){
 
 window.guardarConfigKeys=function(){
   const k=document.getElementById("ck_gemini")?.value?.trim();
-  if(k) localStorage.setItem("scp_gemini_key",k);
-  apiKeys.gemini=localStorage.getItem("scp_gemini_key")||null;
-  document.getElementById("modal").style.display="none";
+  if(!k){alert("Pegá la API Key antes de guardar");return;}
+  localStorage.setItem("gemini_api_key",k);
+  apiKeys.gemini=k;
+  // Mostrar confirmación dentro del modal y cerrar tras 1s
+  const box=document.getElementById("modal-box");
+  if(box){
+    const ok=document.createElement("div");
+    ok.style.cssText="text-align:center;padding:18px;color:#16a34a;font-weight:700;font-size:15px";
+    ok.textContent="✅ Key guardada";
+    box.appendChild(ok);
+  }
+  setTimeout(()=>{document.getElementById("modal").style.display="none";},900);
   mostrarStatusBar();
-  agregarMensaje("ai","✅ Gemini API Key guardada. Ya podés usar el asistente. ¿En qué te ayudo?");
 };
 
 // Exponer globales

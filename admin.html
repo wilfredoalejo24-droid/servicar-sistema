@@ -770,7 +770,7 @@ window.cargarFacturaImg=function(){
 window.analizarFactura=async function(){
   if(!facturaImg){alert("Primero subí una imagen");return;}
   if(!facturaApiKey){
-    facturaApiKey=configKeys.gemini||localStorage.getItem("scp_gemini_key")||null;
+    facturaApiKey=configKeys.gemini||localStorage.getItem("gemini_api_key")||null;
   }
   if(!facturaApiKey){alert("Necesitás configurar la API Key de Gemini en la pestaña Configuración");return;}
   const btn=$$("btn_analizar");if(btn){btn.disabled=true;btn.textContent="Analizando imagen...";}
@@ -858,7 +858,7 @@ window.registrarFactura=async function(){
 let configKeys={gemini:""};
 
 async function cargarConfigKeys(){
-  configKeys.gemini=localStorage.getItem("scp_gemini_key")||"";
+  configKeys.gemini=localStorage.getItem("gemini_api_key")||"";
   actualizarContenido();
 }
 
@@ -903,7 +903,7 @@ CREATE TABLE IF NOT EXISTS acceso_especial (
 
 window.guardarKey=function(tipo){
   const val=v("cfg_gemini");if(!val){alert("Ingresá la API Key primero");return;}
-  localStorage.setItem("scp_gemini_key",val);
+  localStorage.setItem("gemini_api_key",val);
   configKeys.gemini=val;
   $$("cfg_gemini").value="";
   const res=$$("cfg_gemini_res");if(res){res.style.color="#16a34a";res.textContent="✅ API Key guardada en este dispositivo";}
