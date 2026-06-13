@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Reportes — Servi Car Platinium</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;background:#0f172a;color:#fff;min-height:100vh}
+input,select{outline:none;font-family:inherit}
+input:focus,select:focus{border-color:#f59e0b!important}
+.input{width:100%;padding:10px 12px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#fff;font-size:13px}
+input[type="date"]{color-scheme:dark}
+.label{color:#64748b;font-size:11px;font-weight:700;margin-bottom:5px;display:block}
+.card{background:#1e293b;border:1px solid #334155;border-radius:14px;padding:16px;margin-bottom:12px}
+.tbl{width:100%;border-collapse:collapse;font-size:12px}
+.tbl th{padding:7px 10px;background:#0f172a;color:#f59e0b;font-size:10px;text-align:left;font-weight:700;white-space:nowrap}
+.tbl td{padding:6px 10px;border-bottom:1px solid #0f172a;vertical-align:middle}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tfoot td{background:#0f172a;font-weight:700;border-top:2px solid #334155}
+.tbl tbody tr:hover td{background:#0f172a50}
+.ovf{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.badge{padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;white-space:nowrap}
+.sc{padding:5px 12px;background:#1e293b;border:1px solid #334155;border-radius:8px;color:#64748b;font-size:11px;font-weight:700;cursor:pointer;transition:all .15s}
+.sc:hover,.sc.on{background:#f59e0b15;border-color:#f59e0b;color:#fbbf24}
+@keyframes fi{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.fi{animation:fi .25s ease both}
+@media print{
+  .noprint{display:none!important}
+  body{background:#fff;color:#000;font-size:11px}
+  .card{background:#fff;border:1px solid #ccc;break-inside:avoid}
+  .tbl th{background:#1e293b!important;color:#fbbf24!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .tbl td{color:#000}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;color:#475569">
+    <div style="text-align:center"><div style="font-size:38px;margin-bottom:8px">📊</div>Cargando reportes...</div>
+  </div>
+</div>
+<script>
+const SB=window.supabase.createClient(
+  "https://epirsbudngwbxgcsryvv.supabase.co",
+  "sb_publishable_zsqvMzJMc80Ypf3UQqs-SA_IrV-XIGc"
+);
+const EMPRESA={nombre:"SERVI CAR PLATINIUM",ciudad:"Viacha - La Paz",tel:"68167264"};
+const TALLERES=["Taller 1 · Montes","Taller 2 · Bella Vista"];
+
+/* ── Estado ─────────────────────────────────────────── */
+let usuario=null, tab="diario";
+let dFecha=hoyISO();
+let rDesde=inicioMesISO(), rHasta=hoyISO();
+let filtroT="";
+let dData=null, rData=null;
+let cargando=false;
+
+/* ── Utilidades de fecha ────────────────────────────── */
+function hoyISO(){return new Date().toISOString().slice(0,10);}
+function inicioMesISO(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-01`;}
+function inicioSemanaISO(){const d=new Date(),dia=d.getDay()||7;d.setDate(d.getDate()-dia+1);return d.toISOString().slice(0,10);}
+function finMesPasadoISO(){const d=new Date();d.setDate(0);return d.toISOString().slice(0,10);}
+function inicioMesPasadoISO(){const d=new Date(finMesPasadoISO());d.setDate(1);return d.toISOString().slice(0,10);}
+function addDias(iso,n){const d=parseISO(iso);d.setDate(d.getDate()+n);return d.toISOString().slice(0,10);}
+function parseISO(iso){const[y,m,d]=iso.split("-").map(Number);return new Date(y,m-1,d);}
+function fechaStr(d){return d.toLocaleDateString("es-BO");}
+function isoToFecha(iso){return fechaStr(parseISO(iso));}
+function getRango(fromISO,toISO){
+  const dates=[],cur=parseISO(fromISO),end=parseISO(toISO);
+  let lim=0;
+  while(cur<=end&&lim++<400){dates.push(fechaStr(new Date(cur)));cur.setDate(cur.getDate()+1);}
+  return dates;
+}
+function labelFecha(iso){
+  const hoy=hoyISO(),ayer=addDias(hoy,-1);
+  if(iso===hoy)return "Hoy";
+  if(iso===ayer)return "Ayer";
+  return isoToFecha(iso);
+}
+
+/* ── Utilidades generales ───────────────────────────── */
+const fmt=n=>`Bs. ${parseFloat(n||0).toFixed(2)}`;
+const fmtN=n=>parseFloat(n||0).toFixed(2);
+function $$(id){return document.getElementById(id);}
+function getSession(){try{return JSON.parse(localStorage.getItem("scp_user"))||JSON.parse(localStorage.getItem("sc_user"))||null;}catch{return null;}}
+function salir(){localStorage.removeItem("scp_user");localStorage.removeItem("sc_user");location.href="/";}
+
+/* ── Acceso ─────────────────────────────────────────── */
+function tieneAcceso(u){
+  if(!u)return false;
+  if(u.rol==="admin")return true;
+  try{const p=JSON.parse(u.permisos_custom||"{}");return p.reportes===true;}catch{return false;}
+}
+function tallerInicial(u){
+  if(u.rol==="admin")return "";       // admin ve ambos por defecto
+  if(u.taller==="ambos")return "";
+  return u.taller;
+}
+
+/* ── Cálculos ───────────────────────────────────────── */
+function calcTotales(movs){
+  const ganancia=movs.filter(m=>m.tipo==="ingreso"&&m.subtipo==="ganancia_neta").reduce((s,m)=>s+parseFloat(m.monto||0),0);
+  const capital  =movs.filter(m=>m.tipo==="ingreso"&&m.subtipo==="capital_tienda").reduce((s,m)=>s+parseFloat(m.monto||0),0);
+  const gastos   =movs.filter(m=>m.tipo==="egreso").reduce((s,m)=>s+parseFloat(m.monto||0),0);
+  const efectivo =movs.filter(m=>m.tipo==="ingreso"&&(m.metodo_pago==="Efectivo"||!m.metodo_pago)).reduce((s,m)=>s+parseFloat(m.monto||0),0);
+  const qr       =movs.filter(m=>m.tipo==="ingreso"&&m.metodo_pago==="QR").reduce((s,m)=>s+parseFloat(m.monto||0),0);
+  const trans    =movs.filter(m=>m.tipo==="ingreso"&&m.metodo_pago==="Transferencia").reduce((s,m)=>s+parseFloat(m.monto||0),0);
+  return{ganancia,capital,gastos,efectivo,qr,trans,cobrado:ganancia+capital,neto:ganancia+capital-gastos};
+}
+
+/* ── Init ───────────────────────────────────────────── */
+async function init(){
+  usuario=getSession();
+  if(!usuario){location.href="/";return;}
+  if(!tieneAcceso(usuario)){alert("❌ Sin permiso para ver reportes");location.href="/";return;}
+  filtroT=tallerInicial(usuario);
+  render();
+  await cargarDiario();
+}
+
+/* ══════════════════════════════════════════════════════
+   RENDER PRINCIPAL
+══════════════════════════════════════════════════════ */
+function render(){
+  document.getElementById("app").innerHTML=`
+  <!-- Header -->
+  <div style="background:#1e293b;border-bottom:1px solid #334155;padding:12px 16px;position:sticky;top:0;z-index:100" class="noprint">
+    <div style="max-width:800px;margin:0 auto;display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <a href="/" style="color:#475569;text-decoration:none;font-size:10px;font-weight:700">← Inicio</a>
+        <div style="color:#fbbf24;font-weight:900;font-size:15px;margin-top:1px">📊 Reportes</div>
+        <div style="color:#475569;font-size:10px">${usuario.nombre} · ${isoToFecha(hoyISO())}</div>
+      </div>
+      <button onclick="salir()" style="padding:7px 12px;background:#ef444415;color:#ef4444;border:1px solid #ef444430;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer">Salir</button>
+    </div>
+  </div>
+
+  <div class="fi" style="padding:10px 14px;max-width:800px;margin:0 auto">
+    <!-- Tabs -->
+    <div style="display:flex;gap:4px;margin-bottom:14px" class="noprint">
+      ${[["diario","📅 Informe diario"],["rango","📆 Informe por rango"]].map(([k,l])=>`
+      <button onclick="cambiarTab('${k}')"
+        style="padding:7px 16px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;
+          border:1px solid ${tab===k?"#f59e0b":"#334155"};
+          background:${tab===k?"#f59e0b":"#1e293b"};
+          color:${tab===k?"#1e293b":"#64748b"}">${l}</button>`).join("")}
+    </div>
+    <div id="contenido" class="fi">${renderTab()}</div>
+    <div style="height:28px"></div>
+  </div>`;
+}
+
+function renderTab(){
+  if(tab==="diario") return renderDiario();
+  if(tab==="rango")  return renderRango();
+  return "";
+}
+
+function actualizarContenido(){
+  const el=$$("contenido");
+  if(el){el.innerHTML=renderTab();el.className="fi";}
+}
+
+async function cambiarTab(t){
+  tab=t;actualizarContenido();
+  if(t==="rango"&&!rData){await cargarRango();}
+}
+
+/* ══════════════════════════════════════════════════════
+   TAB: INFORME DIARIO
+══════════════════════════════════════════════════════ */
+async function cargarDiario(){
+  cargando=true;actualizarContenido();
+  const fecha=isoToFecha(dFecha);
+  let q=SB.from("caja").select("*").eq("fecha",fecha).order("created_at",{ascending:false});
+  if(filtroT)q=q.eq("taller",filtroT);
+  let sq=SB.from("caja_sesiones").select("*").eq("fecha",fecha);
+  if(filtroT)sq=sq.eq("taller",filtroT);
+  const[{data:movs},{data:sesiones}]=await Promise.all([q,sq]);
+  dData={movs:movs||[],sesiones:sesiones||[],fecha};
+  cargando=false;actualizarContenido();
+}
+
+function renderDiario(){
+  if(cargando) return spinner("Cargando informe...");
+
+  const tot=calcTotales(dData?.movs||[]);
+  const movs=dData?.movs||[];
+  const sesiones=dData?.sesiones||[];
+  const esAmbos=!filtroT&&(usuario.rol==="admin"||usuario.taller==="ambos");
+
+  return `
+  <!-- Filtros diario -->
+  <div class="card noprint" style="padding:12px 14px">
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end">
+      <!-- Shortcuts de fecha -->
+      <div>
+        <div class="label">Fecha</div>
+        <div style="display:flex;gap:4px;margin-bottom:6px;flex-wrap:wrap">
+          ${[["Hoy",hoyISO()],["Ayer",addDias(hoyISO(),-1)],["Antes de ayer",addDias(hoyISO(),-2)]].map(([l,iso])=>`
+          <button class="sc ${dFecha===iso?"on":""}" onclick="setDFecha('${iso}')">${l}</button>`).join("")}
+        </div>
+        <input type="date" id="d_fecha" value="${dFecha}" onchange="setDFecha(this.value)"
+          style="padding:8px 12px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#fff;font-size:13px"/>
+      </div>
+      <!-- Taller (admin) -->
+      ${usuario.rol==="admin"||usuario.taller==="ambos"?`
+      <div>
+        <div class="label">Taller</div>
+        <select onchange="filtroT=this.value;cargarDiario()"
+          style="padding:8px 12px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#fff;font-size:13px">
+          <option value="">Ambos talleres</option>
+          ${TALLERES.map(t=>`<option value="${t}" ${filtroT===t?"selected":""}>${t}</option>`).join("")}
+        </select>
+      </div>`:""}
+      <!-- Botones de acción -->
+      <div style="display:flex;gap:5px;margin-left:auto;align-items:flex-end">
+        <button onclick="window.print()" style="padding:8px 14px;background:#334155;color:#94a3b8;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer">🖨️ Imprimir</button>
+        <button onclick="exportarDiarioExcel()" style="padding:8px 14px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer">📥 Excel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Encabezado imprimible -->
+  <div style="display:none" class="print-only" id="print_header" style="margin-bottom:12px;border-bottom:2px solid #1e293b;padding-bottom:8px">
+    <div style="font-size:16px;font-weight:900;color:#1e293b">${EMPRESA.nombre}</div>
+    <div style="font-size:12px;color:#64748b">${EMPRESA.ciudad} · Tel: ${EMPRESA.tel}</div>
+    <div style="font-size:13px;font-weight:700;margin-top:6px">📊 Informe de Caja — ${isoToFecha(dFecha)}</div>
+    ${filtroT?`<div style="font-size:12px;color:#64748b">Taller: ${filtroT}</div>`:""}
+  </div>
+
+  <!-- Cards de resumen -->
+  ${cardsTotales(tot)}
+
+  <!-- Métodos de pago -->
+  <div class="card" style="padding:12px 16px">
+    <div style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:10px">💳 Por método de cobro</div>
+    <div style="display:flex;gap:0">
+      ${[["💵 Efectivo",tot.efectivo,"#4ade80"],["📱 QR",tot.qr,"#60a5fa"],["🔄 Transferencia",tot.trans,"#a78bfa"],["📦 Total cobrado",tot.cobrado,"#fbbf24"]].map((x,i,a)=>`
+      <div style="flex:1;text-align:center${i<a.length-1?";border-right:1px solid #334155":""}">
+        <div style="color:#475569;font-size:9px;margin-bottom:3px">${x[0]}</div>
+        <div style="color:${x[2]};font-weight:700;font-size:13px">${fmt(x[1])}</div>
+      </div>`).join("")}
+    </div>
+  </div>
+
+  <!-- Sesiones del día -->
+  ${sesiones.length?`
+  <div class="card" style="padding:12px 16px">
+    <div style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:10px">🗂️ Sesiones de caja</div>
+    ${sesiones.map(s=>{
+      const dif=parseFloat(s.diferencia||0);
+      return `<div style="background:#0f172a;border-radius:10px;padding:10px 12px;margin-bottom:6px;${sesiones.length>1?"":""}">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
+          <div style="font-weight:700;font-size:12px">🏢 ${s.taller}</div>
+          <span class="badge" style="background:${s.estado==="Cerrada"?"#16a34a20":"#f59e0b20"};color:${s.estado==="Cerrada"?"#16a34a":"#f59e0b"}">${s.estado}</span>
+        </div>
+        <div style="display:flex;gap:14px;font-size:11px;color:#64748b;flex-wrap:wrap">
+          <span>🌅 Apertura ${s.apertura_hora||"—"} · <strong style="color:#94a3b8">${fmt(s.apertura_monto)}</strong></span>
+          ${s.cierre_hora?`<span>🌆 Cierre ${s.cierre_hora}</span>`:""}
+          ${s.cierre_efectivo!=null?`<span>💵 ${fmt(s.cierre_efectivo)} + 📱 ${fmt(s.cierre_qr)}</span>`:""}
+        </div>
+        ${s.estado==="Cerrada"?`<div style="margin-top:6px;font-size:11px;font-weight:700;color:${Math.abs(dif)<1?"#16a34a":dif>0?"#f59e0b":"#ef4444"}">
+          ${Math.abs(dif)<1?"✅ Cuadra perfectamente":dif>0?"⚠️ Sobró "+fmt(Math.abs(dif)):"❌ Faltó "+fmt(Math.abs(dif))}
+          ${s.obs_cierre?`<span style="color:#64748b;font-weight:400"> · ${s.obs_cierre}</span>`:""}
+        </div>`:""}
+      </div>`;
+    }).join("")}
+  </div>`:
+  `<div class="card" style="text-align:center;padding:16px;color:#334155">Sin sesión de caja registrada para esta fecha</div>`}
+
+  <!-- Breakdown por taller (admin ambos) -->
+  ${esAmbos&&movs.length?`
+  <div class="card">
+    <div style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:10px">🏢 Desglose por taller</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      ${TALLERES.map(t=>{
+        const tm=movs.filter(m=>m.taller===t);
+        const tt=calcTotales(tm);
+        return `<div style="background:#0f172a;border-radius:10px;padding:12px">
+          <div style="font-weight:700;font-size:12px;color:#94a3b8;margin-bottom:8px">${t}</div>
+          ${[["Ganancia",tt.ganancia,"#16a34a"],["Capital",tt.capital,"#60a5fa"],["Gastos",tt.gastos,"#ef4444"],["Neto",tt.neto,"#fbbf24"]].map(([l,v,c])=>`
+          <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px">
+            <span style="color:#64748b">${l}</span><span style="color:${c};font-weight:700">${fmt(v)}</span>
+          </div>`).join("")}
+        </div>`;
+      }).join("")}
+    </div>
+  </div>`:""}
+
+  <!-- Movimientos -->
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase">📋 Movimientos del día (${movs.length})</div>
+    </div>
+    ${movs.length===0?`<div style="text-align:center;padding:20px;color:#334155">Sin movimientos en esta fecha</div>`:`
+    <div class="ovf">
+      <table class="tbl">
+        <thead><tr><th>Hora</th><th>Concepto</th><th>Tipo</th><th>Taller</th><th>Método</th><th style="text-align:right">Monto</th></tr></thead>
+        <tbody>
+        ${movs.map(m=>{
+          const ing=m.tipo==="ingreso";
+          const stLabel={ganancia_neta:"MO",capital_tienda:"REP"}[m.subtipo]||(ing?"Ingreso":"Gasto");
+          const c=ing?(m.subtipo==="ganancia_neta"?"#16a34a":m.subtipo==="capital_tienda"?"#60a5fa":"#94a3b8"):"#ef4444";
+          const hora=m.created_at?new Date(m.created_at).toLocaleTimeString("es-BO",{hour:"2-digit",minute:"2-digit"}):"—";
+          return `<tr>
+            <td style="color:#475569;font-size:10px;white-space:nowrap">${hora}</td>
+            <td style="font-weight:600">${m.concepto||"—"}</td>
+            <td><span class="badge" style="background:${c}20;color:${c}">${stLabel}</span></td>
+            <td style="color:#475569;font-size:10px">${m.taller||"—"}</td>
+            <td style="color:#475569;font-size:10px">${m.metodo_pago||"—"}</td>
+            <td style="font-weight:700;color:${c};text-align:right">${ing?"+":"-"}${fmt(m.monto)}</td>
+          </tr>`;
+        }).join("")}
+        </tbody>
+        <tfoot><tr>
+          <td colspan="5" style="color:#64748b;font-size:10px">Total neto</td>
+          <td style="text-align:right;color:${tot.neto>=0?"#16a34a":"#ef4444"};font-size:13px">${fmt(tot.neto)}</td>
+        </tr></tfoot>
+      </table>
+    </div>`}
+  </div>`;
+}
+
+async function setDFecha(iso){
+  dFecha=iso;dData=null;
+  await cargarDiario();
+}
+
+/* ══════════════════════════════════════════════════════
+   TAB: INFORME POR RANGO
+══════════════════════════════════════════════════════ */
+async function cargarRango(){
+  cargando=true;actualizarContenido();
+  const dates=getRango(rDesde,rHasta);
+  // If range > 90 days, fetch without date filter and filter client-side
+  let q=SB.from("caja").select("*");
+  if(filtroT)q=q.eq("taller",filtroT);
+  if(dates.length<=90){q=q.in("fecha",dates);}
+  const{data}=await q.order("fecha");
+  const allMovs=(data||[]).filter(m=>dates.includes(m.fecha));
+  rData={movs:allMovs,dates};
+  cargando=false;actualizarContenido();
+}
+
+function renderRango(){
+  if(cargando) return spinner("Cargando informe...");
+  const movs=rData?.movs||[];
+  const dates=rData?.dates||[];
+  const tot=calcTotales(movs);
+
+  // Agrupar por fecha para tabla diaria
+  const byFecha={};
+  movs.forEach(m=>{
+    if(!byFecha[m.fecha])byFecha[m.fecha]=[];
+    byFecha[m.fecha].push(m);
+  });
+
+  // Filtrar solo fechas con datos para la tabla (hasta 90 filas)
+  const fechasConDatos=dates.filter(f=>byFecha[f]?.length>0);
+  const diasTotal=dates.length;
+
+  return `
+  <!-- Filtros rango -->
+  <div class="card noprint" style="padding:12px 14px">
+    <!-- Shortcuts -->
+    <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:12px">
+      <span style="color:#64748b;font-size:11px;font-weight:700;align-self:center;margin-right:4px">Período:</span>
+      ${[
+        ["Esta semana",inicioSemanaISO(),hoyISO()],
+        ["Este mes",inicioMesISO(),hoyISO()],
+        ["Mes pasado",inicioMesPasadoISO(),finMesPasadoISO()],
+        ["Últimos 7 días",addDias(hoyISO(),-6),hoyISO()],
+        ["Últimos 30 días",addDias(hoyISO(),-29),hoyISO()],
+      ].map(([l,d,h])=>`<button class="sc ${rDesde===d&&rHasta===h?"on":""}" onclick="setRango('${d}','${h}')">${l}</button>`).join("")}
+    </div>
+    <!-- Fechas -->
+    <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+      <div>
+        <div class="label">Desde</div>
+        <input type="date" value="${rDesde}" onchange="rDesde=this.value;cargarRango()"
+          style="padding:8px 12px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#fff;font-size:13px"/>
+      </div>
+      <div>
+        <div class="label">Hasta</div>
+        <input type="date" value="${rHasta}" onchange="rHasta=this.value;cargarRango()"
+          style="padding:8px 12px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#fff;font-size:13px"/>
+      </div>
+      ${usuario.rol==="admin"||usuario.taller==="ambos"?`
+      <div>
+        <div class="label">Taller</div>
+        <select onchange="filtroT=this.value;cargarRango()"
+          style="padding:8px 12px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#fff;font-size:13px">
+          <option value="">Ambos talleres</option>
+          ${TALLERES.map(t=>`<option value="${t}" ${filtroT===t?"selected":""}>${t}</option>`).join("")}
+        </select>
+      </div>`:""}
+      <button onclick="exportarRangoExcel()" style="padding:8px 16px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;margin-left:auto">📥 Descargar Excel</button>
+    </div>
+  </div>
+
+  <!-- Cabecera del período -->
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding:0 2px">
+    <div>
+      <div style="color:#94a3b8;font-size:12px;font-weight:700">${isoToFecha(rDesde)} — ${isoToFecha(rHasta)}</div>
+      <div style="color:#475569;font-size:10px">${diasTotal} días · ${fechasConDatos.length} con movimientos · ${movs.length} registros</div>
+    </div>
+    ${filtroT?`<span class="badge" style="background:#3b82f620;color:#3b82f6">🏢 ${filtroT}</span>`:`<span class="badge" style="background:#3b82f620;color:#3b82f6">🏢 Ambos talleres</span>`}
+  </div>
+
+  <!-- Cards de resumen del período -->
+  ${cardsTotales(tot)}
+
+  <!-- Tabla por día -->
+  <div class="card">
+    <div style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:10px">📅 Resumen por día</div>
+    ${fechasConDatos.length===0?`<div style="text-align:center;padding:20px;color:#334155">Sin movimientos en el período seleccionado</div>`:`
+    <div class="ovf">
+      <table class="tbl">
+        <thead><tr>
+          <th>Fecha</th>
+          ${!filtroT?`<th>Taller</th>`:""}
+          <th style="color:#4ade80">Ganancia</th>
+          <th style="color:#60a5fa">Capital</th>
+          <th style="color:#ef4444">Gastos</th>
+          <th style="color:#fbbf24">Neto</th>
+          <th>Cobrado</th>
+        </tr></thead>
+        <tbody>
+        ${filtroT
+          ? fechasConDatos.map(f=>{
+              const d=calcTotales(byFecha[f]||[]);
+              return `<tr>
+                <td style="white-space:nowrap;font-weight:600">${f}</td>
+                <td style="color:#16a34a;font-weight:700">${fmt(d.ganancia)}</td>
+                <td style="color:#60a5fa;font-weight:700">${fmt(d.capital)}</td>
+                <td style="color:#ef4444">${fmt(d.gastos)}</td>
+                <td style="color:${d.neto>=0?"#fbbf24":"#ef4444"};font-weight:700">${fmt(d.neto)}</td>
+                <td style="color:#94a3b8">${fmt(d.cobrado)}</td>
+              </tr>`;
+            }).join("")
+          : fechasConDatos.flatMap(f=>{
+              const byTaller={};
+              (byFecha[f]||[]).forEach(m=>{if(!byTaller[m.taller])byTaller[m.taller]=[];byTaller[m.taller].push(m);});
+              const entries=Object.entries(byTaller);
+              if(!entries.length) return [];
+              const fTot=calcTotales(byFecha[f]||[]);
+              return [
+                ...entries.map(([t,ms])=>{
+                  const d=calcTotales(ms);
+                  return `<tr>
+                    <td style="white-space:nowrap;font-weight:600">${f}</td>
+                    <td style="color:#64748b;font-size:10px">${t}</td>
+                    <td style="color:#16a34a;font-weight:700">${fmt(d.ganancia)}</td>
+                    <td style="color:#60a5fa;font-weight:700">${fmt(d.capital)}</td>
+                    <td style="color:#ef4444">${fmt(d.gastos)}</td>
+                    <td style="color:${d.neto>=0?"#fbbf24":"#ef4444"};font-weight:700">${fmt(d.neto)}</td>
+                    <td style="color:#94a3b8">${fmt(d.cobrado)}</td>
+                  </tr>`;
+                }),
+                entries.length>1?`<tr style="background:#0f172a80"><td style="font-size:10px;color:#475569"><em>Total ${f}</em></td><td></td><td style="color:#16a34a;font-weight:700">${fmt(fTot.ganancia)}</td><td style="color:#60a5fa;font-weight:700">${fmt(fTot.capital)}</td><td style="color:#ef4444">${fmt(fTot.gastos)}</td><td style="color:${fTot.neto>=0?"#fbbf24":"#ef4444"};font-weight:700">${fmt(fTot.neto)}</td><td></td></tr>`:""
+              ].filter(Boolean);
+            }).join("")}
+        </tbody>
+        <tfoot><tr>
+          <td${!filtroT?` colspan="2"`:``} style="color:#64748b;font-size:10px">TOTALES</td>
+          <td style="color:#16a34a;font-size:13px">${fmt(tot.ganancia)}</td>
+          <td style="color:#60a5fa;font-size:13px">${fmt(tot.capital)}</td>
+          <td style="color:#ef4444;font-size:13px">${fmt(tot.gastos)}</td>
+          <td style="color:#fbbf24;font-size:13px">${fmt(tot.neto)}</td>
+          <td style="color:#94a3b8;font-size:13px">${fmt(tot.cobrado)}</td>
+        </tr></tfoot>
+      </table>
+    </div>`}
+  </div>`;
+}
+
+async function setRango(d,h){rDesde=d;rHasta=h;rData=null;await cargarRango();}
+
+/* ── Cards compartidos ──────────────────────────────── */
+function cardsTotales(tot){
+  const items=[
+    {l:"GANANCIA NETA",sub:"Mano de obra",   v:tot.ganancia,c:"#16a34a"},
+    {l:"CAPITAL",      sub:"Repuestos",       v:tot.capital, c:"#60a5fa"},
+    {l:"GASTOS",       sub:"Egresos",         v:tot.gastos,  c:"#ef4444"},
+    {l:"NETO",         sub:"Cobrado − Gastos",v:tot.neto,    c:tot.neto>=0?"#fbbf24":"#ef4444"},
+  ];
+  return `
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+    ${items.map(x=>`
+    <div style="background:${x.c}12;border:1px solid ${x.c}25;border-radius:12px;padding:14px;text-align:center">
+      <div style="color:#475569;font-size:9px;font-weight:700;margin-bottom:4px">${x.l}</div>
+      <div style="color:${x.c};font-weight:900;font-size:20px">${fmt(x.v)}</div>
+      <div style="color:#334155;font-size:9px;margin-top:2px">${x.sub}</div>
+    </div>`).join("")}
+  </div>`;
+}
+
+function spinner(msg){
+  return `<div style="text-align:center;padding:40px;color:#475569">
+    <div style="font-size:28px;margin-bottom:8px">📊</div>${msg}
+  </div>`;
+}
+
+/* ══════════════════════════════════════════════════════
+   EXPORT EXCEL (SheetJS)
+══════════════════════════════════════════════════════ */
+function exportarDiarioExcel(){
+  const movs=dData?.movs||[];
+  const sesiones=dData?.sesiones||[];
+  const tot=calcTotales(movs);
+  const fecha=isoToFecha(dFecha);
+  const taller=filtroT||"Ambos talleres";
+  const wb=XLSX.utils.book_new();
+
+  // Hoja 1: Resumen
+  const resumenRows=[
+    [EMPRESA.nombre],
+    [`Informe de Caja — ${fecha}`],
+    [`Taller: ${taller}`],
+    [],
+    ["CONCEPTO","MONTO (Bs.)"],
+    ["Ganancia neta (mano de obra)",fmtN(tot.ganancia)],
+    ["Capital (repuestos)",fmtN(tot.capital)],
+    ["Total cobrado",fmtN(tot.cobrado)],
+    ["Gastos del día",fmtN(tot.gastos)],
+    ["NETO DEL DÍA",fmtN(tot.neto)],
+    [],
+    ["POR MÉTODO",""],
+    ["Efectivo",fmtN(tot.efectivo)],
+    ["QR / Digital",fmtN(tot.qr)],
+    ["Transferencia",fmtN(tot.trans)],
+    [],
+    ...sesiones.map(s=>[
+      `Sesión ${s.taller}`,
+      `Apertura: ${s.apertura_hora||"—"} · ${fmtN(s.apertura_monto)} Bs. inicial`,
+      s.cierre_hora?`Cierre: ${s.cierre_hora} · Real: ${fmtN(s.cierre_efectivo)} ef + ${fmtN(s.cierre_qr)} QR`:"Abierta",
+      s.diferencia!=null?(Math.abs(s.diferencia)<1?"Cuadra":s.diferencia>0?`Sobra ${fmtN(s.diferencia)}`:`Falta ${fmtN(Math.abs(s.diferencia))}`):""
+    ])
+  ];
+  const wsRes=XLSX.utils.aoa_to_sheet(resumenRows);
+  wsRes["!cols"]=[{wch:30},{wch:15}];
+  XLSX.utils.book_append_sheet(wb,wsRes,"Resumen");
+
+  // Hoja 2: Movimientos
+  const movCols=["Hora","Concepto","Tipo","Subtipo","Taller","Método","Monto (Bs.)","Ingreso/Egreso"];
+  const movRows=[movCols,...movs.map(m=>{
+    const hora=m.created_at?new Date(m.created_at).toLocaleTimeString("es-BO",{hour:"2-digit",minute:"2-digit"}):"—";
+    const subLabel={ganancia_neta:"Mano de obra",capital_tienda:"Repuesto"}[m.subtipo]||m.subtipo||"—";
+    return[hora,m.concepto||"—",m.tipo,subLabel,m.taller||"—",m.metodo_pago||"—",parseFloat(m.monto||0),m.tipo==="ingreso"?"Ingreso":"Egreso"];
+  })];
+  const wsMov=XLSX.utils.aoa_to_sheet(movRows);
+  wsMov["!cols"]=[{wch:8},{wch:28},{wch:10},{wch:14},{wch:20},{wch:14},{wch:12},{wch:10}];
+  XLSX.utils.book_append_sheet(wb,wsMov,"Movimientos");
+
+  XLSX.writeFile(wb,`informe_caja_${fecha.replace(/\//g,"-")}.xlsx`);
+}
+
+function exportarRangoExcel(){
+  const movs=rData?.movs||[];
+  const tot=calcTotales(movs);
+  const wb=XLSX.utils.book_new();
+
+  // Hoja 1: Resumen por día
+  const byF={};
+  movs.forEach(m=>{
+    const key=filtroT?m.fecha:`${m.fecha}|${m.taller||"—"}`;
+    if(!byF[key])byF[key]={fecha:m.fecha,taller:m.taller||"—",movs:[]};
+    byF[key].movs.push(m);
+  });
+  const cols=["Fecha",...(!filtroT?["Taller"]:[]),"Ganancia neta","Capital","Gastos","Neto","Total cobrado"];
+  const rows=Object.values(byF).map(g=>{
+    const d=calcTotales(g.movs);
+    return [g.fecha,...(!filtroT?[g.taller]:[]),fmtN(d.ganancia),fmtN(d.capital),fmtN(d.gastos),fmtN(d.neto),fmtN(d.cobrado)];
+  });
+  const totalRow=["TOTAL",...(!filtroT?[""]:[]),fmtN(tot.ganancia),fmtN(tot.capital),fmtN(tot.gastos),fmtN(tot.neto),fmtN(tot.cobrado)];
+  const wsRes=XLSX.utils.aoa_to_sheet([
+    [EMPRESA.nombre],
+    [`Período: ${isoToFecha(rDesde)} al ${isoToFecha(rHasta)}`],
+    [`Taller: ${filtroT||"Ambos"}`],
+    [],
+    cols,
+    ...rows,
+    totalRow
+  ]);
+  wsRes["!cols"]=[{wch:14},...(!filtroT?[{wch:22}]:[]),{wch:14},{wch:12},{wch:10},{wch:12},{wch:14}];
+  XLSX.utils.book_append_sheet(wb,wsRes,"Resumen por día");
+
+  // Hoja 2: Todos los movimientos
+  const mCols=["Fecha","Taller","Concepto","Tipo","Subtipo","Método","Monto"];
+  const mRows=movs.map(m=>{
+    const sub={ganancia_neta:"Mano de obra",capital_tienda:"Repuesto"}[m.subtipo]||m.subtipo||"—";
+    return[m.fecha,m.taller||"—",m.concepto||"—",m.tipo,sub,m.metodo_pago||"—",parseFloat(m.monto||0)];
+  });
+  const wsMov=XLSX.utils.aoa_to_sheet([mCols,...mRows]);
+  wsMov["!cols"]=[{wch:14},{wch:22},{wch:28},{wch:10},{wch:14},{wch:14},{wch:12}];
+  XLSX.utils.book_append_sheet(wb,wsMov,"Movimientos detalle");
+
+  const archivo=`reporte_${isoToFecha(rDesde).replace(/\//g,"-")}_${isoToFecha(rHasta).replace(/\//g,"-")}.xlsx`;
+  XLSX.writeFile(wb,archivo);
+}
+
+/* ── Misc ───────────────────────────────────────────── */
+async function cambiarTab(t){
+  tab=t;actualizarContenido();
+  if(t==="rango"&&!rData){await cargarRango();}
+}
+
+/* ── Exponer globales ───────────────────────────────── */
+[
+  "cambiarTab","actualizarContenido","salir",
+  "setDFecha","cargarDiario","exportarDiarioExcel",
+  "setRango","cargarRango","exportarRangoExcel",
+].forEach(fn=>window[fn]=eval(fn));
+
+init();
+</script>
+</body>
+</html>
