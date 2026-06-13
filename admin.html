@@ -886,30 +886,41 @@ function renderConfig(){
   if(!configData)return`<div style="text-align:center;padding:30px;color:#475569">Cargando configuración...</div>`;
   if(!esAdmin())return`<div class="card" style="text-align:center;padding:30px;color:#475569">Solo Wilfredo puede editar la configuración</div>`;
   const notionKey=configData.notion_api_key||"";
+  const keyMask=notionKey?notionKey.slice(0,8)+"•".repeat(Math.min(notionKey.length-8,16)):"";
   return`
   <div class="card">
     <div style="color:#a78bfa;font-size:11px;font-weight:700;text-transform:uppercase;margin-bottom:16px">🔗 Notion Integration</div>
-    <div style="margin-bottom:14px">
+
+    <div style="margin-bottom:10px">
       <div class="label">Notion API Key (Internal Integration Secret)</div>
-      <div style="display:flex;gap:6px">
-        <input id="cfg_notion" type="password" class="input" placeholder="secret_..." value="${notionKey}"
-          style="flex:1;font-family:monospace;font-size:12px"/>
+      <div style="display:flex;gap:6px;margin-bottom:6px">
+        <input id="cfg_notion" type="password" class="input" placeholder="secret_xxxxxxxxxxxxxxxx"
+          value="${notionKey}" style="flex:1;font-family:monospace;font-size:12px"/>
         <button onclick="guardarConfigNotion()"
           style="padding:9px 14px;background:#7c3aed;color:#fff;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">
           💾 Guardar
         </button>
       </div>
-      <div id="cfg_notion_res" style="font-size:10px;color:#64748b;margin-top:5px">
-        ${notionKey?"✅ Key configurada: "+notionKey.slice(0,14)+"...":"Sin configurar — obtener en notion.so/my-integrations"}
+      <div style="display:flex;gap:6px;align-items:center">
+        <button onclick="probarConexionNotion()"
+          style="padding:7px 12px;background:#1d4ed820;color:#60a5fa;border:1px solid #1d4ed840;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer">
+          🔌 Probar conexión
+        </button>
+        <div id="cfg_notion_res" style="font-size:11px;color:#64748b;font-weight:700">
+          ${notionKey?"🔑 Key guardada: "+keyMask:"Sin configurar"}
+        </div>
       </div>
     </div>
+
+    <div id="cfg_notion_test" style="display:none;margin-bottom:10px"></div>
+
     <div style="background:#0f172a;border-radius:10px;padding:12px;color:#64748b;font-size:11px;line-height:1.7">
       <strong style="color:#94a3b8">¿Cómo configurar?</strong><br/>
       1. Ir a <span style="color:#a78bfa">notion.so/my-integrations</span><br/>
       2. Crear nueva integración con tu cuenta<br/>
       3. Copiar el "Internal Integration Secret"<br/>
-      4. Pegar aquí y guardar<br/>
-      5. En Notion, agregar la integración a las páginas de destino (··· → Connections)
+      4. Pegarlo aquí y presionar Guardar<br/>
+      5. En Notion, agregar la integración a cada página de destino (··· → Connections)
     </div>
   </div>`;
 }
@@ -919,10 +930,34 @@ async function guardarConfigNotion(){
   if(!key){alert("Pegá la API Key antes de guardar");return;}
   const{error}=await SB.from("config").upsert({clave:"notion_api_key",valor:key},{onConflict:"clave"});
   const el=$$("cfg_notion_res");
-  if(error){if(el)el.textContent="❌ Error: "+error.message;}
+  if(error){if(el){el.style.color="#ef4444";el.textContent="❌ Error: "+error.message;}}
   else{
     configData.notion_api_key=key;
-    if(el)el.textContent="✅ Guardada: "+key.slice(0,14)+"...";
+    const mask=key.slice(0,8)+"•".repeat(Math.min(key.length-8,16));
+    if(el){el.style.color="#16a34a";el.textContent="✅ Guardada: "+mask;}
+  }
+}
+
+async function probarConexionNotion(){
+  const key=v("cfg_notion")||configData.notion_api_key||"";
+  const box=$$("cfg_notion_test");
+  if(!key){alert("Primero pegá una API Key");return;}
+  if(box){box.style.display="block";box.innerHTML=`<div style="padding:10px;background:#334155;border-radius:8px;color:#94a3b8;font-size:11px">⏳ Probando conexión con Notion...</div>`;}
+  try{
+    const resp=await fetch("https://api.notion.com/v1/users/me",{
+      headers:{"Authorization":"Bearer "+key,"Notion-Version":"2022-06-28"}
+    });
+    if(resp.ok){
+      const data=await resp.json();
+      const nombre=data.name||data.bot?.owner?.user?.name||"Integración OK";
+      if(box)box.innerHTML=`<div style="padding:10px;background:#16a34a15;border:1px solid #16a34a30;border-radius:8px;color:#4ade80;font-size:11px;font-weight:700">✅ Conectado — ${nombre}</div>`;
+    }else{
+      const err=await resp.json().catch(()=>({}));
+      const msg=err.message||("HTTP "+resp.status);
+      if(box)box.innerHTML=`<div style="padding:10px;background:#ef444415;border:1px solid #ef444430;border-radius:8px;color:#f87171;font-size:11px;font-weight:700">❌ Error: ${msg}</div>`;
+    }
+  }catch(e){
+    if(box)box.innerHTML=`<div style="padding:10px;background:#f59e0b15;border:1px solid #f59e0b30;border-radius:8px;color:#fbbf24;font-size:11px;font-weight:700">⚠️ Sin conexión — ${e.message||"CORS / red"}</div>`;
   }
 }
 
@@ -934,7 +969,7 @@ async function guardarConfigNotion(){
   "selWorker","cambiarEstH","eliminarHerr","modalNuevaHerr","imprimirActa",
   "calcVsDias","enviarSolicitud","aprobarVac","rechazarVac","modalEditarSaldo",
   "renderFacturas","guardarFacturaKey","mostrarProductosFactura",
-  "cargarConfig","guardarConfigNotion",
+  "cargarConfig","guardarConfigNotion","probarConexionNotion",
 ].forEach(fn=>window[fn]=eval(fn));
 
 init();
