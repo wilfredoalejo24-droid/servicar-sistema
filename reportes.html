@@ -399,6 +399,7 @@ function renderRango(){
         </select>
       </div>`:""}
       <button onclick="exportarRangoExcel()" style="padding:8px 16px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;margin-left:auto">📥 Descargar Excel</button>
+      <button id="btn_notion_rango" onclick="notionGuardarRango()" style="padding:8px 14px;background:#7c3aed20;color:#a78bfa;border:1px solid #7c3aed30;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer">📤 Guardar en Notion</button>
     </div>
   </div>
 
@@ -603,6 +604,60 @@ function exportarRangoExcel(){
   XLSX.writeFile(wb,archivo);
 }
 
+/* ── Notion sync ─────────────────────────────────────── */
+let _notionKey=null;
+async function getNotionKey(){
+  if(_notionKey)return _notionKey;
+  try{const{data}=await SB.from("config").select("valor").eq("clave","notion_api_key").single();_notionKey=data?.valor||null;}catch{_notionKey=null;}
+  return _notionKey;
+}
+async function notionGuardar(pageId,titulo,filas){
+  const key=await getNotionKey();if(!key)return false;
+  try{
+    const resp=await fetch("https://api.notion.com/v1/pages",{
+      method:"POST",
+      headers:{"Authorization":"Bearer "+key,"Notion-Version":"2022-06-28","Content-Type":"application/json"},
+      body:JSON.stringify({
+        parent:{page_id:pageId},
+        properties:{title:{title:[{text:{content:titulo}}]}},
+        children:filas.map(([label,val])=>({object:"block",type:"paragraph",paragraph:{rich_text:[{type:"text",text:{content:label+": "+val}}]}}))
+      })
+    });
+    return resp.ok;
+  }catch{return false;}
+}
+function notionToast(ok){
+  const d=document.createElement("div");
+  d.style.cssText="position:fixed;top:16px;right:16px;z-index:9999;padding:10px 16px;border-radius:10px;font-size:12px;font-weight:700;"+(ok?"background:#16a34a20;border:1px solid #16a34a40;color:#4ade80":"background:#f59e0b20;border:1px solid #f59e0b40;color:#fbbf24");
+  d.textContent=ok?"✅ Guardado en Notion":"⚠️ Sin conexión Notion";
+  document.body.appendChild(d);
+  setTimeout(()=>d.remove(),3500);
+}
+async function notionGuardarRango(){
+  const btn=document.getElementById("btn_notion_rango");
+  if(btn){btn.disabled=true;btn.textContent="⏳ Guardando...";}
+  if(!rData){await cargarRango();}
+  const movs=rData?.movs||[];
+  const tot=calcTotales(movs);
+  const titulo="Informe "+isoToFecha(rDesde)+" al "+isoToFecha(rHasta)+(filtroT?" · "+filtroT:" · Ambos talleres");
+  const ok=await notionGuardar("37d0581972d181c2a056e9dc618d87eb",titulo,[
+    ["Período",isoToFecha(rDesde)+" — "+isoToFecha(rHasta)],
+    ["Taller",filtroT||"Ambos talleres"],
+    ["Ganancia neta (MO)",fmt(tot.ganancia)],
+    ["Capital (repuestos)",fmt(tot.capital)],
+    ["Gastos",fmt(tot.gastos)],
+    ["Neto total",fmt(tot.neto)],
+    ["Total cobrado",fmt(tot.cobrado)],
+    ["Efectivo",fmt(tot.efectivo)],
+    ["QR / Digital",fmt(tot.qr)],
+    ["Registros",movs.length+" movimientos"],
+    ["Generado por",usuario?.nombre||"—"],
+    ["Fecha generación",isoToFecha(hoyISO())]
+  ]);
+  notionToast(ok);
+  if(btn){btn.disabled=false;btn.textContent="📤 Guardar en Notion";}
+}
+
 /* ── Misc ───────────────────────────────────────────── */
 async function cambiarTab(t){
   tab=t;actualizarContenido();
@@ -614,6 +669,7 @@ async function cambiarTab(t){
   "cambiarTab","actualizarContenido","salir",
   "setDFecha","cargarDiario","exportarDiarioExcel",
   "setRango","cargarRango","exportarRangoExcel",
+  "notionGuardarRango",
 ].forEach(fn=>window[fn]=eval(fn));
 
 init();

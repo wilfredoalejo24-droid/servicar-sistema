@@ -56,6 +56,7 @@ let invBusq="", invCat="";
 let crmBusq="";
 let herWorker=null;
 let vacVista="resumen";
+let configData=null;
 
 /* ── Utils ──────────────────────────────────────────── */
 const hoy=()=>new Date().toLocaleDateString("es-BO");
@@ -99,6 +100,7 @@ function render(){
     {k:"herramientas",l:"🔧 Herramientas"},
     {k:"personal",    l:"🏖️ Personal"},
     {k:"facturas",    l:"🖼️ Facturas IA"},
+    {k:"config",      l:"⚙️ Config"},
   ];
   document.getElementById("app").innerHTML=`
   <div style="background:#1e293b;border-bottom:1px solid #334155;padding:12px 16px;position:sticky;top:0;z-index:100" class="noprint">
@@ -130,6 +132,7 @@ function renderTab(){
   if(tab==="herramientas") return renderHerramientas();
   if(tab==="personal")     return renderPersonal();
   if(tab==="facturas")     return renderFacturas();
+  if(tab==="config")       return renderConfig();
   return "";
 }
 
@@ -146,6 +149,7 @@ async function cambiarTab(t){
     await Promise.all([cargarVacaciones(),!workers?cargarWorkers():Promise.resolve()]);
     actualizarContenido();
   }
+  if(t==="config"&&!configData){await cargarConfig();actualizarContenido();}
 }
 
 /* ══════════════════════════════════════════════════════
@@ -867,6 +871,61 @@ window.guardarFacturaKey=function(){
   const r=$$("fac_key_res");if(r){r.innerHTML="✅ Key guardada: "+k.slice(0,8)+"••••••••...";}
 };
 
+/* ══════════════════════════════════════════════════════
+   TAB: CONFIGURACIÓN
+══════════════════════════════════════════════════════ */
+async function cargarConfig(){
+  try{
+    const{data}=await SB.from("config").select("clave,valor");
+    configData={};
+    (data||[]).forEach(r=>{configData[r.clave]=r.valor;});
+  }catch{configData={};}
+}
+
+function renderConfig(){
+  if(!configData)return`<div style="text-align:center;padding:30px;color:#475569">Cargando configuración...</div>`;
+  if(!esAdmin())return`<div class="card" style="text-align:center;padding:30px;color:#475569">Solo Wilfredo puede editar la configuración</div>`;
+  const notionKey=configData.notion_api_key||"";
+  return`
+  <div class="card">
+    <div style="color:#a78bfa;font-size:11px;font-weight:700;text-transform:uppercase;margin-bottom:16px">🔗 Notion Integration</div>
+    <div style="margin-bottom:14px">
+      <div class="label">Notion API Key (Internal Integration Secret)</div>
+      <div style="display:flex;gap:6px">
+        <input id="cfg_notion" type="password" class="input" placeholder="secret_..." value="${notionKey}"
+          style="flex:1;font-family:monospace;font-size:12px"/>
+        <button onclick="guardarConfigNotion()"
+          style="padding:9px 14px;background:#7c3aed;color:#fff;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">
+          💾 Guardar
+        </button>
+      </div>
+      <div id="cfg_notion_res" style="font-size:10px;color:#64748b;margin-top:5px">
+        ${notionKey?"✅ Key configurada: "+notionKey.slice(0,14)+"...":"Sin configurar — obtener en notion.so/my-integrations"}
+      </div>
+    </div>
+    <div style="background:#0f172a;border-radius:10px;padding:12px;color:#64748b;font-size:11px;line-height:1.7">
+      <strong style="color:#94a3b8">¿Cómo configurar?</strong><br/>
+      1. Ir a <span style="color:#a78bfa">notion.so/my-integrations</span><br/>
+      2. Crear nueva integración con tu cuenta<br/>
+      3. Copiar el "Internal Integration Secret"<br/>
+      4. Pegar aquí y guardar<br/>
+      5. En Notion, agregar la integración a las páginas de destino (··· → Connections)
+    </div>
+  </div>`;
+}
+
+async function guardarConfigNotion(){
+  const key=v("cfg_notion");
+  if(!key){alert("Pegá la API Key antes de guardar");return;}
+  const{error}=await SB.from("config").upsert({clave:"notion_api_key",valor:key},{onConflict:"clave"});
+  const el=$$("cfg_notion_res");
+  if(error){if(el)el.textContent="❌ Error: "+error.message;}
+  else{
+    configData.notion_api_key=key;
+    if(el)el.textContent="✅ Guardada: "+key.slice(0,14)+"...";
+  }
+}
+
 /* ── Exponer globales ───────────────────────────────── */
 [
   "cambiarTab","actualizarContenido","closeModal","salir",
@@ -875,6 +934,7 @@ window.guardarFacturaKey=function(){
   "selWorker","cambiarEstH","eliminarHerr","modalNuevaHerr","imprimirActa",
   "calcVsDias","enviarSolicitud","aprobarVac","rechazarVac","modalEditarSaldo",
   "renderFacturas","guardarFacturaKey","mostrarProductosFactura",
+  "cargarConfig","guardarConfigNotion",
 ].forEach(fn=>window[fn]=eval(fn));
 
 init();
