@@ -742,7 +742,7 @@ function renderFacturas(){
         style="width:100%;padding:10px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#94a3b8;font-size:12px;cursor:pointer"/>
     </div>
     <div id="fac_preview"></div>
-    ${facturaImg?`<button onclick="analizarFactura()" id="btn_analizar" style="width:100%;padding:12px;background:#7c3aed;color:#fff;border:none;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer;margin-top:10px">🤖 Analizar con Claude IA</button>`:""}
+    ${facturaImg?`<button onclick="analizarFactura()" id="btn_analizar" style="width:100%;padding:12px;background:#7c3aed;color:#fff;border:none;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer;margin-top:10px">🤖 Analizar con Groq IA</button>`:""}
   </div>
   <div id="fac_resultado"></div>`;
 }
@@ -770,30 +770,30 @@ window.cargarFacturaImg=function(){
 window.analizarFactura=async function(){
   if(!facturaImg){alert("Primero subí una imagen");return;}
   if(!facturaApiKey){
-    facturaApiKey=localStorage.getItem("scp_claude_key")||null;
+    facturaApiKey=localStorage.getItem("scp_groq_key")||null;
   }
-  if(!facturaApiKey){alert("Necesitás configurar la API Key de Claude en la pestaña Configuración");return;}
+  if(!facturaApiKey){alert("Necesitás configurar la API Key de Groq en la pestaña Configuración");return;}
   const btn=$$("btn_analizar");if(btn){btn.disabled=true;btn.textContent="Analizando imagen...";}
-  const res=$$("fac_resultado");if(res) res.innerHTML=`<div class="card" style="text-align:center;padding:20px;color:#475569">Claude está leyendo la factura...</div>`;
+  const res=$$("fac_resultado");if(res) res.innerHTML=`<div class="card" style="text-align:center;padding:20px;color:#475569">Groq está leyendo la factura...</div>`;
   try{
-    const resp=await fetch("https://api.anthropic.com/v1/messages",{
+    const resp=await fetch("https://api.groq.com/openai/v1/chat/completions",{
       method:"POST",
-      headers:{"x-api-key":facturaApiKey,"anthropic-version":"2023-06-01","content-type":"application/json","anthropic-dangerous-direct-browser-access":"true"},
-      body:JSON.stringify({model:"claude-opus-4-5-20251001",max_tokens:1500,messages:[{role:"user",content:[
-        {type:"image",source:{type:"base64",media_type:"image/jpeg",data:facturaImg}},
+      headers:{"Authorization":`Bearer ${facturaApiKey}`,"Content-Type":"application/json"},
+      body:JSON.stringify({model:"llama-3.2-11b-vision-preview",max_tokens:1500,messages:[{role:"user",content:[
+        {type:"image_url",image_url:{url:`data:image/jpeg;base64,${facturaImg}`}},
         {type:"text",text:`Esta es una factura o lista de compras de un taller automotriz en Bolivia. Extrae TODOS los productos con sus precios en Bolivianos. Responde SOLO con JSON: {"productos":[{"nombre":"...","costo":0,"cantidad":1,"precio_venta":0}]}. Sin texto adicional.`}
       ]}]})
     });
-    if(!resp.ok){const e=await resp.json();throw new Error(e.error?.message||"Error de API");}
+    if(!resp.ok){const e=await resp.json();throw new Error(e.error?.message||"Error de API Groq");}
     const data=await resp.json();
-    const jsonStr=(data.content?.[0]?.text||"{}").replace(/```json\n?/g,"").replace(/```\n?/g,"").trim();
+    const jsonStr=(data.choices?.[0]?.message?.content||"{}").replace(/```json\n?/g,"").replace(/```\n?/g,"").trim();
     const parsed=JSON.parse(jsonStr);
     facturaProductos=(parsed.productos||[]).map(p=>({...p,categoria:"Repuestos mecánicos",precio_venta:p.precio_venta||Math.round((p.costo||0)*1.3)||0}));
     mostrarProductosFactura();
   }catch(e){
     if(res) res.innerHTML=`<div class="card" style="border-color:#ef444430;text-align:center;padding:20px;color:#ef4444">Error: ${e.message}</div>`;
   }
-  if(btn){btn.disabled=false;btn.textContent="Analizar con Claude IA";}
+  if(btn){btn.disabled=false;btn.textContent="Analizar con Groq IA";}
 };
 
 function mostrarProductosFactura(){
@@ -852,11 +852,10 @@ window.registrarFactura=async function(){
 /* ══════════════════════════════════════════════════════
    TAB: CONFIGURACIÓN (API Keys)
 ══════════════════════════════════════════════════════ */
-let configKeys={claude:"",gpt:""};
+let configKeys={groq:""};
 
 async function cargarConfigKeys(){
-  configKeys.claude=localStorage.getItem("scp_claude_key")||"";
-  configKeys.gpt=localStorage.getItem("scp_gpt_key")||"";
+  configKeys.groq=localStorage.getItem("scp_groq_key")||"";
   actualizarContenido();
 }
 
@@ -881,24 +880,15 @@ CREATE TABLE IF NOT EXISTS acceso_especial (
       <div style="color:#94a3b8;font-size:11px;line-height:1.5">Las API Keys se guardan en <strong style="color:#fbbf24">este dispositivo</strong> (localStorage). Son usadas por Wilfredo IA, Asistente de Trabajo y Facturas. Tenés que configurarlas una vez por dispositivo. No se comparten con nadie.</div>
     </div>
     <div style="margin-bottom:16px">
-      <div class="label">Claude API Key (Anthropic)</div>
-      <div style="background:#0f172a;border:1px solid #334155;border-radius:8px;padding:9px 12px;color:#64748b;font-size:11px;font-family:monospace;margin-bottom:6px">${maskKey(configKeys.claude)}</div>
+      <div class="label">⚡ Groq API Key</div>
+      <div style="background:#0f172a;border:1px solid #334155;border-radius:8px;padding:9px 12px;color:#64748b;font-size:11px;font-family:monospace;margin-bottom:6px">${maskKey(configKeys.groq)}</div>
       <div style="display:flex;gap:6px">
-        <input id="cfg_claude" type="password" class="input" placeholder="sk-ant-api03-..." style="flex:1;font-family:monospace;font-size:12px"/>
-        <button onclick="probarClaude()" style="padding:9px 12px;background:#7c3aed20;color:#a78bfa;border:1px solid #7c3aed30;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer">Probar</button>
-        <button onclick="guardarKey('claude')" style="padding:9px 12px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer">Guardar</button>
+        <input id="cfg_groq" type="password" class="input" placeholder="gsk_..." style="flex:1;font-family:monospace;font-size:12px"/>
+        <button onclick="probarGroq()" style="padding:9px 12px;background:#f59e0b20;color:#fbbf24;border:1px solid #f59e0b30;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer">Probar</button>
+        <button onclick="guardarKey('groq')" style="padding:9px 12px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer">Guardar</button>
       </div>
-      <div id="cfg_claude_res" style="font-size:11px;margin-top:5px;color:#64748b"></div>
-    </div>
-    <div style="margin-bottom:16px">
-      <div class="label">ChatGPT API Key (OpenAI)</div>
-      <div style="background:#0f172a;border:1px solid #334155;border-radius:8px;padding:9px 12px;color:#64748b;font-size:11px;font-family:monospace;margin-bottom:6px">${maskKey(configKeys.gpt)}</div>
-      <div style="display:flex;gap:6px">
-        <input id="cfg_gpt" type="password" class="input" placeholder="sk-proj-..." style="flex:1;font-family:monospace;font-size:12px"/>
-        <button onclick="probarGPT()" style="padding:9px 12px;background:#16a34a20;color:#4ade80;border:1px solid #16a34a30;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer">Probar</button>
-        <button onclick="guardarKey('gpt')" style="padding:9px 12px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer">Guardar</button>
-      </div>
-      <div id="cfg_gpt_res" style="font-size:11px;margin-top:5px;color:#64748b"></div>
+      <div id="cfg_groq_res" style="font-size:11px;margin-top:5px;color:#64748b"></div>
+      <div style="color:#475569;font-size:10px;margin-top:4px">Obtenela gratis en <strong style="color:#f97316">console.groq.com</strong> → API Keys. Usada por Wilfredo IA, Asistente de Trabajo y Facturas IA.</div>
     </div>
     <div style="border-top:1px solid #334155;padding-top:14px">
       <div style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:8px">SQL necesario en Supabase (una sola vez)</div>
@@ -909,34 +899,21 @@ CREATE TABLE IF NOT EXISTS acceso_especial (
 }
 
 window.guardarKey=async function(tipo){
-  const id=tipo==="claude"?"cfg_claude":"cfg_gpt";
-  const lsKey=tipo==="claude"?"scp_claude_key":"scp_gpt_key";
-  const val=v(id);if(!val){alert("Ingresá la API Key primero");return;}
-  localStorage.setItem(lsKey,val);
-  if(tipo==="claude")configKeys.claude=val;else configKeys.gpt=val;
-  $$(id).value="";
-  const res=$$(id+"_res");if(res){res.style.color="#16a34a";res.textContent="✅ API Key guardada en este dispositivo";}
+  const val=v("cfg_groq");if(!val){alert("Ingresá la API Key primero");return;}
+  localStorage.setItem("scp_groq_key",val);
+  configKeys.groq=val;
+  $$("cfg_groq").value="";
+  const res=$$("cfg_groq_res");if(res){res.style.color="#16a34a";res.textContent="✅ API Key guardada en este dispositivo";}
   setTimeout(actualizarContenido,1200);
 };
 
-window.probarClaude=async function(){
-  const key=v("cfg_claude")||configKeys.claude;if(!key){alert("Ingresá una API Key primero");return;}
-  const res=$$("cfg_claude_res");if(res){res.style.color="#64748b";res.textContent="Probando...";}
+window.probarGroq=async function(){
+  const key=v("cfg_groq")||configKeys.groq;if(!key){alert("Ingresá una API Key primero");return;}
+  const res=$$("cfg_groq_res");if(res){res.style.color="#64748b";res.textContent="Probando...";}
   try{
-    const resp=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"x-api-key":key,"anthropic-version":"2023-06-01","content-type":"application/json","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:20,messages:[{role:"user",content:"Di hola en 2 palabras"}]})});
+    const resp=await fetch("https://api.groq.com/openai/v1/chat/completions",{method:"POST",headers:{"Authorization":"Bearer "+key,"Content-Type":"application/json"},body:JSON.stringify({model:"llama-3.3-70b-versatile",max_tokens:20,messages:[{role:"user",content:"Di hola en 2 palabras"}]})});
     const data=await resp.json();
-    if(resp.ok){if(res){res.style.color="#16a34a";res.textContent="Conectado: "+data.content?.[0]?.text;}}
-    else{if(res){res.style.color="#ef4444";res.textContent="Error: "+data.error?.message;}}
-  }catch(e){if(res){res.style.color="#ef4444";res.textContent="Error de red: "+e.message;}}
-};
-
-window.probarGPT=async function(){
-  const key=v("cfg_gpt")||configKeys.gpt;if(!key){alert("Ingresá una API Key primero");return;}
-  const res=$$("cfg_gpt_res");if(res){res.style.color="#64748b";res.textContent="Probando...";}
-  try{
-    const resp=await fetch("https://api.openai.com/v1/chat/completions",{method:"POST",headers:{"Authorization":"Bearer "+key,"Content-Type":"application/json"},body:JSON.stringify({model:"gpt-4o-mini",max_tokens:20,messages:[{role:"user",content:"Di hola en 2 palabras"}]})});
-    const data=await resp.json();
-    if(resp.ok){if(res){res.style.color="#16a34a";res.textContent="Conectado: "+data.choices?.[0]?.message?.content;}}
+    if(resp.ok){if(res){res.style.color="#16a34a";res.textContent="✅ Conectado: "+data.choices?.[0]?.message?.content;}}
     else{if(res){res.style.color="#ef4444";res.textContent="Error: "+data.error?.message;}}
   }catch(e){if(res){res.style.color="#ef4444";res.textContent="Error de red: "+e.message;}}
 };

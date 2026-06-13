@@ -96,7 +96,7 @@ async function init(){
 }
 
 async function cargarApiKey(){
-  apiKey=localStorage.getItem("scp_claude_key")||null;
+  apiKey=localStorage.getItem("scp_groq_key")||null;
 }
 
 async function cargarInventario(){
@@ -179,15 +179,21 @@ const HERRAMIENTAS_TRABAJO=[
   }
 ];
 
-/* ── Llamada a Claude ── */
-async function llamarClaude(msgs){
-  if(!apiKey) throw new Error("Sin API Key de Claude. Wilfredo debe configurarla en Admin → Configuración → guardar la Claude API Key.");
-  const res=await fetch("https://api.anthropic.com/v1/messages",{
+/* ── Llamada a Groq ── */
+async function llamarGroq(msgs){
+  if(!apiKey) throw new Error("Sin API Key de Groq. Wilfredo debe configurarla en Admin → Configuración → guardar la Groq API Key.");
+  const res=await fetch("https://api.groq.com/openai/v1/chat/completions",{
     method:"POST",
-    headers:{"x-api-key":apiKey,"anthropic-version":"2023-06-01","content-type":"application/json","anthropic-dangerous-direct-browser-access":"true"},
-    body:JSON.stringify({model:"claude-opus-4-5-20251001",max_tokens:1500,system:buildSystemPrompt(),tools:HERRAMIENTAS_TRABAJO,messages:msgs})
+    headers:{"Authorization":`Bearer ${apiKey}`,"Content-Type":"application/json"},
+    body:JSON.stringify({
+      model:"llama-3.3-70b-versatile",
+      max_tokens:1500,
+      messages:[{role:"system",content:buildSystemPrompt()},...msgs],
+      tools:HERRAMIENTAS_TRABAJO.map(h=>({type:"function",function:{name:h.name,description:h.description,parameters:h.input_schema}})),
+      tool_choice:"auto"
+    })
   });
-  if(!res.ok){const e=await res.json();throw new Error(e.error?.message||"Error de API");}
+  if(!res.ok){const e=await res.json();throw new Error(e.error?.message||"Error de API Groq");}
   return res.json();
 }
 
@@ -326,50 +332,50 @@ async function ejecutarCrearServicio(datos){
 async function procesarMensaje(texto){
   conversacion.push({role:"user",content:texto});
   const idTyping=agregarMensaje("typing","");
-  let iter=0;
+  let iter=0;const MAX=6;
 
   try{
-    while(iter<5){
+    while(iter<MAX){
       iter++;
-      const resp=await llamarClaude(conversacion);
+      const resp=await llamarGroq(conversacion);
+      const msg=resp.choices[0].message;
+      const finish=resp.choices[0].finish_reason;
 
-      if(resp.stop_reason==="tool_use"){
-        const resultados=[];
-        for(const blk of (resp.content||[])){
-          if(blk.type==="tool_use"){
-            if(blk.name==="solicitar_confirmacion"){
-              quitarMensaje(idTyping);
-              // Actualizar conversación con respuesta parcial del asistente
-              conversacion.push({role:"assistant",content:resp.content});
-              const res=await ejecutarHerramienta(blk.name,blk.input);
-              resultados.push({type:"tool_result",tool_use_id:blk.id,content:JSON.stringify(res)});
-              conversacion.push({role:"user",content:resultados});
-              const respFinal=await llamarClaude(conversacion);
-              const texto2=respFinal.content?.find?.(b=>b.type==="text")?.text||"";
-              agregarMensaje("ai",texto2);
-              conversacion.push({role:"assistant",content:respFinal.content||texto2});
-              return;
-            } else {
-              const res=await ejecutarHerramienta(blk.name,blk.input);
-              resultados.push({type:"tool_result",tool_use_id:blk.id,content:JSON.stringify(res)});
-            }
+      if(finish==="tool_calls"&&msg.tool_calls?.length){
+        conversacion.push({role:"assistant",content:msg.content||null,tool_calls:msg.tool_calls});
+
+        for(const tc of msg.tool_calls){
+          const nombre=tc.function.name;
+          const input=JSON.parse(tc.function.arguments);
+
+          if(nombre==="solicitar_confirmacion"){
+            // Remove typing, await user confirmation modal
+            quitarMensaje(idTyping);
+            const res=await ejecutarHerramienta(nombre,input);
+            conversacion.push({role:"tool",tool_call_id:tc.id,content:JSON.stringify(res)});
+            const respFinal=await llamarGroq(conversacion);
+            const txtFinal=respFinal.choices[0].message.content||"";
+            agregarMensaje("ai",txtFinal);
+            conversacion.push({role:"assistant",content:txtFinal});
+            return;
+          } else {
+            const res=await ejecutarHerramienta(nombre,input);
+            conversacion.push({role:"tool",tool_call_id:tc.id,content:JSON.stringify(res)});
           }
         }
-        conversacion.push({role:"assistant",content:resp.content});
-        conversacion.push({role:"user",content:resultados});
 
       } else {
-        const txt=resp.content?.find?.(b=>b.type==="text")?.text||resp.content||"";
+        const txt=msg.content||"";
         quitarMensaje(idTyping);
         agregarMensaje("ai",txt);
-        conversacion.push({role:"assistant",content:Array.isArray(resp.content)?resp.content:txt});
+        conversacion.push({role:"assistant",content:txt});
         break;
       }
     }
   } catch(e){
     quitarMensaje(idTyping);
     if(e.message.includes("Sin API Key")){
-      agregarMensaje("ai","⚠️ El asistente IA no está configurado todavía. **Pedile a Wilfredo que configure la API Key de Claude** en Admin → Configuración.\n\nMientras tanto, podés:\n• Ver el inventario en [Admin](/admin.html)\n• Ver tus OTs en [Órdenes](/ot.html)");
+      agregarMensaje("ai","⚠️ El asistente IA no está configurado todavía. **Pedile a Wilfredo que configure la API Key de Groq** en Admin → Configuración.\n\nMientras tanto, podés:\n• Ver el inventario en [Admin](/admin.html)\n• Ver tus OTs en [Órdenes](/ot.html)");
     } else {
       agregarMensaje("error","❌ Error: "+e.message);
     }

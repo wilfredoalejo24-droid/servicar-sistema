@@ -32,10 +32,7 @@ input:focus,textarea:focus{outline:none;border-color:#f59e0b!important}
       <div style="color:#475569;font-size:10px" id="hdr-status">Cargando...</div>
     </div>
     <div style="display:flex;gap:6px;align-items:center">
-      <select id="modelo-sel" style="padding:5px 8px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#fff;font-size:11px;cursor:pointer">
-        <option value="claude">🧠 Claude</option>
-        <option value="gpt">🤖 ChatGPT</option>
-      </select>
+      <span style="padding:4px 10px;background:#f97316;color:#fff;border-radius:8px;font-size:10px;font-weight:700">⚡ Groq · Llama 3.3</span>
       <button onclick="limpiarChat()" class="btn" style="background:#334155;color:#94a3b8">🗑 Limpiar</button>
     </div>
   </div>
@@ -90,7 +87,7 @@ const CATS_INV=Object.keys(PREF_INV);
 const hoy=()=>new Date().toLocaleDateString("es-BO");
 const fmt=n=>`Bs. ${parseFloat(n||0).toFixed(2)}`;
 
-let usuario=null, apiKeys={claude:null,gpt:null}, conversacion=[], invCache=null;
+let usuario=null, apiKeys={groq:null}, conversacion=[], invCache=null;
 let escuchando=false, recognition=null;
 
 /* ── Sesión ─────────────────────────────────────── */
@@ -118,8 +115,7 @@ async function init(){
 
 /* ── API Keys (localStorage) ────────────────────── */
 async function cargarApiKeys(){
-  apiKeys.claude=localStorage.getItem("scp_claude_key")||null;
-  apiKeys.gpt=localStorage.getItem("scp_gpt_key")||null;
+  apiKeys.groq=localStorage.getItem("scp_groq_key")||null;
 }
 
 async function cargarInventarioCache(){
@@ -128,19 +124,16 @@ async function cargarInventarioCache(){
 }
 
 function mostrarStatusBar(){
-  const cOk=!!apiKeys.claude, gOk=!!apiKeys.gpt;
+  const gOk=!!apiKeys.groq;
   document.getElementById("status-bar").innerHTML=`
   <div style="display:flex;gap:6px;flex-wrap:wrap">
-    <span style="padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;background:${cOk?"#16a34a":"#ef4444"}15;color:${cOk?"#16a34a":"#ef4444"};border:1px solid ${cOk?"#16a34a":"#ef4444"}30">
-      ${cOk?"🟢":"🔴"} Claude ${cOk?"OK":"sin key"}
-    </span>
-    <span style="padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;background:${gOk?"#16a34a":"#475569"}15;color:${gOk?"#16a34a":"#475569"};border:1px solid ${gOk?"#16a34a":"#475569"}30">
-      ${gOk?"🟢":"⚫"} ChatGPT ${gOk?"OK":"sin key"}
+    <span style="padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;background:${gOk?"#f97316":"#ef4444"}15;color:${gOk?"#f97316":"#ef4444"};border:1px solid ${gOk?"#f97316":"#ef4444"}30">
+      ${gOk?"⚡":"🔴"} Groq ${gOk?"conectado":"sin key"}
     </span>
     <span style="padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;background:#3b82f615;color:#3b82f6;border:1px solid #3b82f630">
       📦 ${invCache?.length||0} productos
     </span>
-    ${!cOk&&!gOk?`<button onclick="mostrarConfigKeys()" style="padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;background:#f59e0b15;color:#f59e0b;border:1px solid #f59e0b30;cursor:pointer">⚙️ Configurar API Keys aquí</button>`:!cOk?`<button onclick="mostrarConfigKeys()" style="padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;background:#ef444415;color:#ef4444;border:1px solid #ef444430;cursor:pointer">⚙️ Agregar Claude Key</button>`:""}
+    ${!gOk?`<button onclick="mostrarConfigKeys()" style="padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;background:#f59e0b15;color:#f59e0b;border:1px solid #f59e0b30;cursor:pointer">⚙️ Configurar Groq API Key</button>`:""}
   </div>`;
 }
 
@@ -261,61 +254,22 @@ const HERRAMIENTAS=[
   }
 ];
 
-/* ── Llamada a Claude ───────────────────────────── */
-async function llamarClaude(mensajes){
-  if(!apiKeys.claude) throw new Error("No hay API Key de Claude. Configurala en Admin → Configuración.");
-  const res=await fetch("https://api.anthropic.com/v1/messages",{
+/* ── Llamada a Groq ─────────────────────────────── */
+async function llamarGroq(mensajes){
+  if(!apiKeys.groq) throw new Error("No hay API Key de Groq. Tocá ⚙️ para configurarla.");
+  const res=await fetch("https://api.groq.com/openai/v1/chat/completions",{
     method:"POST",
-    headers:{
-      "x-api-key":apiKeys.claude,
-      "anthropic-version":"2023-06-01",
-      "content-type":"application/json",
-      "anthropic-dangerous-direct-browser-access":"true"
-    },
+    headers:{"Authorization":`Bearer ${apiKeys.groq}`,"Content-Type":"application/json"},
     body:JSON.stringify({
-      model:"claude-opus-4-5-20251001",
+      model:"llama-3.3-70b-versatile",
       max_tokens:2048,
-      system:SYSTEM_PROMPT,
-      tools:HERRAMIENTAS,
-      messages:mensajes
-    })
-  });
-  if(!res.ok){const e=await res.json();throw new Error(e.error?.message||"Error de API Claude");}
-  return res.json();
-}
-
-/* ── Llamada a ChatGPT ──────────────────────────── */
-async function llamarGPT(mensajes){
-  if(!apiKeys.gpt) throw new Error("No hay API Key de ChatGPT. Configurala en Admin → Configuración.");
-  // Convertir formato Claude → OpenAI
-  const msgs=[{role:"system",content:SYSTEM_PROMPT},...mensajes.map(m=>({
-    role:m.role==="user"&&Array.isArray(m.content)?"user":m.role,
-    content:Array.isArray(m.content)?JSON.stringify(m.content):m.content
-  }))];
-  const res=await fetch("https://api.openai.com/v1/chat/completions",{
-    method:"POST",
-    headers:{"Authorization":`Bearer ${apiKeys.gpt}`,"Content-Type":"application/json"},
-    body:JSON.stringify({
-      model:"gpt-4o-mini",
-      messages:msgs,
+      messages:[{role:"system",content:SYSTEM_PROMPT},...mensajes],
       tools:HERRAMIENTAS.map(h=>({type:"function",function:{name:h.name,description:h.description,parameters:h.input_schema}})),
-      max_tokens:2048
+      tool_choice:"auto"
     })
   });
-  if(!res.ok){const e=await res.json();throw new Error(e.error?.message||"Error de API OpenAI");}
-  const data=await res.json();
-  // Normalizar respuesta GPT al formato de Claude
-  const msg=data.choices[0].message;
-  if(msg.tool_calls){
-    return {
-      stop_reason:"tool_use",
-      content:msg.tool_calls.map(tc=>({
-        type:"tool_use",id:tc.id,name:tc.function.name,
-        input:JSON.parse(tc.function.arguments)
-      }))
-    };
-  }
-  return{stop_reason:"end_turn",content:[{type:"text",text:msg.content}]};
+  if(!res.ok){const e=await res.json();throw new Error(e.error?.message||"Error de API Groq");}
+  return res.json();
 }
 
 /* ── Ejecutar herramienta ───────────────────────── */
@@ -473,55 +427,45 @@ async function ejecutarHerramienta(nombre,input){
   }
 }
 
-/* ── Bucle de procesamiento ─────────────────────── */
+/* ── Bucle de procesamiento (Groq / OpenAI format) ── */
 async function procesarMensaje(texto){
-  const modelo=document.getElementById("modelo-sel").value;
   conversacion.push({role:"user",content:texto});
-
   const idTyping=agregarMensaje("typing","");
-  let iteraciones=0;
-  const MAX=6;
+  let iter=0;const MAX=6;
 
-  try {
-    while(iteraciones<MAX){
-      iteraciones++;
-      const resp=modelo==="gpt"?await llamarGPT(conversacion):await llamarClaude(conversacion);
+  try{
+    while(iter<MAX){
+      iter++;
+      const resp=await llamarGroq(conversacion);
+      const msg=resp.choices[0].message;
+      const finish=resp.choices[0].finish_reason;
 
-      if(resp.stop_reason==="tool_use"){
-        const bloques=Array.isArray(resp.content)?resp.content:[];
-        const resultados=[];
+      if(finish==="tool_calls"&&msg.tool_calls?.length){
+        // Agregar mensaje del asistente con tool_calls a la conversación
+        conversacion.push({role:"assistant",content:msg.content||null,tool_calls:msg.tool_calls});
 
-        for(const blk of bloques){
-          if(blk.type==="tool_use"){
-            // Mostrar herramienta ejecutándose
-            actualizarMensaje(idTyping,"tool",`🔧 Ejecutando: **${blk.name}**\n\`\`\`\n${JSON.stringify(blk.input,null,1)}\n\`\`\``);
-
-            const res=await ejecutarHerramienta(blk.name,blk.input);
-            resultados.push({type:"tool_result",tool_use_id:blk.id,content:JSON.stringify(res)});
-
-            // Log del resultado
-            agregarMensaje("tool",`✅ ${blk.name}: ${JSON.stringify(res).substring(0,120)}...`);
-          }
+        for(const tc of msg.tool_calls){
+          const nombre=tc.function.name;
+          const input=JSON.parse(tc.function.arguments);
+          actualizarMensaje(idTyping,"tool",`🔧 Ejecutando: **${nombre}**\n\`\`\`\n${JSON.stringify(input,null,1)}\n\`\`\``);
+          const res=await ejecutarHerramienta(nombre,input);
+          agregarMensaje("tool",`✅ ${nombre}: ${JSON.stringify(res).substring(0,120)}...`);
+          // Resultado como mensaje "tool" (formato OpenAI)
+          conversacion.push({role:"tool",tool_call_id:tc.id,content:JSON.stringify(res)});
         }
-
-        conversacion.push({role:"assistant",content:resp.content});
-        conversacion.push({role:"user",content:resultados});
-
         actualizarMensaje(idTyping,"typing","");
 
-      } else if(resp.stop_reason==="end_turn"){
-        const texto=resp.content?.find?.(b=>b.type==="text")?.text||resp.content||"";
-        quitarMensaje(idTyping);
-        agregarMensaje("ai",texto);
-        conversacion.push({role:"assistant",content:Array.isArray(resp.content)?resp.content:texto});
-        break;
       } else {
+        const txt=msg.content||"";
+        quitarMensaje(idTyping);
+        agregarMensaje("ai",txt);
+        conversacion.push({role:"assistant",content:txt});
         break;
       }
     }
-  } catch(e){
+  }catch(e){
     quitarMensaje(idTyping);
-    agregarMensaje("error","❌ Error: "+e.message+"\n\n¿Configuraste las API Keys en Admin → Configuración?");
+    agregarMensaje("error","❌ Error: "+e.message+"\n\n¿Configuraste la API Key de Groq? Tocá ⚙️ arriba.");
   }
 }
 
@@ -699,18 +643,12 @@ function mostrarConfigKeys(){
     <div style="color:#fbbf24;font-weight:900">🔑 Configurar API Keys</div>
     <button onclick="document.getElementById('modal').style.display='none'" style="background:none;border:none;color:#64748b;font-size:20px;cursor:pointer">✕</button>
   </div>
-  <div style="color:#94a3b8;font-size:11px;margin-bottom:14px;line-height:1.5">Las keys se guardan en este dispositivo (localStorage). Solo vos las ves — nunca salen al servidor.</div>
-  <div style="margin-bottom:12px">
-    <div style="color:#64748b;font-size:11px;font-weight:700;margin-bottom:5px">🧠 Claude API Key (Anthropic)</div>
-    <input id="ck_claude" type="password" placeholder="sk-ant-api03-..." value="${apiKeys.claude||''}"
-      style="width:100%;padding:10px 12px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#fff;font-size:12px;font-family:monospace"/>
-    <div style="color:#64748b;font-size:10px;margin-top:3px">Obtenela en console.anthropic.com → API Keys</div>
-  </div>
+  <div style="color:#94a3b8;font-size:11px;margin-bottom:14px;line-height:1.5">Se guarda en <strong>este dispositivo</strong> (localStorage). Nunca sale al servidor.</div>
   <div style="margin-bottom:16px">
-    <div style="color:#64748b;font-size:11px;font-weight:700;margin-bottom:5px">🤖 ChatGPT API Key (OpenAI) — opcional</div>
-    <input id="ck_gpt" type="password" placeholder="sk-proj-..." value="${apiKeys.gpt||''}"
+    <div style="color:#64748b;font-size:11px;font-weight:700;margin-bottom:5px">⚡ Groq API Key</div>
+    <input id="ck_groq" type="password" placeholder="gsk_..." value="${apiKeys.groq||''}"
       style="width:100%;padding:10px 12px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#fff;font-size:12px;font-family:monospace"/>
-    <div style="color:#64748b;font-size:10px;margin-top:3px">Obtenela en platform.openai.com → API Keys</div>
+    <div style="color:#64748b;font-size:10px;margin-top:3px">Obtenela gratis en <strong style="color:#f97316">console.groq.com</strong> → API Keys</div>
   </div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
     <button onclick="document.getElementById('modal').style.display='none'" style="padding:11px;background:#334155;color:#94a3b8;border:none;border-radius:10px;font-weight:700;cursor:pointer">Cancelar</button>
@@ -719,15 +657,12 @@ function mostrarConfigKeys(){
 }
 
 window.guardarConfigKeys=function(){
-  const c=document.getElementById("ck_claude")?.value?.trim();
-  const g=document.getElementById("ck_gpt")?.value?.trim();
-  if(c) localStorage.setItem("scp_claude_key",c);
-  if(g) localStorage.setItem("scp_gpt_key",g);
-  apiKeys.claude=localStorage.getItem("scp_claude_key")||null;
-  apiKeys.gpt=localStorage.getItem("scp_gpt_key")||null;
+  const k=document.getElementById("ck_groq")?.value?.trim();
+  if(k) localStorage.setItem("scp_groq_key",k);
+  apiKeys.groq=localStorage.getItem("scp_groq_key")||null;
   document.getElementById("modal").style.display="none";
   mostrarStatusBar();
-  agregarMensaje("ai","✅ API Keys guardadas. Ya podés usar el asistente. ¿En qué te ayudo?");
+  agregarMensaje("ai","✅ Groq API Key guardada. Ya podés usar el asistente. ¿En qué te ayudo?");
 };
 
 // Exponer globales
