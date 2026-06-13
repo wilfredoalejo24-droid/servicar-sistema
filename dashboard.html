@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<meta name="theme-color" content="#0f172a"/>
+<title>Dashboard — Servi Car Platinium</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;background:#0f172a;color:#fff;min-height:100vh}
+a{text-decoration:none;color:inherit}
+input,select{outline:none;font-family:inherit}
+input:focus,select:focus{border-color:#f59e0b!important}
+
+.card{background:#1e293b;border:1px solid #334155;border-radius:16px;padding:16px;margin-bottom:12px}
+.card-sm{background:#0f172a;border:1px solid #23334a;border-radius:12px;padding:12px}
+.badge{padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700;white-space:nowrap}
+.btn{padding:7px 13px;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;transition:all .15s}
+
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+@media(max-width:640px){.g4{grid-template-columns:repeat(2,1fr)}.g2{grid-template-columns:1fr}}
+
+.kpi-card{background:#1e293b;border:1px solid #334155;border-radius:14px;padding:14px 14px 12px}
+.kpi-lbl{font-size:10px;color:#64748b;font-weight:700;text-transform:uppercase;margin-bottom:5px;letter-spacing:.3px}
+.kpi-val{font-size:20px;font-weight:900;line-height:1.1}
+.kpi-sub{font-size:10px;color:#475569;margin-top:2px}
+.kpi-delta{font-size:11px;margin-top:5px}
+.up{color:#16a34a}.dn{color:#ef4444}.eq{color:#475569}
+
+.tab-btn{padding:7px 14px;border:1px solid #334155;border-radius:8px;color:#64748b;font-size:12px;font-weight:700;cursor:pointer;background:#1e293b;transition:all .15s}
+.tab-btn.on{background:#f59e0b;border-color:#f59e0b;color:#1e293b}
+.prog-track{background:#0f172a;border-radius:99px;height:8px;overflow:hidden;margin:6px 0}
+.prog-fill{height:100%;border-radius:99px;transition:width .5s ease}
+
+@keyframes fi{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.fi{animation:fi .25s ease both}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+.pulse{animation:pulse 1.5s infinite}
+
+/* Modal */
+.modal{display:none;position:fixed;inset:0;background:#000a;z-index:300;align-items:center;justify-content:center;padding:16px}
+.modal.open{display:flex}
+.modal-box{background:#1e293b;border:1px solid #334155;border-radius:18px;padding:22px;width:100%;max-width:380px}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;color:#475569">
+    <div style="text-align:center">
+      <div class="pulse" style="font-size:48px;margin-bottom:12px">📊</div>
+      <div>Cargando dashboard...</div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal configuración -->
+<div id="modal_cfg" class="modal" onclick="if(event.target===this)closeCfg()">
+  <div class="modal-box">
+    <div style="font-weight:900;font-size:16px;margin-bottom:6px">⚙️ Configuración</div>
+    <div style="color:#64748b;font-size:12px;margin-bottom:18px">Estos valores se guardan localmente en este dispositivo.</div>
+    <div style="margin-bottom:14px">
+      <div style="color:#64748b;font-size:11px;font-weight:700;margin-bottom:6px">🎯 META MENSUAL DE INGRESOS (Bs.)</div>
+      <input id="cfg_meta" type="number" min="0"
+        style="width:100%;padding:10px 12px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#fff;font-size:15px;font-weight:700"/>
+      <div style="color:#475569;font-size:10px;margin-top:4px">Cuánto querés cobrar este mes en total</div>
+    </div>
+    <div style="margin-bottom:20px">
+      <div style="color:#64748b;font-size:11px;font-weight:700;margin-bottom:6px">⚖️ COSTOS FIJOS MENSUALES (Bs.)</div>
+      <input id="cfg_costos" type="number" min="0"
+        style="width:100%;padding:10px 12px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#fff;font-size:15px;font-weight:700"/>
+      <div style="color:#475569;font-size:10px;margin-top:4px">Alquiler + sueldos fijos + servicios básicos</div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button onclick="closeCfg()" class="btn" style="flex:1;background:#334155;color:#94a3b8">Cancelar</button>
+      <button onclick="saveCfg()" class="btn" style="flex:1;background:#f59e0b;color:#1e293b">💾 Guardar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const SB=window.supabase.createClient(
+  "https://epirsbudngwbxgcsryvv.supabase.co",
+  "sb_publishable_zsqvMzJMc80Ypf3UQqs-SA_IrV-XIGc"
+);
+const TALLERES=["Taller 1 · Montes","Taller 2 · Bella Vista"];
+const PASOS=["","Recepción","Diagnóstico","Cotización","Aprobación","Ejecución","Entrega"];
+const fmt=n=>"Bs. "+parseFloat(n||0).toLocaleString("es-BO",{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtK=n=>{const v=parseFloat(n||0);return v>=1000?"Bs. "+(v/1000).toFixed(1)+"k":fmt(v);}
+const pct=(a,b)=>b?Math.min(100,Math.round((a/b)*100)):0;
+
+/* ══════════════════════════════════════════════════════
+   AUTH
+══════════════════════════════════════════════════════ */
+let usuario=null;
+function checkAuth(){
+  const raw=localStorage.getItem("scp_user")||localStorage.getItem("sc_user");
+  if(!raw){location.href="/";return;}
+  try{usuario=JSON.parse(raw);}catch{location.href="/";return;}
+  if(usuario.rol!=="admin"){
+    document.getElementById("app").innerHTML=`<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;flex-direction:column;gap:12px;color:#64748b">
+      <div style="font-size:48px">🔒</div>
+      <div>Acceso solo para administrador</div>
+      <a href="/" style="padding:10px 20px;background:#334155;color:#94a3b8;border-radius:8px;font-weight:700;font-size:13px">← Volver</a>
+    </div>`;
+    return;
+  }
+  loadCfg();
+  fetchAll();
+}
+
+/* ══════════════════════════════════════════════════════
+   CONFIGURACIÓN
+══════════════════════════════════════════════════════ */
+let cfg={meta_mensual:50000,costos_fijos:20000};
+function loadCfg(){try{const s=localStorage.getItem("scp_dash_cfg");if(s)cfg={...cfg,...JSON.parse(s)};}catch{}}
+function openCfg(){document.getElementById("cfg_meta").value=cfg.meta_mensual;document.getElementById("cfg_costos").value=cfg.costos_fijos;document.getElementById("modal_cfg").classList.add("open");}
+function closeCfg(){document.getElementById("modal_cfg").classList.remove("open");}
+function saveCfg(){
+  cfg.meta_mensual=parseFloat(document.getElementById("cfg_meta").value)||50000;
+  cfg.costos_fijos=parseFloat(document.getElementById("cfg_costos").value)||20000;
+  localStorage.setItem("scp_dash_cfg",JSON.stringify(cfg));
+  closeCfg();renderApp();
+}
+
+/* ══════════════════════════════════════════════════════
+   FECHAS
+══════════════════════════════════════════════════════ */
+let periodo="mes";
+function fechaStr(d){return d.toLocaleDateString("es-BO");}
+function hoyStr(){return fechaStr(new Date());}
+
+function getMesDates(offset=0){
+  const hoy=new Date();
+  const y=hoy.getFullYear(),m=hoy.getMonth()+offset;
+  const primer=new Date(y,m,1),ultimo=new Date(y,m+1,0);
+  const out=[];
+  for(const cur=new Date(primer);cur<=ultimo;cur.setDate(cur.getDate()+1))out.push(fechaStr(new Date(cur)));
+  return out;
+}
+function getSemDates(offset=0){
+  const hoy=new Date();
+  const dia=hoy.getDay();
+  const lunes=new Date(hoy);lunes.setDate(hoy.getDate()-(dia===0?6:dia-1)+offset*7);
+  const out=[];
+  for(let i=0;i<7;i++){const d=new Date(lunes);d.setDate(lunes.getDate()+i);if(d<=hoy||offset<0)out.push(fechaStr(d));}
+  return out;
+}
+function diasMes(){return new Date(new Date().getFullYear(),new Date().getMonth()+1,0).getDate();}
+function diasTransc(){return new Date().getDate();}
+
+/* ══════════════════════════════════════════════════════
+   FETCH
+══════════════════════════════════════════════════════ */
+let datos=null;
+async function fetchAll(){
+  document.getElementById("app").innerHTML=`<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;color:#475569"><div style="text-align:center"><div class="pulse" style="font-size:48px;margin-bottom:12px">📊</div>Actualizando...</div></div>`;
+
+  const mesAct=getMesDates(0);
+  const mesAnt=getMesDates(-1);
+  const semAct=getSemDates(0);
+  const semAnt=getSemDates(-1);
+  const hoy=hoyStr();
+  const ayer=fechaStr(new Date(Date.now()-86400000));
+  const primerDiaMes=new Date(new Date().getFullYear(),new Date().getMonth(),1).toISOString();
+
+  const[r1,r2,r3,r4,r5,r6,r7,r8,r9,r10,r11]=await Promise.all([
+    SB.from("caja").select("tipo,subtipo,monto,fecha,taller,metodo_pago").in("fecha",mesAct),
+    SB.from("caja").select("tipo,subtipo,monto,fecha,taller,metodo_pago").in("fecha",mesAnt),
+    SB.from("caja").select("tipo,subtipo,monto,fecha,taller,metodo_pago").in("fecha",semAct),
+    SB.from("caja").select("tipo,subtipo,monto,fecha,taller,metodo_pago").in("fecha",semAnt),
+    SB.from("caja").select("tipo,subtipo,monto,fecha,taller,metodo_pago").eq("fecha",hoy),
+    SB.from("caja").select("tipo,subtipo,monto,fecha,taller,metodo_pago").eq("fecha",ayer),
+    SB.from("ots").select("id,num,placa,cliente,vehiculo,taller,tecnico,paso,fecha,created_at").lt("paso",6),
+    SB.from("crm").select("num,placa,taller,tecnico,fecha,ganancia_neta,capital,created_at").in("fecha",mesAct),
+    SB.from("encuestas").select("estrellas,nps,created_at").gte("created_at",primerDiaMes),
+    SB.from("inventario").select("id,nombre,stock,stock_minimo,categoria"),
+    SB.from("vacaciones_solicitudes").select("id,nombre_empleado,dias_solicitados,estado").eq("estado","pendiente"),
+  ]);
+
+  // Ingresos diarios este mes (para el gráfico)
+  const cajaMes=r1.data||[];
+  const dailyMes=mesAct.map(f=>
+    cajaMes.filter(m=>m.fecha===f&&m.tipo==="ingreso").reduce((s,m)=>s+parseFloat(m.monto||0),0)
+  );
+
+  datos={
+    cajaMes,cajaMesAnt:r2.data||[],
+    cajaSem:r3.data||[],cajaSemAnt:r4.data||[],
+    cajaHoy:r5.data||[],cajaAyer:r6.data||[],
+    ots:r7.data||[],crm:r8.data||[],
+    encuestas:r9.data||[],inv:r10.data||[],
+    vacPend:r11.data||[],
+    dailyMes,mesAct,semAct,hoy,ayer
+  };
+  renderApp();
+}
+
+/* ══════════════════════════════════════════════════════
+   CÁLCULOS
+══════════════════════════════════════════════════════ */
+function kpis(movs){
+  const ganancia=movs.filter(m=>m.tipo==="ingreso"&&m.subtipo==="ganancia_neta").reduce((s,m)=>s+parseFloat(m.monto||0),0);
+  const capital=movs.filter(m=>m.tipo==="ingreso"&&m.subtipo==="capital_tienda").reduce((s,m)=>s+parseFloat(m.monto||0),0);
+  const gastos=movs.filter(m=>m.tipo==="egreso").reduce((s,m)=>s+parseFloat(m.monto||0),0);
+  const efectivo=movs.filter(m=>m.tipo==="ingreso"&&(m.metodo_pago==="Efectivo"||!m.metodo_pago)).reduce((s,m)=>s+parseFloat(m.monto||0),0);
+  const qr=movs.filter(m=>m.tipo==="ingreso"&&m.metodo_pago==="QR").reduce((s,m)=>s+parseFloat(m.monto||0),0);
+  const cobrado=ganancia+capital;
+  return{ganancia,capital,gastos,cobrado,neto:cobrado-gastos,efectivo,qr};
+}
+function kTaller(movs,t){return kpis(movs.filter(m=>m.taller===t));}
+function getPeriodMovs(){return periodo==="hoy"?datos.cajaHoy:periodo==="semana"?datos.cajaSem:datos.cajaMes;}
+function getPrevMovs(){return periodo==="hoy"?datos.cajaAyer:periodo==="semana"?datos.cajaSemAnt:datos.cajaMesAnt;}
+
+function deltaStr(actual,prev,invert=false){
+  if(!prev)return`<span class="eq">—</span>`;
+  const d=((actual-prev)/prev)*100;
+  const eff=invert?-d:d;
+  const cls=eff>0?"up":eff<0?"dn":"eq";
+  const sign=eff>0?"+":"";
+  return`<span class="${cls}">${sign}${d.toFixed(1)}%</span>`;
+}
+
+/* ══════════════════════════════════════════════════════
+   SVG CHART
+══════════════════════════════════════════════════════ */
+function barChart(values,target=0,h=44){
+  if(!values.length)return"";
+  const max=Math.max(...values,target||0,1);
+  const bw=7,gap=2,n=values.length;
+  const targetY=target?Math.round((1-target/max)*h):null;
+  const bars=values.map((v,i)=>{
+    const bh=Math.max(2,Math.round((v/max)*h));
+    const color=v===0?"#1e293b":target&&v>=target?"#16a34a":"#f59e0b";
+    return`<rect x="${i*(bw+gap)}" y="${h-bh}" width="${bw}" height="${bh}" fill="${color}" rx="2"/>`;
+  }).join("");
+  const targetLine=targetY!=null?`<line x1="0" y1="${targetY}" x2="${n*(bw+gap)}" y2="${targetY}" stroke="#334155" stroke-width="1" stroke-dasharray="3,2"/>`:"";
+  return`<svg width="${n*(bw+gap)}" height="${h}" style="display:block">${bars}${targetLine}</svg>`;
+}
+
+/* ══════════════════════════════════════════════════════
+   RENDER PRINCIPAL
+══════════════════════════════════════════════════════ */
+function renderApp(){
+  if(!datos)return;
+  const kP=kpis(getPeriodMovs());
+  const kPrev=kpis(getPrevMovs());
+  const kMes=kpis(datos.cajaMes);
+
+  document.getElementById("app").innerHTML=`
+  ${renderNav()}
+  <div class="fi" style="padding:12px 14px 48px;max-width:900px;margin:0 auto">
+    ${renderHeader()}
+    ${renderPeriodoTabs()}
+    ${renderKPIs(kP,kPrev)}
+    ${renderEquilibrio(kMes)}
+    <div class="g2" style="align-items:start;margin-bottom:12px">
+      ${renderOTs()}
+      ${renderTalleres(kMes)}
+    </div>
+    <div class="g2" style="align-items:start;margin-bottom:12px">
+      ${renderSatisfaccion()}
+      ${renderAlertas()}
+    </div>
+    ${renderResumen(kP,kPrev,kMes)}
+  </div>`;
+}
+
+/* ── Nav ────────────────────────────────────────────── */
+function renderNav(){
+  const links=[["ot.html","📋 OTs"],["caja.html","💰 Caja"],["admin.html","⚙️ Admin"],["reportes.html","📈 Reportes"],["usuarios.html","👤 Usuarios"]];
+  return`<nav style="background:#1e293b;border-bottom:1px solid #334155;padding:9px 14px;position:sticky;top:0;z-index:100">
+    <div style="max-width:900px;margin:0 auto;display:flex;align-items:center;gap:5px;flex-wrap:wrap">
+      <span style="color:#fbbf24;font-weight:900;font-size:15px;margin-right:6px">📊</span>
+      ${links.map(([h,l])=>`<a href="${h}" style="padding:4px 9px;background:#334155;color:#94a3b8;border-radius:6px;font-size:10px;font-weight:700">${l}</a>`).join("")}
+      <div style="flex:1"></div>
+      <span style="color:#475569;font-size:10px">${usuario?.nombre||"Admin"} · ${new Date().toLocaleTimeString("es-BO",{hour:"2-digit",minute:"2-digit"})}</span>
+    </div>
+  </nav>`;
+}
+
+/* ── Header ─────────────────────────────────────────── */
+function renderHeader(){
+  const d=new Date();
+  const fecha=d.toLocaleDateString("es-BO",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
+  return`<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:14px;margin-top:12px">
+    <div>
+      <div style="color:#fbbf24;font-weight:900;font-size:19px">Dashboard Ejecutivo</div>
+      <div style="color:#64748b;font-size:11px;text-transform:capitalize;margin-top:2px">${fecha}</div>
+    </div>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      <span style="color:#475569;font-size:10px">${datos.ots.length} OTs activas · ${datos.crm.length} completadas este mes</span>
+      <button onclick="fetchAll()" class="btn" style="background:#334155;color:#94a3b8">↻ Actualizar</button>
+      <button onclick="openCfg()" class="btn" style="background:#334155;color:#fbbf24">⚙️ Meta</button>
+    </div>
+  </div>`;
+}
+
+/* ── Periodo tabs ───────────────────────────────────── */
+function renderPeriodoTabs(){
+  const lbl=periodo==="hoy"?"vs ayer":periodo==="semana"?"vs semana anterior":"vs mes anterior";
+  return`<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">
+    ${[["hoy","Hoy"],["semana","Esta semana"],["mes","Este mes"]].map(([k,l])=>
+      `<button class="tab-btn ${periodo===k?"on":""}" onclick="setPeriodo('${k}')">${l}</button>`).join("")}
+    <span style="align-self:center;color:#334155;font-size:10px;margin-left:4px">${lbl}</span>
+  </div>`;
+}
+
+/* ── KPI cards ──────────────────────────────────────── */
+function renderKPIs(kP,kPrev){
+  const periodoLbl=periodo==="hoy"?"vs ayer":periodo==="semana"?"vs sem. ant.":"vs mes ant.";
+  const cards=[
+    {lbl:"💪 Ganancia neta",val:kP.ganancia,prev:kPrev.ganancia,color:"#16a34a",sub:`Efectivo: ${fmtK(kP.efectivo)} · QR: ${fmtK(kP.qr)}`},
+    {lbl:"🔧 Capital repuestos",val:kP.capital,prev:kPrev.capital,color:"#60a5fa",sub:`${pct(kP.capital,kP.cobrado||1)}% del total cobrado`},
+    {lbl:"💸 Egresos / Gastos",val:kP.gastos,prev:kPrev.gastos,color:"#ef4444",inv:true,sub:`Neto tras gastos: ${fmtK(kP.neto)}`},
+    {lbl:"📊 Total cobrado",val:kP.cobrado,prev:kPrev.cobrado,color:kP.neto>=0?"#fbbf24":"#ef4444",sub:`Neto: ${fmtK(kP.neto)}`},
+  ];
+  return`<div class="g4" style="margin-bottom:12px">
+    ${cards.map(c=>{
+      const cls=c.inv?(kP[c.lbl]<kPrev[c.lbl]?"up":"dn"):undefined;
+      return`<div class="kpi-card">
+        <div class="kpi-lbl">${c.lbl}</div>
+        <div class="kpi-val" style="color:${c.color};font-size:${c.val>99999?"15":"19"}px">${fmtK(c.val)}</div>
+        <div class="kpi-sub">${c.sub}</div>
+        <div class="kpi-delta">${deltaStr(c.val,c.prev,c.inv||false)} <span style="color:#475569;font-size:10px">${periodoLbl}</span></div>
+      </div>`;
+    }).join("")}
+  </div>`;
+}
+
+/* ── Punto de equilibrio ────────────────────────────── */
+function renderEquilibrio(kMes){
+  const ingrMes=kMes.cobrado;
+  const dt=diasTransc(),dm=diasMes(),dr=dm-dt;
+  const diario=dt>0?ingrMes/dt:0;
+  const proyeccion=diario*dm;
+  const pctMeta=pct(ingrMes,cfg.meta_mensual);
+  const pctProy=pct(proyeccion,cfg.meta_mensual);
+  const pctEq=pct(ingrMes,cfg.costos_fijos);
+  const colMeta=pctMeta>=100?"#16a34a":pctMeta>=70?"#f59e0b":"#ef4444";
+  const colEq=pctEq>=100?"#16a34a":pctEq>=80?"#f59e0b":"#ef4444";
+  const superaMeta=proyeccion>=cfg.meta_mensual;
+  const diaCubrioEq=diario>0?Math.ceil(cfg.costos_fijos/diario):null;
+  const eqCubierto=diaCubrioEq!=null&&dt>=diaCubrioEq;
+  const dailyTarget=cfg.meta_mensual/dm;
+
+  return`<div class="card" style="margin-bottom:12px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:6px">
+      <div style="font-weight:900;font-size:14px">📈 Meta mensual & Punto de equilibrio</div>
+      <div style="font-size:10px;color:#475569">Día ${dt} de ${dm} · ${dr} día${dr!==1?"s":""} restante${dr!==1?"s":""}</div>
+    </div>
+
+    <div class="g2" style="margin-bottom:14px">
+      <!-- Meta mensual -->
+      <div class="card-sm">
+        <div style="font-size:10px;color:#64748b;font-weight:700;margin-bottom:4px">🎯 META DE INGRESOS</div>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:4px">
+          <div style="font-size:22px;font-weight:900;color:${colMeta}">${pctMeta}%</div>
+          <div style="font-size:10px;color:#475569;text-align:right">${fmtK(ingrMes)} / ${fmtK(cfg.meta_mensual)}</div>
+        </div>
+        <div class="prog-track" style="height:10px"><div class="prog-fill" style="width:${pctMeta}%;background:${colMeta}"></div></div>
+        <div style="font-size:11px;margin-top:6px;line-height:1.5">
+          <div style="color:#64748b">Proyección fin de mes: <strong style="color:${superaMeta?"#16a34a":"#f59e0b"}">${fmtK(proyeccion)}</strong></div>
+          <div style="color:${superaMeta?"#16a34a":"#f97316"};font-size:10px">
+            ${superaMeta?`✅ Superará la meta por ${fmtK(proyeccion-cfg.meta_mensual)}`:`⚠️ Faltarían ${fmtK(cfg.meta_mensual-proyeccion)} a este ritmo`}
+          </div>
+        </div>
+      </div>
+
+      <!-- Punto de equilibrio -->
+      <div class="card-sm">
+        <div style="font-size:10px;color:#64748b;font-weight:700;margin-bottom:4px">⚖️ PUNTO DE EQUILIBRIO</div>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:4px">
+          <div style="font-size:22px;font-weight:900;color:${colEq}">${pctEq}%</div>
+          <div style="font-size:10px;color:#475569;text-align:right">${fmtK(ingrMes)} / ${fmtK(cfg.costos_fijos)}</div>
+        </div>
+        <div class="prog-track" style="height:10px"><div class="prog-fill" style="width:${pctEq}%;background:${colEq}"></div></div>
+        <div style="font-size:11px;margin-top:6px;line-height:1.5">
+          <div style="color:#64748b">Costos fijos: <strong>${fmtK(cfg.costos_fijos)}</strong></div>
+          <div style="color:${eqCubierto?"#16a34a":"#ef4444"};font-size:10px">
+            ${eqCubierto?`✅ Cubierto desde el día ${diaCubrioEq}`:`❌ Faltan ${fmtK(cfg.costos_fijos-ingrMes)}`}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Gráfico diario -->
+    <div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <div style="font-size:10px;color:#475569">Ingresos diarios — ${new Date().toLocaleDateString("es-BO",{month:"long",year:"numeric"})}</div>
+        <div style="display:flex;gap:8px;font-size:9px;color:#475569">
+          <span><span style="color:#16a34a">■</span> ≥ meta/día</span>
+          <span><span style="color:#f59e0b">■</span> por debajo</span>
+        </div>
+      </div>
+      <div style="overflow-x:auto;padding-bottom:2px">${barChart(datos.dailyMes,dailyTarget,44)}</div>
+      <div style="display:flex;justify-content:space-between;font-size:9px;color:#334155;margin-top:3px">
+        <span>1</span><span>${datos.dailyMes.length}</span>
+      </div>
+      <div style="font-size:10px;color:#475569;margin-top:4px;text-align:right">Meta diaria: ${fmtK(dailyTarget)} · Promedio actual: ${fmtK(diario)}</div>
+    </div>
+  </div>`;
+}
+
+/* ── OTs activas ────────────────────────────────────── */
+function renderOTs(){
+  const abs=datos.ots;
+  const byPaso=Array.from({length:6},(_,i)=>abs.filter(o=>o.paso===i+1));
+  const ahoraMs=Date.now();
+  const bloq=abs.filter(o=>ahoraMs-new Date(o.created_at).getTime()>172800000&&o.paso<=4); // >48h
+
+  return`<div class="card" style="margin-bottom:0">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div style="font-weight:900;font-size:14px">🔧 OTs activas</div>
+      <span class="badge" style="background:#f59e0b20;color:#fbbf24;font-size:14px;padding:2px 12px">${abs.length}</span>
+    </div>
+
+    <!-- Por paso -->
+    ${[1,2,3,4,5].map(p=>{
+      const n=byPaso[p-1].length;
+      return`<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <div style="font-size:10px;color:#64748b;width:76px;white-space:nowrap">${PASOS[p]}</div>
+        <div style="flex:1;background:#0f172a;border-radius:3px;height:6px">
+          <div style="height:100%;border-radius:3px;background:${n?"#f59e0b":"#1e293b"};width:${n?Math.max(6,pct(n,abs.length||1)):"0"}%"></div>
+        </div>
+        <div style="font-size:12px;font-weight:700;color:${n?"#fbbf24":"#334155"};width:18px;text-align:right">${n}</div>
+      </div>`;
+    }).join("")}
+
+    <!-- Por taller -->
+    <div style="display:flex;gap:6px;margin:10px 0 10px">
+      ${TALLERES.map(t=>{const n=abs.filter(o=>o.taller===t).length;
+        return`<div class="card-sm" style="flex:1;text-align:center;padding:8px">
+          <div style="font-size:10px;color:#64748b">${t.split("·")[0].trim()}</div>
+          <div style="font-size:24px;font-weight:900;color:#fbbf24;line-height:1.3">${n}</div>
+        </div>`}).join("")}
+    </div>
+
+    <!-- Bloqueadas -->
+    ${bloq.length?`<div style="background:#ef444415;border:1px solid #ef444430;border-radius:10px;padding:10px">
+      <div style="font-size:10px;color:#ef4444;font-weight:700;margin-bottom:6px">⚠️ SIN MOVIMIENTO +48H (${bloq.length})</div>
+      ${bloq.slice(0,4).map(o=>`<div style="font-size:11px;color:#94a3b8;margin-bottom:3px;display:flex;gap:6px">
+        <span style="color:#475569">OT ${o.num||o.id}</span>
+        <span>${o.placa}</span>
+        <span style="color:#475569">${PASOS[o.paso]||"?"}</span>
+        <span style="color:#334155">${o.taller||"—"}</span>
+      </div>`).join("")}
+      ${bloq.length>4?`<div style="color:#475569;font-size:10px;margin-top:3px">+${bloq.length-4} más</div>`:""}
+    </div>`:`<div style="font-size:11px;color:#16a34a;text-align:center;padding:6px">✅ Todas con movimiento reciente</div>`}
+
+    <!-- Completadas este mes -->
+    <div style="margin-top:10px;padding-top:10px;border-top:1px solid #0f172a;display:flex;justify-content:space-between;font-size:11px">
+      <span style="color:#64748b">Completadas este mes</span>
+      <strong style="color:#16a34a">${datos.crm.length} OTs</strong>
+    </div>
+  </div>`;
+}
+
+/* ── Comparativa talleres ───────────────────────────── */
+function renderTalleres(kMes){
+  const t1=kTaller(datos.cajaMes,TALLERES[0]);
+  const t2=kTaller(datos.cajaMes,TALLERES[1]);
+  const total=(t1.cobrado+t2.cobrado)||1;
+  const crm1=datos.crm.filter(c=>c.taller===TALLERES[0]).length;
+  const crm2=datos.crm.filter(c=>c.taller===TALLERES[1]).length;
+  const lider=t1.cobrado>=t2.cobrado?0:1;
+
+  const row=(t,k,n,i)=>`<div style="padding:10px 0;${i===0?"border-bottom:1px solid #0f172a":""}">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
+      <div style="font-size:12px;font-weight:700;display:flex;align-items:center;gap:5px">
+        ${i===lider?`<span style="font-size:10px">🏆</span>`:""}${t.split("·")[0].trim()}
+        <span style="font-size:10px;color:#64748b">· ${t.split("·")[1]?.trim()}</span>
+      </div>
+      <div style="font-size:13px;font-weight:900;color:#fbbf24">${fmtK(k.cobrado)}</div>
+    </div>
+    <div class="prog-track" style="height:7px;margin:5px 0">
+      <div class="prog-fill" style="width:${pct(k.cobrado,total)}%;background:${i===lider?"#f59e0b":"#3b82f6"}"></div>
+    </div>
+    <div style="display:flex;gap:10px;font-size:10px;color:#64748b;flex-wrap:wrap">
+      <span>💪 ${fmtK(k.ganancia)}</span>
+      <span>🔧 ${fmtK(k.capital)}</span>
+      <span>💸 ${fmtK(k.gastos)}</span>
+      <span>📋 ${n} OTs</span>
+    </div>
+  </div>`;
+
+  // Semana: taller breakdown
+  const t1Sem=kTaller(datos.cajaSem,TALLERES[0]);
+  const t2Sem=kTaller(datos.cajaSem,TALLERES[1]);
+
+  return`<div class="card" style="margin-bottom:0">
+    <div style="font-weight:900;font-size:14px;margin-bottom:12px">🏢 Talleres — ${new Date().toLocaleDateString("es-BO",{month:"long"})}</div>
+    ${row(TALLERES[0],t1,crm1,0)}
+    ${row(TALLERES[1],t2,crm2,1)}
+
+    <!-- Esta semana -->
+    <div style="margin-top:12px;padding-top:10px;border-top:1px solid #0f172a">
+      <div style="font-size:10px;color:#475569;font-weight:700;margin-bottom:8px">ESTA SEMANA</div>
+      <div style="display:flex;gap:8px">
+        ${[t1Sem,t2Sem].map((tk,i)=>`<div class="card-sm" style="flex:1;padding:8px;text-align:center">
+          <div style="font-size:9px;color:#64748b">${TALLERES[i].split("·")[0].trim()}</div>
+          <div style="font-size:15px;font-weight:900;color:#fbbf24;margin-top:2px">${fmtK(tk.cobrado)}</div>
+          <div style="font-size:9px;color:#16a34a">💪 ${fmtK(tk.ganancia)}</div>
+        </div>`).join("")}
+      </div>
+    </div>
+
+    ${datos.cajaMes.some(m=>!m.taller)?`<div style="margin-top:8px;font-size:10px;color:#f59e0b">⚠️ Hay movimientos sin taller asignado</div>`:""}
+  </div>`;
+}
+
+/* ── Satisfacción ───────────────────────────────────── */
+function renderSatisfaccion(){
+  const enc=datos.encuestas;
+  const n=enc.length;
+  const avgStr=n?(enc.reduce((s,e)=>s+(e.estrellas||0),0)/n).toFixed(1):"—";
+  const avgNPS=n?(enc.reduce((s,e)=>s+(e.nps||0),0)/n).toFixed(1):"—";
+  const prom=enc.filter(e=>(e.nps||0)>=9).length;
+  const detr=enc.filter(e=>(e.nps||0)<=6).length;
+  const npsScore=n?Math.round(((prom-detr)/n)*100):null;
+  const npsColor=npsScore==null?"#475569":npsScore>=50?"#16a34a":npsScore>=0?"#f59e0b":"#ef4444";
+  const strColor=avgStr==="—"?"#475569":parseFloat(avgStr)>=4?"#16a34a":parseFloat(avgStr)>=3?"#f59e0b":"#ef4444";
+
+  return`<div class="card" style="margin-bottom:0">
+    <div style="font-weight:900;font-size:14px;margin-bottom:12px">⭐ Satisfacción — este mes</div>
+    ${n===0?`<div style="text-align:center;color:#334155;padding:24px 0">
+      <div style="font-size:36px;margin-bottom:8px">💬</div>Sin encuestas aún este mes
+    </div>`:`
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <div class="card-sm" style="flex:1;text-align:center;padding:10px">
+        <div style="font-size:26px;font-weight:900;color:${strColor}">${avgStr}</div>
+        <div style="font-size:10px;color:#64748b">/ 5 ⭐</div>
+      </div>
+      <div class="card-sm" style="flex:1;text-align:center;padding:10px">
+        <div style="font-size:26px;font-weight:900;color:${npsColor}">${npsScore!=null?npsScore:"—"}</div>
+        <div style="font-size:10px;color:#64748b">NPS</div>
+      </div>
+      <div class="card-sm" style="flex:1;text-align:center;padding:10px">
+        <div style="font-size:26px;font-weight:900;color:#94a3b8">${n}</div>
+        <div style="font-size:10px;color:#64748b">encuestas</div>
+      </div>
+    </div>
+    <!-- Dist estrellas -->
+    ${[5,4,3,2,1].map(s=>{
+      const cnt=enc.filter(e=>e.estrellas===s).length;
+      return`<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+        <span style="font-size:9px;color:#64748b;width:18px;text-align:right">${s}★</span>
+        <div style="flex:1;background:#0f172a;border-radius:3px;height:5px">
+          <div style="height:100%;border-radius:3px;background:#fbbf24;width:${pct(cnt,n)}%"></div>
+        </div>
+        <span style="font-size:9px;color:#475569;width:14px">${cnt}</span>
+      </div>`;
+    }).join("")}
+    <div style="margin-top:10px;font-size:10px;color:#475569">
+      Promotores (9-10): ${prom} · Detractores (0-6): ${detr} · Neutros: ${n-prom-detr}
+    </div>
+    `}
+  </div>`;
+}
+
+/* ── Alertas ────────────────────────────────────────── */
+function renderAlertas(){
+  const inv=datos.inv;
+  const agot=inv.filter(i=>parseFloat(i.stock||0)<=0);
+  const bajos=inv.filter(i=>parseFloat(i.stock||0)>0&&parseFloat(i.stock||0)<=parseFloat(i.stock_minimo||0));
+  const vac=datos.vacPend;
+  const sinTec=datos.ots.filter(o=>!o.tecnico&&o.paso>=2);
+  const total=agot.length+bajos.length+vac.length+sinTec.length;
+
+  const row=(icon,txt,color,bg)=>`<div style="display:flex;align-items:flex-start;gap:8px;padding:7px 9px;background:${bg};border:1px solid ${color}30;border-radius:8px;margin-bottom:5px">
+    <span style="font-size:12px;margin-top:1px">${icon}</span>
+    <span style="font-size:11px;color:${color};line-height:1.4">${txt}</span>
+  </div>`;
+
+  return`<div class="card" style="margin-bottom:0">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div style="font-weight:900;font-size:14px">🔔 Alertas</div>
+      ${total?`<span class="badge" style="background:#ef444420;color:#ef4444">${total} alerta${total!==1?"s":""}</span>`:
+               `<span class="badge" style="background:#16a34a20;color:#16a34a">✅ Sin alertas</span>`}
+    </div>
+
+    ${agot.length?row("🔴",`<strong>${agot.length}</strong> producto${agot.length!==1?"s":""} agotado${agot.length!==1?"s":""}: ${agot.slice(0,2).map(i=>i.nombre).join(", ")}${agot.length>2?" +"+( agot.length-2)+" más":""}`,
+      "#ef4444","#ef444412"):row("✅","Inventario sin agotados","#16a34a","#16a34a10")}
+
+    ${bajos.length?row("🟡",`<strong>${bajos.length}</strong> producto${bajos.length!==1?"s":""} bajo mínimo`,
+      "#f59e0b","#f59e0b10"):""}
+
+    ${vac.length?row("🟠",`<strong>${vac.length}</strong> solicitud${vac.length!==1?"es":""} de vacaciones pendiente${vac.length!==1?"s":""}${vac.length<=2?" — "+vac.map(v=>v.nombre_empleado||"?").join(", "):""}`,
+      "#f97316","#f9741610"):""}
+
+    ${sinTec.length?row("🟡",`<strong>${sinTec.length}</strong> OT${sinTec.length!==1?"s":""} sin técnico asignado`,
+      "#f59e0b","#f59e0b10"):""}
+
+    ${!total?`<div style="text-align:center;color:#16a34a;font-size:12px;padding:12px">Todo en orden 👍</div>`:""}
+
+    <div style="margin-top:10px;display:flex;gap:5px;flex-wrap:wrap">
+      <a href="admin.html" style="padding:4px 9px;background:#334155;color:#94a3b8;border-radius:6px;font-size:10px;font-weight:700">📦 Inventario</a>
+      <a href="admin.html" style="padding:4px 9px;background:#334155;color:#94a3b8;border-radius:6px;font-size:10px;font-weight:700">👤 Vacaciones</a>
+      <a href="ot.html" style="padding:4px 9px;background:#334155;color:#94a3b8;border-radius:6px;font-size:10px;font-weight:700">🔧 Ver OTs</a>
+    </div>
+  </div>`;
+}
+
+/* ── Resumen ejecutivo ──────────────────────────────── */
+function renderResumen(kP,kPrev,kMes){
+  const dt=diasTransc(),dm=diasMes();
+  const diario=dt>0?kMes.cobrado/dt:0;
+  const proyeccion=diario*dm;
+  const superaMeta=proyeccion>=cfg.meta_mensual;
+  const t1=kTaller(datos.cajaMes,TALLERES[0]);
+  const t2=kTaller(datos.cajaMes,TALLERES[1]);
+  const lider=t1.cobrado>=t2.cobrado?TALLERES[0]:TALLERES[1];
+  const liderK=Math.max(t1.cobrado,t2.cobrado);
+  const enc=datos.encuestas;
+  const avgStr=enc.length?(enc.reduce((s,e)=>s+(e.estrellas||0),0)/enc.length).toFixed(1):"—";
+  const semDelta=kpis(datos.cajaSem).cobrado-kpis(datos.cajaSemAnt).cobrado;
+  const semSign=semDelta>=0?"▲":"▼";
+  const semColor=semDelta>=0?"#16a34a":"#ef4444";
+
+  const mesNom=new Date().toLocaleDateString("es-BO",{month:"long",year:"numeric"});
+
+  const puntos=[
+    `<strong>${mesNom}</strong>: <strong style="color:#fbbf24">${fmt(kMes.cobrado)}</strong> cobrado · ${pct(kMes.cobrado,cfg.meta_mensual)}% de la meta (${fmtK(cfg.meta_mensual)})`,
+    `Proyección fin de mes: <strong style="color:${superaMeta?"#16a34a":"#f97316"}">${fmt(proyeccion)}</strong> — ${superaMeta?"✅ superará la meta":"⚠️ por debajo de la meta"}`,
+    `Esta semana vs anterior: <span style="color:${semColor}">${semSign} ${fmtK(Math.abs(semDelta))}</span> en ingresos`,
+    `Taller líder: <strong>${lider.split("·")[0].trim()}</strong> con <strong style="color:#fbbf24">${fmtK(liderK)}</strong> este mes`,
+    `Neto del mes: <strong style="color:${kMes.neto>=0?"#16a34a":"#ef4444"}">${fmt(kMes.neto)}</strong> (ingresos <strong>${fmt(kMes.cobrado)}</strong> − gastos <strong style="color:#ef4444">${fmt(kMes.gastos)}</strong>)`,
+    enc.length?`Satisfacción: <strong style="color:#fbbf24">${avgStr}/5</strong> ⭐ · NPS promedio: <strong>${(enc.reduce((s,e)=>s+(e.nps||0),0)/enc.length).toFixed(1)}</strong>/10 (${enc.length} respuesta${enc.length!==1?"s":""})`:null,
+    datos.inv.filter(i=>parseFloat(i.stock||0)<=0).length?`<span style="color:#ef4444">⚠️ ${datos.inv.filter(i=>parseFloat(i.stock||0)<=0).length} producto${datos.inv.filter(i=>parseFloat(i.stock||0)<=0).length!==1?"s":""} agotado${datos.inv.filter(i=>parseFloat(i.stock||0)<=0).length!==1?"s":""}. Revisar inventario.</span>`:null,
+  ].filter(Boolean);
+
+  return`<div class="card" style="background:linear-gradient(135deg,#1e293b,#0f172a)">
+    <div style="color:#fbbf24;font-weight:900;font-size:14px;margin-bottom:12px">📝 Resumen Ejecutivo</div>
+    <ul style="list-style:none;display:flex;flex-direction:column;gap:9px">
+      ${puntos.map(p=>`<li style="display:flex;gap:8px;font-size:12px;color:#94a3b8;line-height:1.55">
+        <span style="color:#334155;font-size:11px;margin-top:2px;flex-shrink:0">▸</span>
+        <span>${p}</span>
+      </li>`).join("")}
+    </ul>
+    <div style="margin-top:16px;padding-top:12px;border-top:1px solid #334155;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
+      <div style="font-size:10px;color:#334155">Última actualización: ${new Date().toLocaleTimeString("es-BO",{hour:"2-digit",minute:"2-digit",second:"2-digit"})}</div>
+      <div style="display:flex;gap:6px">
+        <a href="reportes.html" style="padding:5px 10px;background:#334155;color:#94a3b8;border-radius:6px;font-size:10px;font-weight:700">📈 Reportes completos</a>
+        <a href="caja.html" style="padding:5px 10px;background:#334155;color:#fbbf24;border-radius:6px;font-size:10px;font-weight:700">💰 Ver caja</a>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ══════════════════════════════════════════════════════
+   ACCIONES
+══════════════════════════════════════════════════════ */
+function setPeriodo(p){periodo=p;renderApp();}
+async function refresh(){datos=null;await fetchAll();}
+
+/* ── Exponer globales ───────────────────────────────── */
+["setPeriodo","refresh","openCfg","closeCfg","saveCfg"].forEach(fn=>window[fn]=eval(fn));
+checkAuth();
+</script>
+</body>
+</html>
