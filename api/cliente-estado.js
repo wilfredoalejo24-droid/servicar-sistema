@@ -52,7 +52,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    let query = `${SUPA_URL}/rest/v1/ots?estado=neq.Entregada&order=id.desc&limit=5&select=id,num,placa,cliente,marca,modelo,anio,tecnico,taller,paso,estado,procedimientos,estimado_entrega,fecha`;
+    let query = `${SUPA_URL}/rest/v1/ots?estado=neq.Entregada&order=id.desc&limit=5&select=id,num,placa,cliente,marca,modelo,anio,tecnico,taller,paso,estado,servicios,estimado_entrega,fecha`;
 
     if (placa) {
       const placaUp = placa.trim().toUpperCase();
@@ -72,7 +72,8 @@ export default async function handler(req, res) {
     });
 
     if (!r.ok) {
-      return res.status(502).json({ encontrado: false, mensaje: "Error consultando base de datos" });
+      const errBody = await r.text().catch(() => "");
+      return res.status(502).json({ encontrado: false, mensaje: "Error consultando base de datos", detalle: errBody });
     }
 
     const ots = await r.json();
@@ -87,7 +88,7 @@ export default async function handler(req, res) {
     }
 
     const ot = ots[0];
-    const servicios = (ot.procedimientos || []).map((p) => p.nombre).join(", ") || "—";
+    const servicios = (ot.servicios || []).map((s) => s.nombre || s.name || s).filter(Boolean).join(", ") || "—";
 
     return res.status(200).json({
       encontrado: true,
