@@ -10,6 +10,7 @@
 body{font-family:Arial,sans-serif;background:#0f172a;color:#fff;min-height:100vh}
 @keyframes fi{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 .fi{animation:fi .25s ease both}
+.card{background:#1e293b;border:1px solid #334155;border-radius:14px;padding:16px;margin-bottom:12px}
 </style>
 </head>
 <body>
@@ -17,12 +18,98 @@ body{font-family:Arial,sans-serif;background:#0f172a;color:#fff;min-height:100vh
   <div style="text-align:center;color:#475569"><div style="font-size:36px;margin-bottom:8px">⏰</div>Cargando...</div>
 </div>
 <script>
-const SB=window.supabase.createClient("https://epirsbudngwbxgcsryvv.supabase.co","sb_publishable_zsqvMzJMc80Ypf3UQqs-SA_IrV-XIGc");
+const SB=window.supabase.createClient(
+  "https://epirsbudngwbxgcsryvv.supabase.co",
+  "sb_publishable_zsqvMzJMc80Ypf3UQqs-SA_IrV-XIGc"
+);
+
+/* ── Tiempo ──────────────────────────────────────────── */
 const hoy=()=>new Date().toLocaleDateString("es-BO");
-const horaActual=()=>new Date().toLocaleTimeString("es-BO",{hour:"2-digit",minute:"2-digit"});
+function horaActual(){
+  const d=new Date();
+  return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+}
+// Convierte "HH:MM" o "8:25 a. m." → minutos totales del día
+function toMin(hhmm){
+  if(!hhmm)return 0;
+  const pm=/(p\.\s*m\.|pm)/i.test(hhmm);
+  const mt=hhmm.match(/(\d{1,2}):(\d{2})/);
+  if(!mt)return 0;
+  let h=parseInt(mt[1]),m=parseInt(mt[2]);
+  if(pm&&h<12)h+=12;
+  return h*60+m;
+}
+const DIAS=["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
 
-let usuario=null, historial=[], reloj=null;
+/* ══════════════════════════════════════════════════════
+   HORARIOS
+   lv  = Lunes a Viernes  [entrada, salida]
+   sab = Sábado           [entrada, salida]  (null = descanso)
+   dom = Domingo          [entrada, salida]  (null = descanso)
+   tol = tolerancia de tardanza en minutos
+   turnoA/B = para Evo y Diego según semana
+══════════════════════════════════════════════════════ */
+const HORARIOS={
+  adolfo:  { tol:10, lv:["08:25","18:30"], sab:["08:25","14:00"], dom:null },
+  joel:    { tol: 0, lv:["08:25","18:30"], sab:["08:25","17:00"], dom:null },
+  william: { tol: 0, lv:["08:25","19:00"], sab:["08:25","18:00"], dom:["08:25","—"] },
+  evo:     { tol: 0, turnoA:["07:25","17:50"], turnoB:["08:55","19:30"],
+                     sab:["08:25","17:00"], dom:null },
+  diego:   { tol: 0, turnoA:["08:55","19:30"], turnoB:["07:25","17:50"],
+                     sab:null, dom:["08:25","17:00"] },
+};
 
+// Domingo: solo Diego y William (+ Wilfredo siempre por ser admin)
+const ACCESO_DOMINGO=["william","diego"];
+
+/* ── Semana A / B ────────────────────────────────────── */
+// ISO week par = Semana A para Evo (B para Diego). Impar = B para Evo (A para Diego).
+function isoWeek(){
+  const d=new Date(),dt=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));
+  const day=dt.getUTCDay()||7;
+  dt.setUTCDate(dt.getUTCDate()+4-day);
+  const ys=new Date(Date.UTC(dt.getUTCFullYear(),0,1));
+  return Math.ceil(((dt-ys)/864e5+1)/7);
+}
+function turnoSemana(uname){
+  const par=isoWeek()%2===0;
+  if(uname==="evo")   return par?"A":"B";
+  if(uname==="diego") return par?"B":"A";
+  return null;
+}
+
+/* ── Horario de hoy ──────────────────────────────────── */
+function horarioHoy(uname){
+  const h=HORARIOS[uname]; if(!h)return null;
+  const dia=new Date().getDay();
+  if(dia===0) return h.dom||null;
+  if(dia===6) return h.sab||null;
+  if(uname==="evo"||uname==="diego"){
+    const t=turnoSemana(uname);
+    return t==="A"?h.turnoA:h.turnoB;
+  }
+  return h.lv||null;
+}
+
+/* ── Validaciones ────────────────────────────────────── */
+function esTardanza(uname,hora){
+  const h=HORARIOS[uname],sched=horarioHoy(uname);
+  if(!h||!sched)return false;
+  return toMin(hora)>toMin(sched[0])+(h.tol||0);
+}
+
+function puedeTrabajarHoy(uname,rol){
+  if(rol==="admin")return{ok:true,tipo:"admin"};
+  if(rol==="encargado"&&!HORARIOS[uname])return{ok:true,tipo:"libre"};
+  if(new Date().getDay()===0&&!ACCESO_DOMINGO.includes(uname))
+    return{ok:false,msg:"Los domingos no tenés turno. ¡Descansá! 😴"};
+  const sched=horarioHoy(uname);
+  if(!sched)return{ok:false,msg:"Hoy es tu día de descanso. ¡Hasta mañana! 😴"};
+  return{ok:true,tipo:"normal"};
+}
+
+/* ── Estado global ───────────────────────────────────── */
+let usuario=null,historial=[],reloj=null;
 function getSession(){try{return JSON.parse(localStorage.getItem("scp_user"))||null;}catch{return null;}}
 function salir(){localStorage.removeItem("scp_user");location.href="/";}
 
@@ -31,112 +118,230 @@ async function init(){
   if(!usuario){location.href="/";return;}
   await cargarHistorial();
   render();
-  reloj=setInterval(()=>{ const el=document.getElementById("reloj"); if(el)el.textContent=horaActual(); },10000);
+  reloj=setInterval(()=>{const el=document.getElementById("reloj");if(el)el.textContent=horaActual();},15000);
 }
 
 async function cargarHistorial(){
   const{data}=await SB.from("asistencia")
-    .select("id,tipo,hora_registro,fecha,created_at")
+    .select("id,tipo,hora_registro,fecha")
     .eq("user_name",usuario.user_name)
     .eq("fecha",hoy())
     .order("id",{ascending:false});
   historial=data||[];
 }
 
-function getEstado(){
-  if(!historial.length) return "sin_registro";
-  return historial[0].tipo; // "entrada" o "salida"
+function getEstado(){return historial.length?historial[0].tipo:"sin_registro";}
+
+// Detecta tardanza buscando la entrada más antigua del día
+function tardanzaHoy(uname){
+  const entradas=historial.filter(r=>r.tipo==="entrada");
+  if(!entradas.length)return false;
+  return esTardanza(uname,entradas[entradas.length-1].hora_registro||"00:00");
 }
 
+/* ══════════════════════════════════════════════════════
+   RENDER
+══════════════════════════════════════════════════════ */
 function render(){
-  const estado=getEstado();
-  const enTurno=estado==="entrada";
-  const total=historial.length;
-  const app=document.getElementById("app");
+  const uname=(usuario.user_name||"").toLowerCase();
+  const rol=usuario.rol;
+  const acceso=puedeTrabajarHoy(uname,rol);
+  const enTurno=getEstado()==="entrada";
+  const sched=horarioHoy(uname);
+  const turno=turnoSemana(uname);
+  const dia=new Date().getDay();
+  const tarde=tardanzaHoy(uname);
 
-  app.innerHTML=`
-  <div class="fi" style="width:100%;max-width:420px;padding:20px 16px">
-    <!-- Header -->
-    <div style="text-align:center;margin-bottom:24px">
-      <div style="font-size:42px;margin-bottom:6px">${enTurno?"✅":"🔴"}</div>
-      <div style="color:#fbbf24;font-weight:900;font-size:18px">SERVI CAR PLATINIUM</div>
-      <div style="color:#475569;font-size:11px;margin-top:3px">Control de Asistencia</div>
-    </div>
+  document.getElementById("app").innerHTML=`
+  <div class="fi" style="width:100%;max-width:440px;padding:16px;margin:0 auto">
 
-    <!-- Usuario -->
-    <div style="background:#1e293b;border:1px solid #334155;border-radius:14px;padding:16px;margin-bottom:14px;text-align:center">
-      <div style="color:#64748b;font-size:11px;margin-bottom:4px">Trabajador</div>
-      <div style="font-weight:900;font-size:20px">${usuario.nombre}</div>
-      <div style="color:#475569;font-size:11px;margin-top:3px">${usuario.rol} · ${usuario.taller}</div>
-      <div style="margin-top:10px;display:inline-flex;align-items:center;gap:6px;padding:5px 14px;border-radius:20px;
+  <!-- Header -->
+  <div style="text-align:center;margin-bottom:16px">
+    <div style="font-size:36px;margin-bottom:4px">${enTurno?"✅":"⏰"}</div>
+    <div style="color:#fbbf24;font-weight:900;font-size:16px">SERVI CAR PLATINIUM</div>
+    <div style="color:#475569;font-size:11px;margin-top:2px">Control de Asistencia · ${DIAS[dia]}</div>
+  </div>
+
+  <!-- Trabajador -->
+  <div class="card" style="text-align:center">
+    <div style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:3px">Trabajador</div>
+    <div style="font-weight:900;font-size:18px">${usuario.nombre}</div>
+    <div style="color:#475569;font-size:11px;margin-top:2px">${usuario.taller}</div>
+    ${turno?`
+    <div style="margin-top:8px">
+      <span style="padding:4px 12px;border-radius:20px;background:#f59e0b20;border:1px solid #f59e0b40;color:#f59e0b;font-weight:700;font-size:11px">
+        🔄 Esta semana: Turno ${turno}
+      </span>
+    </div>`:""}
+    <div style="margin-top:8px">
+      <span style="padding:4px 12px;border-radius:20px;font-weight:700;font-size:11px;
         background:${enTurno?"#16a34a":"#ef4444"}15;border:1px solid ${enTurno?"#16a34a":"#ef4444"}30;
-        color:${enTurno?"#16a34a":"#ef4444"};font-weight:700;font-size:12px">
-        <span style="width:7px;height:7px;background:${enTurno?"#16a34a":"#ef4444"};border-radius:50%;display:inline-block"></span>
+        color:${enTurno?"#16a34a":"#ef4444"}">
+        <span style="width:6px;height:6px;background:${enTurno?"#16a34a":"#ef4444"};border-radius:50%;display:inline-block;vertical-align:middle;margin-right:4px"></span>
         ${enTurno?"EN TURNO":"FUERA DE TURNO"}
+      </span>
+    </div>
+  </div>
+
+  <!-- Reloj -->
+  <div style="text-align:center;margin-bottom:14px">
+    <div style="color:#f1f5f9;font-weight:900;font-size:40px;font-variant-numeric:tabular-nums" id="reloj">${horaActual()}</div>
+    <div style="color:#475569;font-size:11px;margin-top:2px">${hoy()}</div>
+  </div>
+
+  ${acceso.tipo==="admin"||acceso.tipo==="libre"?`
+  <!-- Admin / Encargado sin restricción -->
+  <div class="card" style="border-color:#f59e0b30;text-align:center">
+    <div style="color:#f59e0b;font-size:12px;font-weight:700;margin-bottom:4px">
+      👑 ${rol==="admin"?"Administrador · Acceso 24/7":"Encargado · Acceso libre"}
+    </div>
+    <div style="color:#64748b;font-size:11px">Sin restricción de horario en el sistema.</div>
+  </div>
+
+  `:!acceso.ok?`
+  <!-- Día de descanso o sin acceso -->
+  <div class="card" style="border-color:#475569;text-align:center;padding:28px 16px">
+    <div style="font-size:44px;margin-bottom:12px">😴</div>
+    <div style="font-weight:700;font-size:14px;color:#94a3b8;margin-bottom:8px">${acceso.msg}</div>
+    <div style="color:#475569;font-size:11px">Para acceso de emergencia, contactá a Wilfredo.</div>
+  </div>
+
+  `:`
+  <!-- Horario del día -->
+  ${sched?`
+  <div class="card" style="border-color:${tarde?"#f59e0b40":"#334155"}">
+    <div style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:10px">📅 Tu horario de hoy</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;text-align:center;margin-bottom:${tarde?"10":"0"}px">
+      <div style="background:#16a34a15;border:1px solid #16a34a30;border-radius:10px;padding:10px">
+        <div style="color:#64748b;font-size:10px;font-weight:700;margin-bottom:3px">ENTRADA</div>
+        <div style="color:#16a34a;font-weight:900;font-size:22px">${sched[0]}</div>
+        ${HORARIOS[uname]?.tol>0?`<div style="color:#475569;font-size:9px;margin-top:2px">+${HORARIOS[uname].tol} min tolerancia</div>`:""}
+      </div>
+      <div style="background:#ef444415;border:1px solid #ef444430;border-radius:10px;padding:10px">
+        <div style="color:#64748b;font-size:10px;font-weight:700;margin-bottom:3px">SALIDA</div>
+        <div style="color:#ef4444;font-weight:900;font-size:22px">${sched[1]||"—"}</div>
       </div>
     </div>
+    ${tarde?`
+    <div style="background:#f59e0b15;border:1px solid #f59e0b40;border-radius:8px;padding:8px;text-align:center">
+      <div style="color:#f59e0b;font-size:11px;font-weight:700">⚠️ Entrada tardía registrada hoy</div>
+    </div>`:""}
+  </div>`:""}
 
-    <!-- Hora actual -->
-    <div style="text-align:center;margin-bottom:14px">
-      <div style="color:#f1f5f9;font-weight:900;font-size:36px;font-variant-numeric:tabular-nums" id="reloj">${horaActual()}</div>
-      <div style="color:#475569;font-size:11px;margin-top:2px">${hoy()}</div>
+  <!-- Botón principal -->
+  <button onclick="registrar()" id="btn-registro"
+    style="width:100%;padding:18px;border:none;border-radius:14px;font-weight:900;font-size:16px;cursor:pointer;
+      background:${enTurno?"#ef4444":"#16a34a"};color:#fff;margin-bottom:10px">
+    ${enTurno?"🚪 Marcar SALIDA":"🔑 Marcar ENTRADA"}
+  </button>
+  ${enTurno?`
+  <div style="background:#ef444410;border:1px solid #ef444430;border-radius:10px;padding:10px;text-align:center;margin-bottom:12px">
+    <div style="color:#f87171;font-size:11px;font-weight:700">⚠️ Al marcar salida quedás bloqueado hasta el próximo turno.</div>
+    <div style="color:#64748b;font-size:10px;margin-top:2px">Solo Wilfredo puede darte acceso de emergencia.</div>
+  </div>`:""}
+  `}
+
+  <!-- Historial -->
+  ${historial.length?`
+  <div class="card">
+    <div style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:10px">Registros de hoy (${historial.length})</div>
+    ${historial.map(r=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #0f172a">
+      <span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;
+        background:${r.tipo==="entrada"?"#16a34a":"#ef4444"}15;color:${r.tipo==="entrada"?"#16a34a":"#ef4444"}">
+        ${r.tipo==="entrada"?"↗ ENTRADA":"↘ SALIDA"}
+      </span>
+      <span style="color:#64748b;font-size:11px">${r.hora_registro||"—"}</span>
+    </div>`).join("")}
+  </div>`:`
+  <div class="card" style="text-align:center;color:#475569;font-size:12px;padding:18px">
+    Sin registros hoy. Marcá tu entrada al comenzar el turno.
+  </div>`}
+
+  <!-- Info de turnos para Evo y Diego -->
+  ${turno?renderTurnos(uname,turno):""}
+
+  <!-- Reglas de tardanza / falta -->
+  <div class="card" style="border-color:#334155;margin-top:4px">
+    <div style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:8px">📋 Políticas</div>
+    <div style="display:flex;flex-direction:column;gap:6px;font-size:11px;color:#475569">
+      <div>⚠️ <strong style="color:#f59e0b">Tardanza</strong> — llegada después del horario de entrada (más tolerancia si aplica)</div>
+      <div>❌ <strong style="color:#ef4444">Falta injustificada</strong> — descuento de 3 días hábiles (el día faltado + 2 días adicionales)</div>
+      <div>🔒 Al marcar salida quedás bloqueado. Wilfredo otorga acceso de emergencia.</div>
     </div>
+  </div>
 
-    <!-- Botón principal -->
-    ${["admin","encargado"].includes(usuario.rol)?`
-    <div style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:14px;margin-bottom:14px;text-align:center">
-      <div style="color:#f59e0b;font-size:12px;font-weight:700">👑 Administrador / Encargado</div>
-      <div style="color:#64748b;font-size:11px;margin-top:4px">Tienes acceso 24/7 al sistema sin restricción de turno.</div>
-    </div>
-    `:`
-    <button onclick="registrar()" id="btn-registro"
-      style="width:100%;padding:18px;border:none;border-radius:14px;font-weight:900;font-size:16px;cursor:pointer;
-        background:${enTurno?"#ef4444":"#16a34a"};color:#fff;margin-bottom:14px;transition:all .2s">
-      ${enTurno?"🚪 Marcar SALIDA":"🔑 Marcar ENTRADA"}
-    </button>
-    ${enTurno?`<div style="background:#ef444410;border:1px solid #ef444430;border-radius:10px;padding:10px;text-align:center;margin-bottom:14px">
-      <div style="color:#f87171;font-size:11px;font-weight:700">⚠️ Al marcar salida quedas bloqueado hasta el próximo turno.</div>
-      <div style="color:#64748b;font-size:10px;margin-top:3px">Solo Wilfredo puede darte acceso de emergencia.</div>
-    </div>`:""}`}
+  <!-- Nav -->
+  <div style="display:flex;gap:8px;margin-top:4px">
+    <a href="/" style="flex:1;text-align:center;padding:10px;background:#1e293b;border:1px solid #334155;border-radius:10px;color:#94a3b8;text-decoration:none;font-size:12px;font-weight:700">← Inicio</a>
+    <button onclick="salir()" style="padding:10px 16px;background:#ef444415;border:1px solid #ef444430;border-radius:10px;color:#ef4444;font-size:12px;font-weight:700;cursor:pointer">Salir</button>
+  </div>
 
-    <!-- Historial del día -->
-    ${total?`
-    <div style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:14px">
-      <div style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">Registros de hoy (${total})</div>
-      ${historial.map(r=>`
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #0f172a">
-        <div style="display:flex;align-items:center;gap:8px">
-          <span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;
-            background:${r.tipo==="entrada"?"#16a34a":"#ef4444"}15;color:${r.tipo==="entrada"?"#16a34a":"#ef4444"}">
-            ${r.tipo==="entrada"?"↗ ENTRADA":"↘ SALIDA"}
-          </span>
-        </div>
-        <div style="color:#64748b;font-size:11px">${r.hora_registro||"—"}</div>
-      </div>`).join("")}
-    </div>`:`
-    <div style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:20px;text-align:center;color:#475569;font-size:12px">
-      Sin registros hoy. Marcá tu entrada al comenzar el turno.
-    </div>`}
-
-    <!-- Navegación -->
-    <div style="display:flex;gap:8px;margin-top:14px">
-      <a href="/" style="flex:1;text-align:center;padding:10px;background:#1e293b;border:1px solid #334155;border-radius:10px;color:#94a3b8;text-decoration:none;font-size:12px;font-weight:700">← Inicio</a>
-      <button onclick="salir()" style="padding:10px 16px;background:#ef444415;border:1px solid #ef444430;border-radius:10px;color:#ef4444;font-size:12px;font-weight:700;cursor:pointer">Salir</button>
-    </div>
-
-    <div style="text-align:center;margin-top:14px;color:#1e3a5f;font-size:9px">SERVI CAR PLATINIUM · v2.0</div>
+  <div style="text-align:center;margin-top:14px;color:#1e3a5f;font-size:9px">SERVI CAR PLATINIUM · v3.0</div>
   </div>`;
 }
 
+function renderTurnos(uname,turnoActual){
+  const h=HORARIOS[uname];
+  const semOp=turnoActual==="A"?"B":"A";
+  const horarios={A:h.turnoA,B:h.turnoB};
+  return `
+  <div class="card" style="border-color:#f59e0b30">
+    <div style="color:#f59e0b;font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:10px">🔄 Tus turnos semanales</div>
+    ${["A","B"].map(t=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:9px;border-radius:10px;margin-bottom:6px;
+      background:${t===turnoActual?"#f59e0b15":"#0f172a"};border:1px solid ${t===turnoActual?"#f59e0b40":"#334155"}">
+      <div>
+        <div style="font-size:11px;font-weight:700;color:${t===turnoActual?"#f59e0b":"#64748b"}">
+          Semana ${t}${t===turnoActual?" · Esta semana":""}
+        </div>
+        <div style="font-size:10px;color:#475569;margin-top:2px">
+          Entrada ${horarios[t][0]} · Salida ${horarios[t][1]}
+        </div>
+      </div>
+      ${t===turnoActual?`<span style="background:#f59e0b20;color:#f59e0b;font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px">ACTIVO</span>`:""}
+    </div>`).join("")}
+    <div style="font-size:10px;color:#475569;margin-top:4px;padding-top:8px;border-top:1px solid #334155">
+      Sábado siempre: ${uname==="evo"?`${h.sab[0]} – ${h.sab[1]}`:"descanso"} ·
+      Domingo: ${uname==="diego"?`${h.dom[0]} – ${h.dom[1]}`:"descanso"}
+    </div>
+  </div>`;
+}
+
+/* ══════════════════════════════════════════════════════
+   REGISTRAR
+══════════════════════════════════════════════════════ */
 async function registrar(){
+  const uname=(usuario.user_name||"").toLowerCase();
+  const acceso=puedeTrabajarHoy(uname,usuario.rol);
+
+  if(!acceso.ok){alert("❌ "+acceso.msg);return;}
+
   const btn=document.getElementById("btn-registro");
   if(btn){btn.disabled=true;btn.textContent="⏳ Registrando...";}
 
   const estado=getEstado();
   const tipo=estado==="entrada"?"salida":"entrada";
+  const hora=horaActual();
+
+  // Advertencia de tardanza en entrada
+  if(tipo==="entrada"){
+    const tarde=esTardanza(uname,hora);
+    const sched=horarioHoy(uname);
+    if(tarde&&sched){
+      const tol=HORARIOS[uname]?.tol||0;
+      const msg=tol>0
+        ?`⚠️ TARDANZA\n\nTu horario de entrada es ${sched[0]} (tolerancia ${tol} min).\nAhora son las ${hora}.\n\n¿Confirmás tu entrada?`
+        :`⚠️ TARDANZA\n\nTu horario de entrada es ${sched[0]}.\nAhora son las ${hora}.\n\n¿Confirmás tu entrada?`;
+      if(!confirm(msg)){
+        if(btn){btn.disabled=false;btn.textContent="🔑 Marcar ENTRADA";}
+        return;
+      }
+    }
+  }
 
   // Confirmación de salida
-  if(tipo==="salida"&&!confirm("⚠️ ¿Confirmas que estás marcando tu SALIDA?\n\nQuedarás bloqueado hasta el próximo turno.\n\nSolo Wilfredo puede darte acceso de emergencia.")){
+  if(tipo==="salida"&&!confirm("⚠️ ¿Confirmás tu SALIDA?\n\nQuedarás bloqueado hasta el próximo turno.\nSolo Wilfredo puede darte acceso de emergencia.")){
     if(btn){btn.disabled=false;btn.textContent="🚪 Marcar SALIDA";}
     return;
   }
@@ -146,24 +351,23 @@ async function registrar(){
     nombre:usuario.nombre,
     tipo,
     fecha:hoy(),
-    hora_registro:horaActual()
+    hora_registro:hora
   }).select().single();
 
   if(error){
     alert("Error al registrar: "+error.message);
-    if(btn){btn.disabled=false;btn.textContent=estado==="entrada"?"🚪 Marcar SALIDA":"🔑 Marcar ENTRADA";}
+    if(btn){btn.disabled=false;btn.textContent=tipo==="salida"?"🚪 Marcar SALIDA":"🔑 Marcar ENTRADA";}
     return;
   }
 
   historial=[data,...historial];
 
-  // Si marcó salida, redirigir a login después de 2 segundos
   if(tipo==="salida"){
     document.getElementById("app").innerHTML=`
-    <div class="fi" style="text-align:center;padding:30px">
+    <div class="fi" style="text-align:center;padding:40px 20px;max-width:400px;margin:0 auto">
       <div style="font-size:54px;margin-bottom:16px">👋</div>
       <div style="color:#f1f5f9;font-weight:900;font-size:20px;margin-bottom:8px">¡Hasta luego, ${usuario.nombre}!</div>
-      <div style="color:#64748b;font-size:13px;margin-bottom:20px">Tu salida fue registrada a las ${horaActual()}</div>
+      <div style="color:#64748b;font-size:13px;margin-bottom:20px">Salida registrada a las <strong style="color:#ef4444">${hora}</strong></div>
       <div style="color:#475569;font-size:11px">Cerrando sesión...</div>
     </div>`;
     setTimeout(()=>{localStorage.removeItem("scp_user");location.href="/";},2500);
@@ -173,7 +377,8 @@ async function registrar(){
   render();
 }
 
-window.registrar=registrar;window.salir=salir;
+window.registrar=registrar;
+window.salir=salir;
 init();
 </script>
 </body>
