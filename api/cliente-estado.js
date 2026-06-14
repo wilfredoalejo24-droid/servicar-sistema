@@ -106,6 +106,7 @@ export default async function handler(req, res) {
       mensaje_cliente: mensajeCliente(ot),
     });
   } catch (e) {
-    return res.status(500).json({ encontrado: false, mensaje: "Error interno", error: e.message });
+    console.error("Error detallado:", e.message, e.code);
+    return res.status(500).json({ encontrado: false, mensaje: "Error: " + e.message });
   }
 }
