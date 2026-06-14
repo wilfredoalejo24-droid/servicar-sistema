@@ -2,7 +2,7 @@
 // GET /api/cliente-estado?placa=ABC123
 // GET /api/cliente-estado?nombre=Juan
 const SUPA_URL = "https://epirsbudngwbxgcsryvv.supabase.co";
-const SUPA_KEY = "sb_publishable_zsqvMzJMc80Ypf3UQqs-SA_IrV-XIGc";
+const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwaXJzYnVkbmd3YnhnY3NyeXZ2Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MTAzNjM0OSwiZXhwIjoyMDk2NjEyMzQ5fQ.9SDQYGONsVp5NJW7oFnOAV1G--jXCjjbVC9m1b8OGrM";
 
 const PASO_LABELS = {
   1: "En recepción",
