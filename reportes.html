@@ -148,6 +148,14 @@ function render(){
           background:${tab===k?"#f59e0b":"#1e293b"};
           color:${tab===k?"#1e293b":"#64748b"}">${l}</button>`).join("")}
     </div>
+    <!-- Botón Notion de emergencia -->
+    <div class="noprint" style="padding:10px 16px 0">
+      <button id="btn_notion_emergency" onclick="guardarTodoEnNotion()"
+        style="width:100%;padding:10px 16px;background:#4f1d96;color:#e9d5ff;border:1px solid #7c3aed;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">
+        📤 Guardar todo en Notion ahora
+      </button>
+      <p id="notion_status" style="margin:4px 0 0;font-size:11px;color:#64748b;text-align:center"></p>
+    </div>
     <div id="contenido" class="fi">${renderTab()}</div>
     <div style="height:28px"></div>
   </div>`;
@@ -614,17 +622,123 @@ async function getNotionKey(){
 async function notionGuardar(pageId,titulo,filas){
   const key=await getNotionKey();if(!key)return false;
   try{
-    const resp=await fetch("https://api.notion.com/v1/pages",{
+    const resp=await fetch("/api/notion",{
       method:"POST",
-      headers:{"Authorization":"Bearer "+key,"Notion-Version":"2022-06-28","Content-Type":"application/json"},
+      headers:{"Content-Type":"application/json"},
       body:JSON.stringify({
-        parent:{page_id:pageId},
-        properties:{title:{title:[{text:{content:titulo}}]}},
-        children:filas.map(([label,val])=>({object:"block",type:"paragraph",paragraph:{rich_text:[{type:"text",text:{content:label+": "+val}}]}}))
+        action:"create_page",token:key,
+        data:{
+          parent:{page_id:pageId},
+          properties:{title:{title:[{text:{content:titulo}}]}},
+          children:filas.map(([label,val])=>({object:"block",type:"paragraph",paragraph:{rich_text:[{type:"text",text:{content:label+": "+val}}]}}))
+        }
       })
     });
     return resp.ok;
   }catch{return false;}
+}
+
+async function guardarTodoEnNotion(){
+  const btn=$$("btn_notion_emergency");
+  const status=$$("notion_status");
+  if(btn){btn.disabled=true;btn.textContent="⏳ Guardando en Notion...";}
+  if(status){status.style.color="#64748b";status.textContent="Consultando datos del día...";}
+
+  const key=await getNotionKey();
+  if(!key){
+    if(status){status.style.color="#f59e0b";status.textContent="⚠️ Sin API Key de Notion — configurar en Admin → ⚙️ Config";}
+    if(btn){btn.disabled=false;btn.textContent="📤 Guardar todo en Notion ahora";}
+    return;
+  }
+
+  const hoyStr=isoToFecha(hoyISO());
+  let ok=0,err=0;
+
+  async function crearPagina(pageId,titulo,filas){
+    try{
+      const r=await fetch("/api/notion",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+          action:"create_page",token:key,
+          data:{
+            parent:{page_id:pageId},
+            properties:{title:{title:[{text:{content:titulo}}]}},
+            children:filas.map(([label,val])=>({object:"block",type:"paragraph",paragraph:{rich_text:[{type:"text",text:{content:label+": "+val}}]}}))
+          }
+        })
+      });
+      return r.ok;
+    }catch{return false;}
+  }
+
+  // 1. Ventas del día
+  if(status)status.textContent="1/4 · Guardando ventas...";
+  try{
+    const{data:ventas}=await SB.from("ventas").select("total,producto,cantidad").eq("fecha",hoyStr);
+    const vArr=ventas||[];
+    const vTotal=vArr.reduce((s,v)=>s+parseFloat(v.total||0),0);
+    const saved=await crearPagina("37d0581972d18144a612c4c591ae4f75",`Ventas del día ${hoyStr}`,[
+      ["Fecha",hoyStr],["Transacciones",String(vArr.length)],["Total vendido",fmt(vTotal)],
+    ]);
+    if(saved)ok++;else err++;
+  }catch{err++;}
+
+  // 2. OTs del día
+  if(status)status.textContent="2/4 · Guardando OTs...";
+  try{
+    const{data:ots}=await SB.from("ots").select("num,placa,cliente,total,tecnico,taller").eq("fecha_entrega",hoyStr);
+    const otArr=ots||[];
+    const saved=await crearPagina("37d0581972d181a8af7fec47351eb7cd",`OTs del día ${hoyStr}`,[
+      ["Fecha",hoyStr],
+      ["OTs entregadas",String(otArr.length)],
+      ["Total recaudado",fmt(otArr.reduce((s,o)=>s+parseFloat(o.total||0),0))],
+      ...otArr.slice(0,15).map(o=>[`OT #${o.num||"—"}`,`${o.placa||"—"} · ${o.cliente||"—"} · Bs.${o.total||0}`])
+    ]);
+    if(saved)ok++;else err++;
+  }catch{err++;}
+
+  // 3. Caja del día
+  if(status)status.textContent="3/4 · Guardando caja...";
+  try{
+    const{data:movs}=await SB.from("caja").select("tipo,subtipo,monto,taller").eq("fecha",hoyStr);
+    const mArr=movs||[];
+    const ganancia=mArr.filter(m=>m.tipo==="ingreso"&&m.subtipo==="ganancia_neta").reduce((s,m)=>s+parseFloat(m.monto||0),0);
+    const capital =mArr.filter(m=>m.tipo==="ingreso"&&m.subtipo==="capital_tienda").reduce((s,m)=>s+parseFloat(m.monto||0),0);
+    const gastos  =mArr.filter(m=>m.tipo==="egreso").reduce((s,m)=>s+parseFloat(m.monto||0),0);
+    const saved=await crearPagina("37d0581972d18144a612c4c591ae4f75",`Caja del día ${hoyStr}`,[
+      ["Fecha",hoyStr],
+      ["Ganancia neta (MO)",fmt(ganancia)],
+      ["Capital (repuestos)",fmt(capital)],
+      ["Gastos",fmt(gastos)],
+      ["Neto del día",fmt(ganancia+capital-gastos)],
+      ["Movimientos",String(mArr.length)],
+    ]);
+    if(saved)ok++;else err++;
+  }catch{err++;}
+
+  // 4. Stock bajo
+  if(status)status.textContent="4/4 · Guardando stock bajo...";
+  try{
+    const{data:allInv}=await SB.from("inventario").select("nom,cod,stock,min").order("stock");
+    const bajos=(allInv||[]).filter(i=>(i.stock||0)<=(i.min||2));
+    const saved=await crearPagina("37d0581972d181d88014f0cf7bf33f32",`Stock bajo · ${hoyStr}`,[
+      ["Fecha reporte",hoyStr],
+      ["Productos con stock bajo o agotado",String(bajos.length)],
+      ...bajos.slice(0,25).map(i=>[i.cod||i.nom,`Stock: ${i.stock} (mín: ${i.min||2})`])
+    ]);
+    if(saved)ok++;else err++;
+  }catch{err++;}
+
+  // Resultado final
+  if(err===0){
+    if(status){status.style.color="#16a34a";status.textContent="✅ Todo guardado en Notion (4/4)";}
+  }else if(ok===0){
+    if(status){status.style.color="#ef4444";status.textContent="❌ Error — verificar API Key y conexión a Notion";}
+  }else{
+    if(status){status.style.color="#f59e0b";status.textContent=`⚠️ Error parcial — ${ok} guardados, ${err} fallaron`;}
+  }
+  if(btn){btn.disabled=false;btn.textContent="📤 Guardar todo en Notion ahora";}
 }
 function notionToast(ok){
   const d=document.createElement("div");
@@ -669,7 +783,7 @@ async function cambiarTab(t){
   "cambiarTab","actualizarContenido","salir",
   "setDFecha","cargarDiario","exportarDiarioExcel",
   "setRango","cargarRango","exportarRangoExcel",
-  "notionGuardarRango",
+  "notionGuardarRango","guardarTodoEnNotion",
 ].forEach(fn=>window[fn]=eval(fn));
 
 init();
