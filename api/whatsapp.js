@@ -9,7 +9,7 @@ const SUPA_KEY =
 // Token hardcodeado solo como fallback si Supabase no responde
 const WA_TOKEN_FALLBACK =
   "EAARlX3vlebsBRi7Gxu4VLE7Inn6Na5fHuWZC0H5Cz5WFYL2tNZCLBno4o6A3iELQch5ahwCkEN0APSYRRSFue3m4jSurR72cksk2pAIscMWfPheE7RQbMdtZBp9ZAPzr4zKkLU6DESs3oTIv7dRClJLiFWCPeT0pLMQjRCPTW5yV1U7gQtNZBQ2mbMfjipgRnCkIZAiZASYelRL7DB7mcKnvxI4wn5eqvybZB5s3ALPYreZBAGxjpogzkvADPUt3TWxAXeayAm6S0NhCxmlZBU1Jgc";
-const PHONE_NUMBER_ID = "1137973286071898";
+const PHONE_NUMBER_ID = "1171710759363489";
 const WILFREDO_WA = "59168167264";
 
 // Cache del token para no consultar Supabase en cada request
