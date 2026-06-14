@@ -36,7 +36,7 @@ function mensajeCliente(ot) {
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Headers", "*");
 
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "GET")
@@ -55,7 +55,14 @@ export default async function handler(req, res) {
     let query = `${SUPA_URL}/rest/v1/ots?estado=neq.Entregada&order=id.desc&limit=5&select=id,num,placa,cliente,marca,modelo,anio,tecnico,taller,paso,estado,procedimientos,estimado_entrega,fecha`;
 
     if (placa) {
-      query += `&placa=ilike.${encodeURIComponent(placa.trim().toUpperCase())}`;
+      const placaUp = placa.trim().toUpperCase();
+      const placaNoSpace = placaUp.replace(/\s+/g, "");
+      if (placaNoSpace !== placaUp) {
+        // Input has spaces — search both "1478 AAA" and "1478AAA"
+        query += `&or=(placa.ilike.${encodeURIComponent(placaUp)},placa.ilike.${encodeURIComponent(placaNoSpace)})`;
+      } else {
+        query += `&placa=ilike.${encodeURIComponent(placaUp)}`;
+      }
     } else {
       query += `&cliente=ilike.${encodeURIComponent("%" + nombre.trim() + "%")}`;
     }
@@ -73,7 +80,9 @@ export default async function handler(req, res) {
     if (!ots || ots.length === 0) {
       return res.status(200).json({
         encontrado: false,
-        mensaje: "No encontramos tu vehículo activo en el taller. Si dejaste tu auto hace poco, intenta en unos minutos.",
+        mensaje: placa
+          ? "No encontramos ningún vehículo activo con esa placa. ¿Está bien escrita?"
+          : "No encontramos un vehículo activo con ese nombre. Si dejaste tu auto hace poco, intenta en unos minutos.",
       });
     }
 
