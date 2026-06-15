@@ -680,7 +680,7 @@ function render(){
   <div style="background:#1e293b;border:1px solid ${bd(1)};border-radius:14px;padding:16px;margin-bottom:12px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
       <div style="color:${sc(1)};font-size:11px;font-weight:700;text-transform:uppercase">📥 Paso 1 — Recepción</div>
-      ${paso===1&&enc?`<button onclick="guardar({paso:2,estado:'Diagnóstico'})" style="padding:6px 14px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:11px;cursor:pointer">Avanzar →</button>`:""}
+      ${paso===1?`<button onclick="guardar({paso:2,estado:'Diagnóstico'})" style="padding:6px 14px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:11px;cursor:pointer">Avanzar →</button>`:""}
     </div>
 
     <!-- Datos vehículo -->
@@ -768,8 +768,8 @@ function render(){
   <div style="background:#1e293b;border:1px solid ${bd(3)};border-radius:14px;padding:16px;margin-bottom:12px">
     <div style="color:${sc(3)};font-size:11px;font-weight:700;text-transform:uppercase;margin-bottom:12px">💰 Paso 3 — Cotización</div>
 
-    <!-- Resumen de precios si ya están cargados -->
-    ${cot.total>0?`
+    <!-- Resumen de precios: solo visible para admin/encargado -->
+    ${enc&&cot.total>0?`
     <div style="background:#0f172a;border-radius:10px;padding:10px;margin-bottom:10px">
       ${(ot.procedimientos||[]).filter(p=>p.precio>0).map(p=>`
         <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
