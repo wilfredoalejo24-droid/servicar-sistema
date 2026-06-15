@@ -336,7 +336,7 @@ async function guardarCotizacion(){
   const adelanto=parseFloat(document.getElementById("cot_adelanto")?.value)||0;
   await guardar({procedimientos:procs,repuestos_conseguir:rcs,adelanto,paso:4,estado:"Cotización enviada"});
   cerrarModal();
-  enviarCotizacionCliente();
+  enviarCotizacionWA();
 }
 
 function enviarCotizacionCliente(){
@@ -349,6 +349,30 @@ function enviarCotizacionCliente(){
   const numCliente=ot.tel?`591${ot.tel.replace(/\D/g,"")}`:null;
   if(numCliente) window.open(`https://wa.me/${numCliente}?text=${encodeURIComponent(msg)}`,"_blank");
   else alert("Sin teléfono del cliente. Cotización guardada.");
+}
+
+async function enviarCotizacionWA(){
+  const cot=calcCotEstimado();
+  if(cot.total===0){
+    alert("⚠️ Primero define los precios en la cotización antes de enviar al cliente.");
+    return;
+  }
+  if(ot.estado==="Pendiente cotización"){
+    await guardar({paso:4,estado:"Cotización enviada"});
+  }
+  const nombre=(ot.cliente||"cliente").split(" ")[0];
+  const vehiculo=`${ot.marca||""} ${ot.modelo||""}`.trim()||"vehículo";
+  const probs=(ot.problemas||[]).length>0
+    ?(ot.problemas||[]).map((p,i)=>`${i+1}. ${p}`).join("\n")
+    :(ot.problema||"—");
+  const moLines=(ot.procedimientos||[]).filter(p=>p.precio>0).map((p,i)=>`${i+1}. ${p.nombre}: Bs. ${p.precio}`).join("\n");
+  const repLines=(ot.repuestos_conseguir||[]).filter(r=>r.precio_estimado>0).map((r,i)=>`${i+1}. ${r.nombre}: Bs. ${r.precio_estimado}`).join("\n");
+  const cotDesglose=[moLines,repLines].filter(Boolean).join("\n")||"(ver con el encargado)";
+  const dir=(ot.taller||"").includes("Montes")?"Viacha - Zona Montes":"Viacha - Bella Vista";
+  const msg=`Hola ${nombre} 👋, le contactamos de *SERVI CAR PLATINIUM*.\n\nSu vehículo *${vehiculo}* - Placa *${ot.placa||"—"}* está en nuestro taller.\n\n🔧 *Trabajo a realizar:*\n${probs}\n\n💰 *Cotización:*\n${cotDesglose}\n*Total: Bs. ${cot.total}*\n\n¿Aprueba el presupuesto para proceder con el trabajo?\n\n📍 Estamos en ${dir}\n⏰ Horario: Lun-Sáb 7:00 - 19:00`;
+  const tel=ot.tel?`591${ot.tel.replace(/\D/g,"").replace(/^591/,"")}`:null;
+  if(tel) window.open(`https://wa.me/${tel}?text=${encodeURIComponent(msg)}`,"_blank");
+  else alert("Sin teléfono del cliente. Estado actualizado a 'Cotización enviada'.");
 }
 
 /* ── PASO 4: Aprobación ──────────────────────────────── */
@@ -788,7 +812,16 @@ function render(){
       ${renderChecklist()}
     </div>`:""}
 
-    ${ot.tel?`<a href="https://wa.me/591${ot.tel.replace(/\D/g,"")}" target="_blank" class="btn-wa" style="margin-bottom:10px">📱 WhatsApp al cliente</a>`:""}
+    ${enc&&ot.tel?`<div style="display:flex;gap:6px;margin-bottom:10px">
+      <a href="https://wa.me/591${ot.tel.replace(/\D/g,"")}" target="_blank"
+        style="flex:1;text-align:center;padding:9px;background:#25d36620;color:#25d366;border:1px solid #25d36640;border-radius:10px;text-decoration:none;font-weight:700;font-size:12px">
+        📱 WhatsApp
+      </a>
+      <a href="tel:${ot.tel.replace(/\D/g,"")}"
+        style="flex:1;text-align:center;padding:9px;background:#3b82f620;color:#60a5fa;border:1px solid #3b82f640;border-radius:10px;text-decoration:none;font-weight:700;font-size:12px">
+        📞 Llamar
+      </a>
+    </div>`:""}
 
     <!-- Fotos de entrada -->
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
@@ -875,9 +908,14 @@ function render(){
     </div>`:""}
 
     ${enc?`
-    <div style="display:flex;gap:6px">
-      <button onclick="modalCotizacion()" style="flex:1;padding:9px;background:#f59e0b20;color:#f59e0b;border:1px solid #f59e0b40;border-radius:10px;font-weight:700;font-size:11px;cursor:pointer">✏️ Llenar / editar</button>
-      <button onclick="enviarCotizacionCliente()" class="btn-wa" style="flex:1;border-radius:10px">📤 Enviar cliente</button>
+    <div style="display:flex;gap:6px;flex-direction:column">
+      <div style="display:flex;gap:6px">
+        <button onclick="modalCotizacion()" style="flex:1;padding:9px;background:#f59e0b20;color:#f59e0b;border:1px solid #f59e0b40;border-radius:10px;font-weight:700;font-size:11px;cursor:pointer">✏️ Llenar / editar</button>
+      </div>
+      <button onclick="enviarCotizacionWA()"
+        style="width:100%;padding:11px;background:${cot.total>0?"#25d36620":"#64748b20"};color:${cot.total>0?"#25d366":"#64748b"};border:1px solid ${cot.total>0?"#25d36640":"#334155"};border-radius:10px;font-weight:700;font-size:12px;cursor:pointer">
+        ${cot.total>0?"📱 Enviar cotización por WhatsApp":"⚠️ Primero define los precios"}
+      </button>
     </div>`:
     `<div style="color:#334155;font-size:11px;text-align:center;padding:8px">Cotización en proceso</div>`}
   </div>`:""}
@@ -1192,7 +1230,7 @@ async function notionGuardarOT(mo,rep){
   "modalServicio","agregarServicio","borrarServicio",
   "modalRepRequerido","agregarRepRequerido","marcarConseguido",
   "enviarInformeEncargado",
-  "modalCotizacion","guardarCotizacion","enviarCotizacionCliente",
+  "modalCotizacion","guardarCotizacion","enviarCotizacionCliente","enviarCotizacionWA",
   "registrarAprobacion","rechazarCotizacion",
   "modalRepInventario","selRep","filtrarInv","agregarRepInventario",
   "editarPrecioRep","borrarRepUsado",
