@@ -147,6 +147,11 @@ function waNum(user_name){
   if(u?.tel) return "591"+cleanTel(u.tel);
   return WA_MAP[user_name?.toLowerCase()]||"";
 }
+function waClienteHref(){
+  const probs=(ot.problemas||[]).length>0?(ot.problemas||[]).join(", "):(ot.problema||"Sin descripción");
+  const msg=`Hola ${ot.cliente||"cliente"} 👋, le contactamos de *SERVI CAR PLATINIUM*.\n\n✅ Su vehículo ha sido registrado en nuestro sistema.\n\n🚗 *Datos del vehículo:*\n• Placa: ${ot.placa||"—"}\n• Vehículo: ${ot.marca||""} ${ot.modelo||""} ${ot.anio||""}\n• Km ingreso: ${ot.km||"No registrado"}\n\n🔧 *Problema reportado:*\n${probs}\n\n📋 *Estado:* En revisión — le notificaremos con la cotización pronto.\n\n📍 *SERVI CAR PLATINIUM*\nGracias por confiar en nosotros 🙏`;
+  return `https://wa.me/591${cleanTel(ot.tel)}?text=${encodeURIComponent(msg)}`;
+}
 
 /* ── Fotos ───────────────────────────────────────────── */
 function tomarFoto(campo){
@@ -814,7 +819,7 @@ function render(){
     </div>`:""}
 
     ${enc&&ot.tel?`<div style="display:flex;gap:6px;margin-bottom:10px">
-      <a href="https://wa.me/591${cleanTel(ot.tel)}" target="_blank"
+      <a href="${waClienteHref()}" target="_blank"
         style="flex:1;text-align:center;padding:9px;background:#25d36620;color:#25d366;border:1px solid #25d36640;border-radius:10px;text-decoration:none;font-weight:700;font-size:12px">
         📱 WhatsApp
       </a>
