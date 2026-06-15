@@ -35,6 +35,7 @@ let usuario=null, ots=[], tecnicos=[];
 let filtroEstado="abiertas", filtroTaller="todos", busqueda="";
 // Estado del modal de creación
 let checklistFluidos={}, nivelGasolina="", problemasSeleccionados=[], fotosEntradaMdl=[];
+let tecTallerMap={};
 
 /* ── Session ──────────────────────────────────────────── */
 function getSession(){
@@ -300,20 +301,16 @@ function quitarFotoMdl(idx){fotosEntradaMdl.splice(idx,1);actualizarPreviaMdl();
 function mostrarCrear(){
   checklistFluidos={};nivelGasolina="";problemasSeleccionados=[];fotosEntradaMdl=[];
   const esEnc2=["admin","encargado"].includes(usuario.rol);
-  // Taller: enc/admin pueden elegir, vendedor/mecanico tienen el suyo fijo
-  const tallerOpts=usuario.taller==="ambos"
-    ?`<option value="Taller 1 · Montes">Taller 1 · Montes</option>
-      <option value="Taller 2 · Bella Vista">Taller 2 · Bella Vista</option>`
-    :`<option value="${usuario.taller}">${usuario.taller}</option>`;
+  // Taller: todos pueden elegir, default al taller habitual del usuario
+  const tallerDefault=(usuario.taller==="ambos"||!usuario.taller)?"Taller 1 · Montes":usuario.taller;
+  const tallerOpts=["Taller 1 · Montes","Taller 2 · Bella Vista"]
+    .map(t=>`<option value="${t}"${t===tallerDefault?" selected":""}>${t}</option>`).join("");
 
-  // Técnicos: filtrar por taller del usuario (o ambos si admin)
-  const tecsFiltrados=tecnicos.filter(t=>
-    esEnc2
-      ? (usuario.taller==="ambos" || t.taller===usuario.taller || t.taller==="ambos")
-      : (t.taller===usuario.taller || t.taller==="ambos")
-  );
-  const tecOpts=tecsFiltrados.length
-    ?tecsFiltrados.map(t=>`<option value="${t.nombre}"${t.user_name===usuario.user_name?" selected":""}>${t.nombre}${t.user_name===usuario.user_name?" (yo)":""}</option>`).join("")
+  // Todos los técnicos visibles para que cualquier usuario pueda asignar cross-taller
+  tecTallerMap={};
+  tecnicos.forEach(t=>{tecTallerMap[t.nombre]=t.taller;});
+  const tecOpts=tecnicos.length
+    ?tecnicos.map(t=>`<option value="${t.nombre}"${t.user_name===usuario.user_name?" selected":""}>${t.nombre}${t.user_name===usuario.user_name?" (yo)":""}</option>`).join("")
     :`<option value="${usuario.nombre}">${usuario.nombre} (yo)</option>`;
 
   document.getElementById("modal-area").innerHTML=`
@@ -383,9 +380,9 @@ function mostrarCrear(){
 
     <!-- Técnico y taller -->
     <div class="label">Técnico asignado</div>
-    <select id="n_tecnico" class="input" style="margin-bottom:8px">${tecOpts}</select>
-    <div class="label">Taller ${!esEnc2?`<span style="color:#475569;font-weight:400">(automático)</span>`:""}</div>
-    <select id="n_taller" class="input" style="margin-bottom:12px;${!esEnc2?"opacity:.6;pointer-events:none":""}">${tallerOpts}</select>
+    <select id="n_tecnico" class="input" style="margin-bottom:8px" onchange="autoSugerirTaller(this)">${tecOpts}</select>
+    <div class="label">Taller <span style="color:#475569;font-weight:400">(se sugiere según técnico, editable)</span></div>
+    <select id="n_taller" class="input" style="margin-bottom:12px">${tallerOpts}</select>
 
     <!-- Fotos de entrada -->
     <div class="label">📷 Fotos del vehículo al ingreso <span style="color:#ef4444">*</span> <span style="color:#64748b;font-weight:400">(mín. 1, máx. 4)</span></div>
@@ -490,6 +487,12 @@ async function crearOT(){
 
 function cerrarModal(){document.getElementById("modal-area").innerHTML="";}
 
+function autoSugerirTaller(sel){
+  const taller=tecTallerMap[sel.value];
+  const n_taller=document.getElementById("n_taller");
+  if(n_taller&&taller&&taller!=="ambos") n_taller.value=taller;
+}
+
 /* ── Globals ──────────────────────────────────────────── */
 window.recargar=recargar;
 window.mostrarCrear=mostrarCrear;
@@ -503,6 +506,7 @@ window.setGasolina=setGasolina;
 window.toggleProblema=toggleProblema;
 window.agregarFotoEntradaMdl=agregarFotoEntradaMdl;
 window.quitarFotoMdl=quitarFotoMdl;
+window.autoSugerirTaller=autoSugerirTaller;
 
 init();
 </script>
