@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Gastos — Servi Car Platinium</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;background:#0f172a;color:#fff;min-height:100vh}
+input,select,textarea{outline:none;font-family:inherit}
+input:focus,select:focus,textarea:focus{border-color:#f59e0b!important}
+.input{width:100%;padding:10px 12px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#fff;font-size:13px}
+.label{color:#64748b;font-size:11px;font-weight:700;margin-bottom:5px;display:block}
+.card{background:#1e293b;border:1px solid #334155;border-radius:14px;padding:16px;margin-bottom:12px}
+.tbl{width:100%;border-collapse:collapse;font-size:12px}
+.tbl th{padding:7px 10px;background:#0f172a;color:#f59e0b;font-size:10px;text-align:left;font-weight:700;white-space:nowrap}
+.tbl td{padding:7px 10px;border-bottom:1px solid #0f172a;vertical-align:middle}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tbody tr:hover td{background:#0f172a40}
+.ovf{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.badge{padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;white-space:nowrap}
+.prog-track{background:#0f172a;border-radius:99px;height:8px;overflow:hidden;margin:5px 0}
+.prog-fill{height:100%;border-radius:99px;transition:width .5s ease}
+@keyframes fi{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.fi{animation:fi .25s ease both}
+@keyframes su{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:1000;display:flex;align-items:flex-end;justify-content:center}
+.modal-box{background:#1e293b;border-radius:16px 16px 0 0;padding:20px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto}
+.su{animation:su .25s ease both}
+</style>
+</head>
+<body>
+<div id="app">
+  <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;color:#475569">
+    <div style="text-align:center"><div style="font-size:38px;margin-bottom:8px">💸</div>Cargando gastos...</div>
+  </div>
+</div>
+<div id="modal"></div>
+<script>
+/*
+════════════════════════════════════════════════════════
+  SQL — EJECUTAR EN SUPABASE (SQL Editor) ANTES DE USAR
+════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS gastos (
+  id            SERIAL PRIMARY KEY,
+  fecha         TEXT NOT NULL,
+  semana        TEXT,
+  tipo_gasto    TEXT NOT NULL,
+  categoria     TEXT NOT NULL,
+  proyecto_id   INTEGER,
+  taller        TEXT,
+  descripcion   TEXT NOT NULL,
+  proveedor     TEXT,
+  monto         NUMERIC NOT NULL,
+  registrado_por TEXT,
+  created_at    TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS proyectos (
+  id                  SERIAL PRIMARY KEY,
+  nombre              TEXT NOT NULL,
+  descripcion         TEXT,
+  taller              TEXT,
+  presupuesto         NUMERIC,
+  fecha_inicio        TEXT,
+  fecha_fin_estimada  TEXT,
+  estado              TEXT DEFAULT 'activo',
+  created_at          TIMESTAMPTZ DEFAULT NOW()
+);
+*/
+
+const SB=window.supabase.createClient(
+  "https://epirsbudngwbxgcsryvv.supabase.co",
+  "sb_publishable_zsqvMzJMc80Ypf3UQqs-SA_IrV-XIGc"
+);
+const TALLERES=["Taller 1 · Montes","Taller 2 · Bella Vista"];
+const CATS=["Nómina","Banco","Alquiler","Cocina","Servicios","Maquinaria","Insumos","Compras","Otros"];
+const CAT_COLOR={
+  Nómina:"#3b82f6",Banco:"#ef4444",Alquiler:"#f97316",Cocina:"#a78bfa",
+  Servicios:"#06b6d4",Maquinaria:"#f59e0b",Insumos:"#16a34a",Compras:"#ec4899",Otros:"#64748b"
+};
+
+/* ── Estado ──────────────────────────────────────────── */
+let usuario=null, tab="operativo";
+let semOffset=0, balOffset=0;
+let gastosSemana=[], proyectos=[], gastosXProy={}, pagosProyecto=[];
+let proyectoAbierto=null, formGasto=false;
+
+/* ── Helpers ─────────────────────────────────────────── */
+const hoy=()=>new Date().toLocaleDateString("es-BO");
+const fmt=n=>`Bs. ${parseFloat(n||0).toLocaleString("es-BO",{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+function setApp(h){document.getElementById("app").innerHTML=h;}
+function setModal(h){document.getElementById("modal").innerHTML=h;}
+function $$(id){return document.getElementById(id);}
+function v(id){return($$(`${id}`)?.value||"").trim();}
+function vn(id){return parseFloat($$(id)?.value)||0;}
+function getSession(){
+  try{return JSON.parse(localStorage.getItem("scp_user"))||JSON.parse(localStorage.getItem("sc_user"))||null;}
+  catch{return null;}
+}
+function salir(){localStorage.removeItem("scp_user");localStorage.removeItem("sc_user");location.href="/";}
+
+function fechaHoyIso(){
+  const d=new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+function isoToLocal(iso){
+  if(!iso)return hoy();
+  const d=new Date(iso+"T12:00:00");
+  return d.toLocaleDateString("es-BO");
+}
+// Devuelve la fecha del lunes de esa semana como clave de agrupación
+function lunes(ddmmyyyy){
+  const p=ddmmyyyy.split("/");
+  if(p.length!==3)return "";
+  const d=new Date(parseInt(p[2]),parseInt(p[1])-1,parseInt(p[0]));
+  const dia=d.getDay()||7;
+  d.setDate(d.getDate()-dia+1);
+  return d.toLocaleDateString("es-BO");
+}
+
+/* ── Semanas ──────────────────────────────────────────── */
+function getSemana(offset=0){
+  const hoyD=new Date();
+  const dia=hoyD.getDay()||7;
+  const lun=new Date(hoyD);
+  lun.setDate(hoyD.getDate()-dia+1+offset*7);
+  const fechas=[];
+  for(let i=0;i<7;i++){
+    const d=new Date(lun);d.setDate(lun.getDate()+i);
+    fechas.push(d.toLocaleDateString("es-BO"));
+  }
+  const dom=new Date(lun);dom.setDate(lun.getDate()+6);
+  return{
+    fechas,
+    lunes:lun.toLocaleDateString("es-BO"),
+    label:`${lun.toLocaleDateString("es-BO")} – ${dom.toLocaleDateString("es-BO")}`
+  };
+}
+
+const SEMANA_OPTS=[
+  [0,"Esta semana"],[-1,"Semana pasada"],[-2,"Hace 2 semanas"],[-3,"Hace 3 semanas"]
+];
+function selectSemana(bind,val){
+  return`<select onchange="${bind}=parseInt(this.value);${bind==="semOffset"?"recargarOperativo()":"cargarBalanceRender()"}"
+    style="flex:1;padding:9px 12px;background:#1e293b;border:1px solid #334155;border-radius:10px;color:#fff;font-size:12px">
+    ${SEMANA_OPTS.map(([i,l])=>`<option value="${i}" ${val===i?"selected":""}>${l}</option>`).join("")}
+  </select>`;
+}
+
+/* ── Carga de datos ───────────────────────────────────── */
+async function cargarGastosSemana(){
+  const{fechas}=getSemana(semOffset);
+  const{data}=await SB.from("gastos")
+    .select("*").eq("tipo_gasto","operativo").in("fecha",fechas)
+    .order("created_at",{ascending:false});
+  gastosSemana=data||[];
+}
+
+async function cargarProyectos(){
+  const[r1,r2]=await Promise.all([
+    SB.from("proyectos").select("*").order("created_at",{ascending:false}),
+    SB.from("gastos").select("proyecto_id,monto").eq("tipo_gasto","proyecto")
+  ]);
+  proyectos=r1.data||[];
+  gastosXProy={};
+  (r2.data||[]).forEach(g=>{
+    if(!g.proyecto_id)return;
+    gastosXProy[g.proyecto_id]=(gastosXProy[g.proyecto_id]||0)+parseFloat(g.monto||0);
+  });
+}
+
+async function cargarPagosProyecto(pid){
+  const{data}=await SB.from("gastos")
+    .select("*").eq("proyecto_id",pid).eq("tipo_gasto","proyecto")
+    .order("created_at",{ascending:false});
+  pagosProyecto=data||[];
+}
+
+async function fetchBalance(offset){
+  const{fechas}=getSemana(offset);
+  const[r1,r2,r3]=await Promise.all([
+    SB.from("caja_sesiones").select("ganancia_neta,capital_tienda").eq("estado","Cerrada").in("fecha",fechas),
+    SB.from("gastos").select("monto").eq("tipo_gasto","operativo").in("fecha",fechas),
+    SB.from("gastos").select("monto").eq("tipo_gasto","proyecto").in("fecha",fechas),
+  ]);
+  const ingresos=(r1.data||[]).reduce((s,x)=>s+parseFloat(x.ganancia_neta||0)+parseFloat(x.capital_tienda||0),0);
+  const gastosOp=(r2.data||[]).reduce((s,x)=>s+parseFloat(x.monto||0),0);
+  const gastosInv=(r3.data||[]).reduce((s,x)=>s+parseFloat(x.monto||0),0);
+  return{ingresos,gastosOp,gastosInv,gananciaReal:ingresos-gastosOp};
+}
+
+/* ══════════════════════════════════════════════════════
+   RENDER PRINCIPAL
+══════════════════════════════════════════════════════ */
+function render(){
+  setApp(`
+  <!-- Header -->
+  <div style="background:#1e293b;border-bottom:1px solid #334155;padding:12px 16px;position:sticky;top:0;z-index:100">
+    <div style="display:flex;justify-content:space-between;align-items:center;max-width:640px;margin:0 auto">
+      <div>
+        <a href="/" style="color:#475569;text-decoration:none;font-size:10px;font-weight:700">← Inicio</a>
+        <div style="color:#fbbf24;font-weight:900;font-size:15px;margin-top:1px">💸 Gastos y Proyectos</div>
+        <div style="color:#475569;font-size:10px">${usuario.nombre}</div>
+      </div>
+      <button onclick="salir()" style="padding:7px 12px;background:#ef444415;color:#ef4444;border:1px solid #ef444430;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer">Salir</button>
+    </div>
+  </div>
+
+  <div class="fi" style="padding:12px 14px;max-width:640px;margin:0 auto">
+
+  <!-- Tabs -->
+  <div style="display:flex;gap:5px;margin-bottom:14px">
+    ${[["operativo","📋 Operativos"],["proyectos","🏗️ Proyectos"],["balance","📊 Balance"]].map(([k,l])=>`
+    <button onclick="cambiarTab('${k}')"
+      style="flex:1;padding:9px;border-radius:10px;font-size:11px;font-weight:700;cursor:pointer;
+        border:1px solid ${tab===k?"#f59e0b":"#334155"};
+        background:${tab===k?"#f59e0b":"#1e293b"};
+        color:${tab===k?"#1e293b":"#64748b"}">${l}</button>`).join("")}
+  </div>
+
+  ${tab==="operativo"?renderOperativo():tab==="proyectos"?renderProyectos():renderBalance()}
+
+  <div style="height:28px"></div>
+  </div>`);
+
+  if(tab==="balance") cargarBalanceRender();
+}
+
+/* ══════════════════════════════════════════════════════
+   TAB 1 — GASTOS OPERATIVOS
+══════════════════════════════════════════════════════ */
+function renderOperativo(){
+  const total=gastosSemana.reduce((s,g)=>s+parseFloat(g.monto||0),0);
+  const {label}=getSemana(semOffset);
+  return`
+  <!-- Barra de acciones -->
+  <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center">
+    ${selectSemana("semOffset",semOffset)}
+    <button onclick="exportarCSV()"
+      style="padding:9px 12px;background:#1e293b;border:1px solid #334155;border-radius:10px;color:#64748b;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">
+      ⬇ Excel
+    </button>
+    <button onclick="toggleFormGasto()"
+      style="padding:9px 14px;background:#f59e0b;border:none;border-radius:10px;color:#1e293b;font-size:12px;font-weight:900;cursor:pointer;white-space:nowrap">
+      ➕ Gasto
+    </button>
+  </div>
+
+  <!-- Resumen semana -->
+  <div class="card" style="border-color:#f59e0b30">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:3px">Semana</div>
+        <div style="color:#94a3b8;font-size:11px">${label}</div>
+      </div>
+      <div style="text-align:right">
+        <div style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:3px">Total gastado</div>
+        <div style="color:#ef4444;font-weight:900;font-size:24px">${fmt(total)}</div>
+        <div style="color:#475569;font-size:10px">${gastosSemana.length} registro(s)</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Formulario nuevo gasto -->
+  ${formGasto?`
+  <div class="card" style="border-color:#f59e0b40">
+    <div style="color:#f59e0b;font-size:11px;font-weight:700;text-transform:uppercase;margin-bottom:14px">➕ Nuevo gasto operativo</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+      <div>
+        <div class="label">Fecha *</div>
+        <input id="g_fecha" type="date" class="input" value="${fechaHoyIso()}"/>
+      </div>
+      <div>
+        <div class="label">Categoría *</div>
+        <select id="g_cat" class="input">
+          ${CATS.map(c=>`<option>${c}</option>`).join("")}
+        </select>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+      <div>
+        <div class="label">Taller</div>
+        <select id="g_taller" class="input">
+          <option value="">Ambos talleres</option>
+          ${TALLERES.map(t=>`<option>${t}</option>`).join("")}
+        </select>
+      </div>
+      <div>
+        <div class="label">Monto Bs. *</div>
+        <input id="g_monto" type="number" min="0" step="0.01" class="input" placeholder="0.00"/>
+      </div>
+    </div>
+    <div style="margin-bottom:10px">
+      <div class="label">Descripción *</div>
+      <input id="g_desc" class="input" placeholder="¿En qué se gastó?"/>
+    </div>
+    <div style="margin-bottom:14px">
+      <div class="label">Proveedor</div>
+      <input id="g_prov" class="input" placeholder="Nombre del proveedor (opcional)"/>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button onclick="toggleFormGasto()"
+        style="flex:1;padding:11px;background:#334155;color:#94a3b8;border:none;border-radius:10px;font-weight:700;font-size:12px;cursor:pointer">
+        Cancelar
+      </button>
+      <button onclick="guardarGasto()"
+        style="flex:2;padding:11px;background:#f59e0b;color:#1e293b;border:none;border-radius:10px;font-weight:900;font-size:13px;cursor:pointer">
+        💾 Guardar gasto
+      </button>
+    </div>
+  </div>`:""}
+
+  <!-- Tabla de gastos -->
+  ${gastosSemana.length?`
+  <div class="card">
+    <div class="ovf">
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th>Fecha</th><th>Categoría</th><th>Taller</th><th>Descripción</th><th>Proveedor</th><th style="text-align:right">Monto</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${gastosSemana.map(g=>`
+          <tr>
+            <td style="color:#64748b;white-space:nowrap">${g.fecha}</td>
+            <td><span class="badge" style="background:${(CAT_COLOR[g.categoria]||"#64748b")}20;color:${CAT_COLOR[g.categoria]||"#64748b"}">${g.categoria}</span></td>
+            <td style="color:#475569;font-size:11px">${g.taller||"Ambos"}</td>
+            <td style="color:#94a3b8">${g.descripcion}</td>
+            <td style="color:#475569;font-size:11px">${g.proveedor||"—"}</td>
+            <td style="text-align:right;color:#ef4444;font-weight:700;white-space:nowrap">${fmt(g.monto)}</td>
+          </tr>`).join("")}
+        </tbody>
+      </table>
+    </div>
+  </div>`:`
+  <div class="card" style="text-align:center;padding:28px;color:#475569;font-size:12px">
+    Sin gastos registrados esta semana.
+  </div>`}`;
+}
+
+/* ══════════════════════════════════════════════════════
+   TAB 2 — PROYECTOS DE INVERSIÓN
+══════════════════════════════════════════════════════ */
+function renderProyectos(){
+  const activos=proyectos.filter(p=>p.estado==="activo");
+  const cerrados=proyectos.filter(p=>p.estado!=="activo");
+  return`
+  <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+    <button onclick="abrirFormProyecto()"
+      style="padding:9px 18px;background:#f59e0b;border:none;border-radius:10px;color:#1e293b;font-size:12px;font-weight:900;cursor:pointer">
+      ➕ Nuevo proyecto
+    </button>
+  </div>
+
+  ${activos.length
+    ? activos.map(p=>cardProyecto(p)).join("")
+    : `<div class="card" style="text-align:center;padding:28px;color:#475569;font-size:12px">Sin proyectos activos.</div>`}
+
+  ${cerrados.length?`
+  <div style="margin-top:8px">
+    <div style="color:#475569;font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:10px;padding-left:2px">Proyectos cerrados</div>
+    ${cerrados.map(p=>cardProyecto(p)).join("")}
+  </div>`:""}`;
+}
+
+function cardProyecto(p){
+  const gastado=gastosXProy[p.id]||0;
+  const pct=p.presupuesto>0?Math.min(100,(gastado/p.presupuesto*100)):0;
+  const sobre=p.presupuesto>0&&gastado>p.presupuesto;
+  const abierto=proyectoAbierto===p.id;
+  const barColor=sobre?"#ef4444":pct>80?"#f59e0b":"#16a34a";
+  return`
+  <div class="card" style="border-color:${p.estado==="activo"?"#334155":"#1e293b90"}">
+    <!-- Cabecera -->
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+      <div>
+        <div style="font-weight:700;font-size:14px">${p.nombre}</div>
+        <div style="color:#475569;font-size:11px;margin-top:2px">
+          ${p.taller||"Ambos talleres"}${p.fecha_inicio?` · Inicio: ${p.fecha_inicio}`:""}${p.fecha_fin_estimada?` · Fin est: ${p.fecha_fin_estimada}`:""}
+        </div>
+      </div>
+      <span class="badge" style="background:${p.estado==="activo"?"#16a34a20":"#64748b20"};color:${p.estado==="activo"?"#16a34a":"#64748b"};margin-left:8px">
+        ${p.estado==="activo"?"Activo":"Cerrado"}
+      </span>
+    </div>
+
+    <!-- Barra de progreso -->
+    ${p.presupuesto?`
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:2px">
+        <span style="color:#64748b">Gastado: <strong style="color:${barColor}">${fmt(gastado)}</strong></span>
+        <span style="color:#64748b">Presupuesto: <strong style="color:#94a3b8">${fmt(p.presupuesto)}</strong></span>
+      </div>
+      <div class="prog-track">
+        <div class="prog-fill" style="width:${pct}%;background:${barColor}"></div>
+      </div>
+      <div style="font-size:10px;margin-top:2px;color:${sobre?"#ef4444":"#475569"}">
+        ${sobre?`⚠️ Excedido por ${fmt(gastado-p.presupuesto)}`:`${pct.toFixed(0)}% ejecutado · Disponible: ${fmt(p.presupuesto-gastado)}`}
+      </div>
+    </div>`:`
+    <div style="color:#475569;font-size:11px">Sin presupuesto definido · Gastado hasta hoy: <strong style="color:#f59e0b">${fmt(gastado)}</strong></div>`}
+
+    <!-- Botones -->
+    <div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap">
+      ${p.estado==="activo"?`
+      <button onclick="abrirFormPago(${p.id})"
+        style="padding:6px 12px;background:#16a34a20;color:#16a34a;border:1px solid #16a34a40;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer">
+        💰 Registrar pago
+      </button>`:""}
+      <button onclick="toggleProyecto(${p.id})"
+        style="padding:6px 12px;background:#334155;color:#64748b;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer">
+        ${abierto?"▲ Ocultar":"▼ Ver pagos ("+pagosProyecto.length+")"}
+      </button>
+      ${p.estado==="activo"?`
+      <button onclick="cerrarProyecto(${p.id})"
+        style="padding:6px 12px;background:#ef444415;color:#ef4444;border:1px solid #ef444430;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer">
+        ✅ Cerrar proyecto
+      </button>`:""}
+    </div>
+
+    <!-- Pagos -->
+    ${abierto?`
+    <div style="margin-top:14px;border-top:1px solid #334155;padding-top:12px">
+      <div style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:8px">Historial de pagos</div>
+      ${pagosProyecto.length
+        ? pagosProyecto.map(g=>`
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #0f172a;font-size:12px">
+          <div>
+            <div style="color:#94a3b8">${g.descripcion}</div>
+            <div style="color:#475569;font-size:10px;margin-top:2px">${g.fecha}${g.proveedor?" · "+g.proveedor:""}</div>
+          </div>
+          <div style="color:#f59e0b;font-weight:700;white-space:nowrap;margin-left:10px">${fmt(g.monto)}</div>
+        </div>`).join("")
+        : `<div style="color:#475569;font-size:12px;text-align:center;padding:10px 0">Sin pagos registrados.</div>`}
+    </div>`:""}
+  </div>`;
+}
+
+/* ══════════════════════════════════════════════════════
+   TAB 3 — BALANCE SEMANAL
+══════════════════════════════════════════════════════ */
+function renderBalance(){
+  return`
+  <div class="card">
+    <div style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:8px">🗓️ Semana a consultar</div>
+    ${selectSemana("balOffset",balOffset)}
+  </div>
+  <div id="balance-body">
+    <div style="text-align:center;padding:24px;color:#475569">Calculando...</div>
+  </div>`;
+}
+
+async function cargarBalanceRender(){
+  const el=$$("balance-body");
+  if(!el)return;
+  el.innerHTML=`<div style="text-align:center;padding:24px;color:#475569">Calculando...</div>`;
+  const{ingresos,gastosOp,gastosInv,gananciaReal}=await fetchBalance(balOffset);
+  const{label}=getSemana(balOffset);
+  const margen=ingresos>0?(gananciaReal/ingresos*100):gananciaReal>0?100:-100;
+  const sem=gananciaReal<0
+    ?{c:"#ef4444",bg:"#ef444415",borde:"#ef444430",icono:"🔴",label:"Pérdida neta"}
+    :margen<10
+    ?{c:"#f59e0b",bg:"#f59e0b15",borde:"#f59e0b30",icono:"🟡",label:"Margen bajo (< 10%)"}
+    :{c:"#16a34a",bg:"#16a34a15",borde:"#16a34a30",icono:"🟢",label:"Semana saludable"};
+
+  el.innerHTML=`
+  <!-- Semáforo -->
+  <div class="card fi" style="border-color:${sem.borde};background:${sem.bg};text-align:center;padding:22px">
+    <div style="font-size:42px;margin-bottom:8px">${sem.icono}</div>
+    <div style="color:${sem.c};font-weight:900;font-size:16px;margin-bottom:4px">${sem.label}</div>
+    <div style="color:#475569;font-size:11px;margin-bottom:12px">${label}</div>
+    <div style="font-size:32px;font-weight:900;color:${sem.c}">${fmt(gananciaReal)}</div>
+    <div style="color:#475569;font-size:10px;margin-top:4px">Ganancia real = Ingresos − Gastos operativos</div>
+    ${ingresos>0?`<div style="color:${sem.c};font-size:12px;font-weight:700;margin-top:6px">Margen: ${margen.toFixed(1)}%</div>`:""}
+  </div>
+
+  <!-- Desglose -->
+  <div class="card fi">
+    <div style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:12px">Desglose de la semana</div>
+    ${[
+      {icon:"💰",label:"Ingresos de caja",sub:"Ganancia neta + Capital (sesiones cerradas)",val:ingresos,color:"#16a34a",sign:"+"},
+      {icon:"📋",label:"Gastos operativos",sub:"Registrados en esta sección",val:gastosOp,color:"#ef4444",sign:"−"},
+      {icon:"🏗️",label:"Inversiones en proyectos",sub:"Pagos de proyectos registrados",val:gastosInv,color:"#a78bfa",sign:"−"},
+    ].map(({icon,label,sub,val,color,sign})=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #0f172a">
+      <div>
+        <div style="font-size:12px;font-weight:700">${icon} ${label}</div>
+        <div style="color:#475569;font-size:10px;margin-top:2px">${sub}</div>
+      </div>
+      <div style="font-weight:900;font-size:14px;color:${color};white-space:nowrap;margin-left:12px">
+        ${sign} ${fmt(val)}
+      </div>
+    </div>`).join("")}
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0 0">
+      <div style="font-size:13px;font-weight:700">= GANANCIA REAL</div>
+      <div style="font-weight:900;font-size:20px;color:${sem.c}">${fmt(gananciaReal)}</div>
+    </div>
+  </div>
+
+  ${ingresos===0&&gastosOp===0?`
+  <div class="card" style="text-align:center;color:#475569;font-size:12px;padding:20px">
+    No hay datos de caja ni gastos para esta semana.
+  </div>`:""}`;
+}
+
+/* ══════════════════════════════════════════════════════
+   ACCIONES
+══════════════════════════════════════════════════════ */
+function cambiarTab(t){
+  tab=t; formGasto=false; proyectoAbierto=null; pagosProyecto=[];
+  render();
+}
+
+function toggleFormGasto(){formGasto=!formGasto;render();}
+
+async function guardarGasto(){
+  const fechaIso=v("g_fecha"),desc=v("g_desc"),monto=vn("g_monto");
+  if(!fechaIso||!desc||!monto){alert("Completá: fecha, descripción y monto");return;}
+  const fechaLocal=isoToLocal(fechaIso);
+  const{error}=await SB.from("gastos").insert({
+    fecha:fechaLocal,
+    semana:lunes(fechaLocal),
+    tipo_gasto:"operativo",
+    categoria:$$("g_cat")?.value||"Otros",
+    taller:$$("g_taller")?.value||"",
+    descripcion:desc,
+    proveedor:v("g_prov"),
+    monto,
+    registrado_por:usuario.nombre
+  });
+  if(error){alert("Error al guardar: "+error.message);return;}
+  formGasto=false;
+  await cargarGastosSemana();
+  render();
+}
+
+async function recargarOperativo(){await cargarGastosSemana();render();}
+
+function exportarCSV(){
+  if(!gastosSemana.length){alert("Sin datos para exportar");return;}
+  const{label}=getSemana(semOffset);
+  const cab="Fecha,Categoría,Taller,Descripción,Proveedor,Monto (Bs.)\n";
+  const rows=gastosSemana.map(g=>
+    `"${g.fecha}","${g.categoria}","${g.taller||""}","${(g.descripcion||"").replace(/"/g,'""')}","${g.proveedor||""}","${g.monto}"`
+  ).join("\n");
+  const blob=new Blob(["﻿"+cab+rows],{type:"text/csv;charset=utf-8"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download=`gastos_operativos_${getSemana(semOffset).lunes.replace(/\//g,"-")}.csv`;
+  a.click();
+}
+
+/* ── Proyectos ───────────────────────────────────────── */
+function abrirFormProyecto(){
+  setModal(`
+  <div class="modal-bg" onclick="if(event.target===this)cerrarModal()">
+  <div class="modal-box su">
+    <div style="font-weight:900;font-size:16px;margin-bottom:16px">🏗️ Nuevo proyecto de inversión</div>
+    <div class="label">Nombre del proyecto *</div>
+    <input id="p_nom" class="input" placeholder="Ej: Renovación compresor Montes" style="margin-bottom:10px"/>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+      <div>
+        <div class="label">Taller</div>
+        <select id="p_taller" class="input">
+          <option value="">Ambos talleres</option>
+          ${TALLERES.map(t=>`<option>${t}</option>`).join("")}
+        </select>
+      </div>
+      <div>
+        <div class="label">Presupuesto Bs.</div>
+        <input id="p_pres" type="number" min="0" step="0.01" class="input" placeholder="0.00"/>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+      <div>
+        <div class="label">Fecha inicio</div>
+        <input id="p_fi" type="date" class="input" value="${fechaHoyIso()}"/>
+      </div>
+      <div>
+        <div class="label">Fecha fin estimada</div>
+        <input id="p_ff" type="date" class="input"/>
+      </div>
+    </div>
+    <div class="label">Descripción</div>
+    <textarea id="p_desc" rows="2" class="input" placeholder="Detalles del proyecto" style="resize:vertical;margin-bottom:16px"></textarea>
+    <div style="display:flex;gap:8px">
+      <button onclick="cerrarModal()"
+        style="flex:1;padding:11px;background:#334155;color:#94a3b8;border:none;border-radius:10px;font-weight:700;font-size:12px;cursor:pointer">
+        Cancelar
+      </button>
+      <button onclick="crearProyecto()"
+        style="flex:2;padding:11px;background:#f59e0b;color:#1e293b;border:none;border-radius:10px;font-weight:900;font-size:13px;cursor:pointer">
+        ✅ Crear proyecto
+      </button>
+    </div>
+  </div></div>`);
+}
+
+async function crearProyecto(){
+  const nom=v("p_nom");
+  if(!nom){alert("El nombre es obligatorio");return;}
+  const{error}=await SB.from("proyectos").insert({
+    nombre:nom,
+    taller:$$("p_taller")?.value||"",
+    presupuesto:vn("p_pres")||null,
+    fecha_inicio:isoToLocal(v("p_fi")),
+    fecha_fin_estimada:v("p_ff")?isoToLocal(v("p_ff")):"",
+    descripcion:v("p_desc"),
+    estado:"activo"
+  });
+  if(error){alert("Error: "+error.message);return;}
+  cerrarModal();
+  await cargarProyectos();
+  render();
+}
+
+async function toggleProyecto(pid){
+  if(proyectoAbierto===pid){proyectoAbierto=null;pagosProyecto=[];}
+  else{proyectoAbierto=pid;await cargarPagosProyecto(pid);}
+  render();
+}
+
+function abrirFormPago(pid){
+  const p=proyectos.find(x=>x.id===pid);
+  if(!p)return;
+  setModal(`
+  <div class="modal-bg" onclick="if(event.target===this)cerrarModal()">
+  <div class="modal-box su">
+    <div style="font-weight:900;font-size:16px;margin-bottom:4px">💰 Registrar pago</div>
+    <div style="color:#64748b;font-size:12px;margin-bottom:16px">Proyecto: ${p.nombre}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+      <div>
+        <div class="label">Fecha *</div>
+        <input id="pg_fecha" type="date" class="input" value="${fechaHoyIso()}"/>
+      </div>
+      <div>
+        <div class="label">Monto Bs. *</div>
+        <input id="pg_monto" type="number" min="0" step="0.01" class="input" placeholder="0.00"/>
+      </div>
+    </div>
+    <div class="label">Descripción *</div>
+    <input id="pg_desc" class="input" placeholder="¿Por qué concepto?" style="margin-bottom:10px"/>
+    <div class="label">Proveedor</div>
+    <input id="pg_prov" class="input" placeholder="Nombre del proveedor" style="margin-bottom:16px"/>
+    <div style="display:flex;gap:8px">
+      <button onclick="cerrarModal()"
+        style="flex:1;padding:11px;background:#334155;color:#94a3b8;border:none;border-radius:10px;font-weight:700;font-size:12px;cursor:pointer">
+        Cancelar
+      </button>
+      <button onclick="registrarPago(${pid})"
+        style="flex:2;padding:11px;background:#16a34a;color:#fff;border:none;border-radius:10px;font-weight:900;font-size:13px;cursor:pointer">
+        💰 Guardar pago
+      </button>
+    </div>
+  </div></div>`);
+}
+
+async function registrarPago(pid){
+  const fechaIso=v("pg_fecha"),desc=v("pg_desc"),monto=vn("pg_monto");
+  if(!fechaIso||!desc||!monto){alert("Completá: fecha, descripción y monto");return;}
+  const fechaLocal=isoToLocal(fechaIso);
+  const p=proyectos.find(x=>x.id===pid);
+  const{error}=await SB.from("gastos").insert({
+    fecha:fechaLocal,
+    semana:lunes(fechaLocal),
+    tipo_gasto:"proyecto",
+    categoria:"Inversión",
+    proyecto_id:pid,
+    taller:p?.taller||"",
+    descripcion:desc,
+    proveedor:v("pg_prov"),
+    monto,
+    registrado_por:usuario.nombre
+  });
+  if(error){alert("Error: "+error.message);return;}
+  cerrarModal();
+  proyectoAbierto=pid;
+  await Promise.all([cargarProyectos(),cargarPagosProyecto(pid)]);
+  render();
+}
+
+async function cerrarProyecto(pid){
+  if(!confirm("¿Marcar este proyecto como cerrado? No podrás registrar más pagos."))return;
+  await SB.from("proyectos").update({estado:"cerrado"}).eq("id",pid);
+  proyectoAbierto=null;pagosProyecto=[];
+  await cargarProyectos();
+  render();
+}
+
+function cerrarModal(){setModal("");render();}
+
+/* ── Init ────────────────────────────────────────────── */
+async function init(){
+  usuario=getSession();
+  if(!usuario){location.href="/";return;}
+  if(!["admin","finanzas"].includes(usuario.rol)){location.href="/";return;}
+  await Promise.all([cargarGastosSemana(),cargarProyectos()]);
+  render();
+}
+
+["cambiarTab","toggleFormGasto","guardarGasto","recargarOperativo","exportarCSV",
+ "abrirFormProyecto","crearProyecto","toggleProyecto","abrirFormPago","registrarPago",
+ "cerrarProyecto","cerrarModal","cargarBalanceRender","salir"
+].forEach(fn=>window[fn]=eval(fn));
+
+init();
+</script>
+</body>
+</html>
