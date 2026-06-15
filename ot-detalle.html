@@ -103,7 +103,11 @@ async function cargarOT(){
     if(!ot[k])ot[k]=[];
     else if(!Array.isArray(ot[k]))try{ot[k]=JSON.parse(ot[k]||"[]")}catch{ot[k]=[];}
   };
-  ["procedimientos","repuestos","fotos_recepcion","fotos_trabajo","repuestos_conseguir"].forEach(parseArr);
+  ["procedimientos","repuestos","fotos_recepcion","fotos_trabajo","repuestos_conseguir","fotos_entrada","fotos_salida","problemas"].forEach(parseArr);
+  // checklist_fluidos es objeto, no array
+  if(!ot.checklist_fluidos||Array.isArray(ot.checklist_fluidos))ot.checklist_fluidos={};
+  else if(typeof ot.checklist_fluidos==="string"){try{ot.checklist_fluidos=JSON.parse(ot.checklist_fluidos);}catch{ot.checklist_fluidos={};}}
+  if(!ot.nivel_gasolina)ot.nivel_gasolina="";
   ot.adelanto =ot.adelanto ||0;
   ot.descuento=ot.descuento||0;
   if(!ot.paso||ot.paso<1)ot.paso=1;
@@ -621,6 +625,79 @@ function generarPDF(){
   </body></html>`);
 }
 
+/* ── Checklist + Problemas (helpers render) ─────────── */
+function renderChecklist(){
+  const fl=ot.checklist_fluidos||{};
+  const COL={Bien:"#16a34a",Regular:"#f59e0b",Sucio:"#f97316",Bajo:"#f97316",Baja:"#f97316","Le falta":"#ef4444"};
+  const items=[["🛢️ Aceite motor","aceite_motor"],["🔵 Aceite frenos","aceite_frenos"],["🟢 Refrigerante","refrigerante"],["🔋 Agua batería","agua_bateria"]];
+  const GFUEL={"Lleno":"#16a34a","¾":"#22c55e","½":"#f59e0b","¼":"#f97316","Reserva":"#ef4444"};
+  const GPCT={"Lleno":100,"¾":75,"½":50,"¼":25,"Reserva":10};
+  return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:${ot.nivel_gasolina?8:0}px">
+    ${items.map(([l,k])=>{const v=fl[k];const c=COL[v]||"#334155";return`
+    <div style="background:#1e293b;border-radius:8px;padding:7px 9px;border:1px solid ${v?c+"40":"#334155"}">
+      <div style="font-size:9px;color:#64748b;margin-bottom:2px">${l}</div>
+      <div style="font-size:12px;font-weight:700;color:${v?c:"#334155"}">${v||"—"}</div>
+    </div>`;}).join("")}
+  </div>
+  ${ot.nivel_gasolina?`
+  <div style="background:#1e293b;border-radius:8px;padding:7px 9px;border:1px solid #334155">
+    <div style="font-size:9px;color:#64748b;margin-bottom:4px">⛽ Nivel de gasolina: <strong style="color:${GFUEL[ot.nivel_gasolina]||"#fbbf24"}">${ot.nivel_gasolina}</strong></div>
+    <div style="height:8px;background:#0f172a;border-radius:6px;overflow:hidden">
+      <div style="height:100%;background:${GFUEL[ot.nivel_gasolina]||"#334155"};width:${GPCT[ot.nivel_gasolina]||0}%;border-radius:6px"></div>
+    </div>
+  </div>`:""}`;
+}
+
+function renderProblemas(){
+  const probs=ot.problemas||[];
+  if(!probs.length) return `<div style="color:#94a3b8;font-size:12px;line-height:1.5">${ot.problema||"—"}</div>`;
+  return `<div style="display:flex;flex-wrap:wrap;gap:5px">
+    ${probs.map(p=>`<span style="padding:3px 10px;border-radius:20px;background:#3b82f620;color:#60a5fa;border:1px solid #3b82f640;font-size:11px;font-weight:700">${p}</span>`).join("")}
+  </div>`;
+}
+
+/* ── Fotos entrada/salida con Storage ───────────────── */
+async function subirFoto(campo,b64){
+  let url=b64;
+  try{
+    const path=`${otId}/${campo}_${Date.now()}.jpg`;
+    const blob=await (await fetch(b64)).blob();
+    const{error:upErr}=await SB.storage.from("ot-fotos").upload(path,blob,{contentType:"image/jpeg",upsert:true});
+    if(!upErr) url=SB.storage.from("ot-fotos").getPublicUrl(path).data.publicUrl;
+  }catch{}
+  await guardar({[campo]:[...(ot[campo]||[]),url]});
+}
+
+function tomarFotoEntrada(){
+  if((ot.fotos_entrada||[]).length>=4){alert("Máximo 4 fotos de entrada");return;}
+  const inp=document.createElement("input");inp.type="file";inp.accept="image/*";inp.capture="environment";
+  inp.onchange=()=>{
+    const f=inp.files[0];if(!f)return;
+    const r=new FileReader();r.onload=e=>{
+      const img=new Image();img.onload=()=>{
+        const c=document.createElement("canvas");const MAX=800;let w=img.width,h=img.height;
+        if(w>MAX){h=h*MAX/w;w=MAX;}c.width=w;c.height=h;c.getContext("2d").drawImage(img,0,0,w,h);
+        subirFoto("fotos_entrada",c.toDataURL("image/jpeg",.75));
+      };img.src=e.target.result;
+    };r.readAsDataURL(f);
+  };inp.click();
+}
+
+function tomarFotoSalida(){
+  if((ot.fotos_salida||[]).length>=4){alert("Máximo 4 fotos de salida");return;}
+  const inp=document.createElement("input");inp.type="file";inp.accept="image/*";inp.capture="environment";
+  inp.onchange=()=>{
+    const f=inp.files[0];if(!f)return;
+    const r=new FileReader();r.onload=e=>{
+      const img=new Image();img.onload=()=>{
+        const c=document.createElement("canvas");const MAX=800;let w=img.width,h=img.height;
+        if(w>MAX){h=h*MAX/w;w=MAX;}c.width=w;c.height=h;c.getContext("2d").drawImage(img,0,0,w,h);
+        subirFoto("fotos_salida",c.toDataURL("image/jpeg",.75));
+      };img.src=e.target.result;
+    };r.readAsDataURL(f);
+  };inp.click();
+}
+
 /* ── RENDER PRINCIPAL ────────────────────────────────── */
 function render(){
   if(!ot)return;
@@ -698,18 +775,27 @@ function render(){
         <div style="color:#fff;font-weight:700;font-size:12px">${v||"—"}</div>
       </div>`).join("")}
     </div>
+    <!-- Problema reportado -->
     <div style="background:#0f172a;border-radius:8px;padding:10px;margin-bottom:10px">
-      <div style="color:#475569;font-size:9px;font-weight:700;margin-bottom:3px">PROBLEMA REPORTADO</div>
-      <div style="color:#94a3b8;font-size:12px;line-height:1.5">${ot.problema||"—"}</div>
+      <div style="color:#475569;font-size:9px;font-weight:700;margin-bottom:6px">🔧 PROBLEMA REPORTADO</div>
+      ${renderProblemas()}
     </div>
+
+    <!-- Checklist de fluidos -->
+    ${Object.keys(ot.checklist_fluidos||{}).length>0?`
+    <div style="background:#0f172a;border-radius:8px;padding:10px;margin-bottom:10px">
+      <div style="color:#f59e0b;font-size:9px;font-weight:700;margin-bottom:8px;text-transform:uppercase">⚠️ Checklist de recepción</div>
+      ${renderChecklist()}
+    </div>`:""}
+
     ${ot.tel?`<a href="https://wa.me/591${ot.tel.replace(/\D/g,"")}" target="_blank" class="btn-wa" style="margin-bottom:10px">📱 WhatsApp al cliente</a>`:""}
 
-    <!-- Fotos recepción -->
+    <!-- Fotos de entrada -->
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-      <div style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase">📷 Fotos recepción (${(ot.fotos_recepcion||[]).length})</div>
-      <button onclick="tomarFoto('fotos_recepcion')" style="padding:5px 10px;background:#1d4ed820;color:#60a5fa;border:1px solid #1d4ed840;border-radius:8px;font-size:10px;font-weight:700;cursor:pointer">📷 Foto</button>
+      <div style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase">📷 Fotos de entrada (${(ot.fotos_entrada||ot.fotos_recepcion||[]).length})</div>
+      <button onclick="tomarFotoEntrada()" style="padding:5px 10px;background:#1d4ed820;color:#60a5fa;border:1px solid #1d4ed840;border-radius:8px;font-size:10px;font-weight:700;cursor:pointer">📷 Foto</button>
     </div>
-    ${renderFotos("fotos_recepcion")}
+    ${(ot.fotos_entrada||[]).length>0?renderFotos("fotos_entrada"):renderFotos("fotos_recepcion")}
   </div>
 
   <!-- ════════════════════════════════════════════
@@ -853,6 +939,13 @@ function render(){
       <button onclick="tomarFoto('fotos_trabajo')" style="padding:5px 10px;background:#1d4ed820;color:#60a5fa;border:1px solid #1d4ed840;border-radius:8px;font-size:10px;font-weight:700;cursor:pointer">📷 Foto</button>
     </div>
     ${renderFotos("fotos_trabajo")}
+
+    <!-- Fotos de salida -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;margin-top:12px">
+      <div style="color:#22d3ee;font-size:10px;font-weight:700;text-transform:uppercase">📷 Fotos de salida (${(ot.fotos_salida||[]).length})</div>
+      <button onclick="tomarFotoSalida()" style="padding:5px 10px;background:#22d3ee20;color:#22d3ee;border:1px solid #22d3ee40;border-radius:8px;font-size:10px;font-weight:700;cursor:pointer">📷 Foto</button>
+    </div>
+    ${renderFotos("fotos_salida")}
 
     <!-- Estimado de entrega -->
     ${paso===5?`
@@ -1095,7 +1188,7 @@ async function notionGuardarOT(mo,rep){
 
 /* ── Exponer globales ────────────────────────────────── */
 [
-  "cerrarModal","tomarFoto","borrarFoto","verFoto",
+  "cerrarModal","tomarFoto","borrarFoto","verFoto","tomarFotoEntrada","tomarFotoSalida",
   "modalServicio","agregarServicio","borrarServicio",
   "modalRepRequerido","agregarRepRequerido","marcarConseguido",
   "enviarInformeEncargado",

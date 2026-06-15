@@ -33,6 +33,8 @@ const ROL_COLOR={admin:"#f59e0b",encargado:"#3b82f6",vendedor:"#16a34a",mecanico
 
 let usuario=null, ots=[], tecnicos=[];
 let filtroEstado="abiertas", filtroTaller="todos", busqueda="";
+// Estado del modal de creación
+let checklistFluidos={}, nivelGasolina="", problemasSeleccionados=[], fotosEntradaMdl=[];
 
 /* ── Session ──────────────────────────────────────────── */
 function getSession(){
@@ -251,8 +253,52 @@ async function confirmarBorrar(id){
   renderLista();
 }
 
+/* ── Modal helpers: checklist + problemas + fotos ──────── */
+function setFluido(key,val,btn){
+  checklistFluidos[key]=val;
+  btn.parentElement.querySelectorAll("button").forEach(b=>Object.assign(b.style,{background:"#0f172a",color:"#64748b",borderColor:"#334155",fontWeight:"400"}));
+  Object.assign(btn.style,{background:"#f59e0b20",color:"#f59e0b",borderColor:"#f59e0b",fontWeight:"700"});
+}
+function setGasolina(val,color,pct,btn){
+  nivelGasolina=val;
+  btn.parentElement.querySelectorAll("button").forEach(b=>Object.assign(b.style,{background:"#0f172a",color:"#64748b",borderColor:"#334155",fontWeight:"400"}));
+  Object.assign(btn.style,{background:color+"20",color,borderColor:color,fontWeight:"700"});
+  const f=document.getElementById("fuel_fill");if(f){f.style.width=pct+"%";f.style.background=color;}
+}
+function toggleProblema(p,btn){
+  const idx=problemasSeleccionados.indexOf(p);
+  if(idx>=0){problemasSeleccionados.splice(idx,1);Object.assign(btn.style,{background:"#0f172a",color:"#64748b",borderColor:"#334155",fontWeight:"400"});}
+  else{problemasSeleccionados.push(p);Object.assign(btn.style,{background:"#3b82f620",color:"#60a5fa",borderColor:"#3b82f6",fontWeight:"700"});}
+  const ow=document.getElementById("prob_otro_wrap");if(ow)ow.style.display=problemasSeleccionados.includes("Otro")?"block":"none";
+}
+function agregarFotoEntradaMdl(){
+  if(fotosEntradaMdl.length>=4){alert("Máximo 4 fotos");return;}
+  const inp=document.createElement("input");inp.type="file";inp.accept="image/*";inp.capture="environment";
+  inp.onchange=()=>{
+    const f=inp.files[0];if(!f)return;
+    const r=new FileReader();r.onload=e=>{
+      const img=new Image();img.onload=()=>{
+        const c=document.createElement("canvas");const MAX=800;let w=img.width,h=img.height;
+        if(w>MAX){h=h*MAX/w;w=MAX;}c.width=w;c.height=h;c.getContext("2d").drawImage(img,0,0,w,h);
+        fotosEntradaMdl.push(c.toDataURL("image/jpeg",.75));actualizarPreviaMdl();
+      };img.src=e.target.result;
+    };r.readAsDataURL(f);
+  };inp.click();
+}
+function actualizarPreviaMdl(){
+  const cont=document.getElementById("fotos_mdl_preview");if(!cont)return;
+  cont.innerHTML=fotosEntradaMdl.map((b,i)=>`
+    <div style="position:relative;aspect-ratio:1;border-radius:8px;overflow:hidden;background:#0f172a;border:1px solid #334155">
+      <img src="${b}" style="width:100%;height:100%;object-fit:cover"/>
+      <button onclick="quitarFotoMdl(${i})" style="position:absolute;top:2px;right:2px;background:rgba(239,68,68,.9);border:none;border-radius:50%;width:18px;height:18px;color:#fff;font-size:10px;cursor:pointer;line-height:18px;padding:0">✕</button>
+    </div>`).join("");
+  const btn=document.getElementById("btn_foto_mdl");if(btn)btn.style.display=fotosEntradaMdl.length>=4?"none":"block";
+}
+function quitarFotoMdl(idx){fotosEntradaMdl.splice(idx,1);actualizarPreviaMdl();}
+
 /* ── Modal crear OT ───────────────────────────────────── */
 function mostrarCrear(){
+  checklistFluidos={};nivelGasolina="";problemasSeleccionados=[];fotosEntradaMdl=[];
   const esEnc2=["admin","encargado"].includes(usuario.rol);
   // Taller: enc/admin pueden elegir, vendedor/mecanico tienen el suyo fijo
   const tallerOpts=usuario.taller==="ambos"
@@ -273,7 +319,7 @@ function mostrarCrear(){
   document.getElementById("modal-area").innerHTML=`
   <div class="modal" onclick="if(event.target===this)cerrarModal()">
   <div class="modal-box su">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
       <div style="color:#fbbf24;font-weight:900;font-size:15px">+ Nueva Orden de Trabajo</div>
       <button onclick="cerrarModal()" style="padding:5px 12px;background:#334155;color:#94a3b8;border:none;border-radius:8px;cursor:pointer;font-weight:700">✕</button>
     </div>
@@ -282,29 +328,72 @@ function mostrarCrear(){
     <input id="n_placa" class="input" placeholder="Ej: 1234ABC" style="margin-bottom:6px;text-transform:uppercase"
       oninput="this.value=this.value.toUpperCase();buscarCliente()"/>
     <div id="crm_sg" style="display:none;background:#0f172a;border:1px solid #16a34a;border-radius:8px;padding:10px;margin-bottom:10px;cursor:pointer;color:#4ade80;font-size:12px"></div>
-
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
       <div><div class="label">Marca</div><input id="n_marca" class="input" placeholder="Toyota"/></div>
       <div><div class="label">Modelo</div><input id="n_modelo" class="input" placeholder="Corolla"/></div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
       <div><div class="label">Año</div><input id="n_anio" type="number" class="input" placeholder="2018"/></div>
-      <div><div class="label">Kilometraje</div><input id="n_km" type="number" class="input" placeholder="85000"/></div>
+      <div><div class="label">Km</div><input id="n_km" type="number" class="input" placeholder="85000"/></div>
+    </div>
+    <div class="label">Cliente *</div>
+    <input id="n_cliente" class="input" placeholder="Nombre completo" style="margin-bottom:8px"/>
+    <div class="label">Teléfono</div>
+    <input id="n_tel" type="tel" class="input" placeholder="7XXXXXXX" style="margin-bottom:12px"/>
+
+    <!-- Checklist de recepción -->
+    <div style="background:#0f172a;border:1px solid #f59e0b30;border-radius:12px;padding:12px;margin-bottom:12px">
+      <div style="color:#f59e0b;font-size:11px;font-weight:700;margin-bottom:10px;text-transform:uppercase">⚠️ Checklist de recepción</div>
+      ${[["🛢️ Aceite motor","aceite_motor",["Bien","Regular","Sucio","Le falta"]],
+         ["🔵 Aceite frenos","aceite_frenos",["Bien","Regular","Bajo"]],
+         ["🟢 Refrigerante","refrigerante",["Bien","Regular","Bajo"]],
+         ["🔋 Agua batería","agua_bateria",["Bien","Regular","Baja"]]
+        ].map(([lbl,key,opts])=>`
+      <div style="margin-bottom:9px">
+        <div class="label" style="margin-bottom:4px">${lbl}</div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap">
+          ${opts.map(v=>`<button type="button" onclick="setFluido('${key}','${v}',this)"
+            style="padding:5px 10px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#64748b;font-size:11px;cursor:pointer;font-family:inherit">${v}</button>`).join("")}
+        </div>
+      </div>`).join("")}
+      <div>
+        <div class="label" style="margin-bottom:4px">⛽ Nivel de gasolina</div>
+        <div style="display:flex;gap:3px">
+          ${[["Lleno","#16a34a",100],["¾","#22c55e",75],["½","#f59e0b",50],["¼","#f97316",25],["Reserva","#ef4444",10]].map(([v,c,p])=>`
+          <button type="button" onclick="setGasolina('${v}','${c}',${p},this)"
+            style="flex:1;padding:6px 2px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#64748b;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;text-align:center">${v}</button>`).join("")}
+        </div>
+        <div style="margin-top:5px;height:10px;background:#0f172a;border-radius:6px;border:1px solid #334155;overflow:hidden">
+          <div id="fuel_fill" style="height:100%;width:0%;background:#16a34a;border-radius:6px;transition:width .4s,background .4s"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:9px;color:#334155;margin-top:2px"><span>Vacío</span><span>½</span><span>Lleno</span></div>
+      </div>
     </div>
 
-    <div class="label">Cliente *</div>
-    <input id="n_cliente" class="input" placeholder="Nombre completo" style="margin-bottom:10px"/>
-    <div class="label">Teléfono</div>
-    <input id="n_tel" type="tel" class="input" placeholder="7XXXXXXX" style="margin-bottom:10px"/>
+    <!-- Problema reportado -->
+    <div class="label">🔧 Problema reportado <span style="color:#ef4444">*</span> <span style="color:#64748b;font-weight:400">(múltiple)</span></div>
+    <div id="prob_chips" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px">
+      ${["Frenos","Motor","Suspensión","Eléctrico","Transmisión","Escape","Enfriamiento","Dirección","Revisión general","Otro"].map(p=>`
+      <button type="button" onclick="toggleProblema('${p}',this)"
+        style="padding:5px 10px;border-radius:20px;border:1px solid #334155;background:#0f172a;color:#64748b;font-size:11px;cursor:pointer;font-family:inherit">${p}</button>`).join("")}
+    </div>
+    <div id="prob_otro_wrap" style="display:none;margin-bottom:10px">
+      <input id="prob_otro" class="input" placeholder="Describe el problema específico..."/>
+    </div>
 
-    <div class="label">Problema reportado *</div>
-    <textarea id="n_problema" rows="2" style="width:100%;padding:10px 12px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#fff;font-size:13px;resize:vertical;margin-bottom:10px" placeholder="¿Por qué trae el vehículo?"></textarea>
-
+    <!-- Técnico y taller -->
     <div class="label">Técnico asignado</div>
-    <select id="n_tecnico" class="input" style="margin-bottom:10px">${tecOpts}</select>
+    <select id="n_tecnico" class="input" style="margin-bottom:8px">${tecOpts}</select>
+    <div class="label">Taller ${!esEnc2?`<span style="color:#475569;font-weight:400">(automático)</span>`:""}</div>
+    <select id="n_taller" class="input" style="margin-bottom:12px;${!esEnc2?"opacity:.6;pointer-events:none":""}">${tallerOpts}</select>
 
-    <div class="label">Taller ${!esEnc2?"<span style='color:#475569;font-weight:400'>(asignado automáticamente)</span>":""}</div>
-    <select id="n_taller" class="input" style="margin-bottom:18px;${!esEnc2?"opacity:.6;pointer-events:none":""}" ${!esEnc2&&usuario.taller!=="ambos"?"":""}>${tallerOpts}</select>
+    <!-- Fotos de entrada -->
+    <div class="label">📷 Fotos del vehículo al ingreso <span style="color:#ef4444">*</span> <span style="color:#64748b;font-weight:400">(mín. 1, máx. 4)</span></div>
+    <div id="fotos_mdl_preview" style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:6px"></div>
+    <button type="button" id="btn_foto_mdl" onclick="agregarFotoEntradaMdl()"
+      style="width:100%;padding:9px;background:#1d4ed820;color:#60a5fa;border:1px solid #1d4ed840;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;margin-bottom:14px">
+      📷 Tomar foto / subir de galería
+    </button>
 
     <button id="btn_crear" onclick="crearOT()" style="width:100%;padding:13px;background:#f59e0b;color:#1e293b;border:none;border-radius:10px;font-weight:900;font-size:14px;cursor:pointer">
       ✅ Crear OT
@@ -337,15 +426,30 @@ async function buscarCliente(){
 async function crearOT(){
   const placa=(document.getElementById("n_placa")?.value||"").trim().toUpperCase();
   const cliente=(document.getElementById("n_cliente")?.value||"").trim();
-  const problema=(document.getElementById("n_problema")?.value||"").trim();
-  if(!placa||!cliente||!problema){alert("Completa: placa, cliente y problema");return;}
+  if(!placa||!cliente){alert("Completa: placa y cliente");return;}
+
+  // Validar problemas
+  let probs=[...problemasSeleccionados];
+  if(probs.includes("Otro")){
+    const otro=(document.getElementById("prob_otro")?.value||"").trim();
+    if(!otro){alert("Describe el problema específico");return;}
+    probs=probs.filter(p=>p!=="Otro").concat(["Otro: "+otro]);
+  }
+  if(probs.length===0){alert("Selecciona al menos un problema reportado");return;}
+
+  // Validar fotos
+  if(fotosEntradaMdl.length===0){alert("Agrega al menos 1 foto del vehículo al ingreso");return;}
 
   const btn=document.getElementById("btn_crear");
   if(btn){btn.disabled=true;btn.textContent="⏳ Creando...";}
 
   const nueva={
     num:"OT-"+Date.now().toString().slice(-5),
-    placa,cliente,problema,
+    placa,cliente,
+    problema:probs.join(", "),
+    problemas:probs,
+    checklist_fluidos:checklistFluidos,
+    nivel_gasolina:nivelGasolina,
     marca:(document.getElementById("n_marca")?.value||"").trim(),
     modelo:(document.getElementById("n_modelo")?.value||"").trim(),
     anio:document.getElementById("n_anio")?.value||null,
@@ -353,11 +457,11 @@ async function crearOT(){
     tel:(document.getElementById("n_tel")?.value||"").trim(),
     tecnico:document.getElementById("n_tecnico")?.value||usuario.nombre,
     taller:document.getElementById("n_taller")?.value||usuario.taller||"Taller 1 · Montes",
-    paso:1,
-    estado:"Pendiente cotización",
+    paso:1,estado:"Pendiente cotización",
     creado_por:usuario.user_name,
     fecha:new Date().toLocaleDateString("es-BO"),
-    repuestos:[],servicios:[],fotos_recepcion:[],fotos_trabajo:[],total:0
+    repuestos:[],servicios:[],fotos_recepcion:[],fotos_trabajo:[],
+    fotos_entrada:[],fotos_salida:[],total:0
   };
 
   const{data,error}=await SB.from("ots").insert(nueva).select().single();
@@ -366,6 +470,20 @@ async function crearOT(){
     if(btn){btn.disabled=false;btn.textContent="✅ Crear OT";}
     return;
   }
+
+  // Subir fotos (intenta Storage, fallback base64)
+  if(btn) btn.textContent="⏳ Subiendo fotos...";
+  const fotosUrls=[];
+  for(const b64 of fotosEntradaMdl){
+    try{
+      const path=`${data.id}/ent_${Date.now()}_${Math.random().toString(36).slice(2,5)}.jpg`;
+      const blob=await (await fetch(b64)).blob();
+      const{error:upErr}=await SB.storage.from("ot-fotos").upload(path,blob,{contentType:"image/jpeg",upsert:true});
+      fotosUrls.push(upErr?b64:SB.storage.from("ot-fotos").getPublicUrl(path).data.publicUrl);
+    }catch{fotosUrls.push(b64);}
+  }
+  await SB.from("ots").update({fotos_entrada:fotosUrls}).eq("id",data.id);
+
   cerrarModal();
   location.href="/ot-detalle.html?id="+data.id;
 }
@@ -380,6 +498,11 @@ window.cerrarModal=cerrarModal;
 window.buscarCliente=buscarCliente;
 window.abrirDetalle=abrirDetalle;
 window.confirmarBorrar=confirmarBorrar;
+window.setFluido=setFluido;
+window.setGasolina=setGasolina;
+window.toggleProblema=toggleProblema;
+window.agregarFotoEntradaMdl=agregarFotoEntradaMdl;
+window.quitarFotoMdl=quitarFotoMdl;
 
 init();
 </script>
