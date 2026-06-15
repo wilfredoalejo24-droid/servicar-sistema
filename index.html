@@ -32,8 +32,8 @@ const SESSION_KEY = "scp_user";
 // Módulos filtrados por ROL según plan maestro
 // Roles: admin=Wilfredo | encargado=William/Selena | vendedor=Diego/Evo/Joel/Adolfo
 const MODULOS = [
-  { k:"ventas",     icon:"🏪", label:"Ventas",          desc:"Venta de productos de tienda",              url:"/ventas.html",            color:"#1d4ed8", roles:["admin","encargado","vendedor"] },
-  { k:"servicios",  icon:"🔧", label:"Servicios",       desc:"Aceite · Lavado · Alineado · Grúa",         url:"/servicios.html",         color:"#16a34a", roles:["admin","encargado","vendedor"] },
+  { k:"ventas",     icon:"🏪", label:"Ventas",          desc:"Venta de productos de tienda",              url:"/ventas.html",            color:"#1d4ed8", roles:["admin","encargado","vendedor","mecanico"] },
+  { k:"servicios",  icon:"🔧", label:"Servicios",       desc:"Aceite · Lavado · Alineado · Grúa",         url:"/servicios.html",         color:"#16a34a", roles:["admin","encargado","vendedor","mecanico"] },
   { k:"ot",         icon:"📋", label:"Mis OTs",         desc:"Ver órdenes de trabajo asignadas",          url:"/ot.html",                color:"#0891b2", roles:["admin","encargado","vendedor","mecanico"] },
   { k:"caja",       icon:"💵", label:"Caja",            desc:"Apertura · Cierre · Informes",              url:"/caja.html",              color:"#f59e0b", roles:["admin","encargado"] },
   { k:"compras",    icon:"🛒", label:"Compras",         desc:"Registrar compras e insumos",               url:"/compras.html",           color:"#8b5cf6", roles:["admin"] },
@@ -159,10 +159,13 @@ function Inicio({ usuario, onSalir }) {
     return () => clearInterval(t);
   }, []);
 
+  // Normaliza variantes de técnico ("tecnico", "técnico montes", "técnico bv", etc.) → "mecanico"
+  const rolEfectivo = r => /t[eé]cnico/i.test(r) ? "mecanico" : r;
+
   // Filtrar por rol del plan maestro y adaptar labels según rol
   const esEnc = ["admin","encargado"].includes(usuario.rol);
   const mods = MODULOS
-    .filter(m => m.roles.includes(usuario.rol))
+    .filter(m => m.roles.includes(rolEfectivo(usuario.rol)))
     .map(m => m.k === "ot" ? {
       ...m,
       label: esEnc ? "Órdenes (OT)" : "Mis OTs",
@@ -171,7 +174,7 @@ function Inicio({ usuario, onSalir }) {
 
   const h     = new Date().getHours();
   const sal   = h < 12 ? "¡Buen día" : h < 19 ? "¡Buenas tardes" : "¡Buenas noches";
-  const rol   = ROL[usuario.rol] || { label: usuario.rol, color:"#64748b" };
+  const rol   = ROL[rolEfectivo(usuario.rol)] || { label: usuario.rol, color:"#64748b" };
   const cTall = TALLER_COLOR[usuario.taller] || "#64748b";
 
   const compartir = () => {

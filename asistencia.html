@@ -123,7 +123,7 @@ async function init(){
 
 async function cargarHistorial(){
   const{data}=await SB.from("asistencia")
-    .select("id,tipo,hora_registro,fecha")
+    .select("id,tipo,hora,lat,lng,fecha")
     .eq("user_name",usuario.user_name)
     .eq("fecha",hoy())
     .order("id",{ascending:false});
@@ -136,7 +136,7 @@ function getEstado(){return historial.length?historial[0].tipo:"sin_registro";}
 function tardanzaHoy(uname){
   const entradas=historial.filter(r=>r.tipo==="entrada");
   if(!entradas.length)return false;
-  return esTardanza(uname,entradas[entradas.length-1].hora_registro||"00:00");
+  return esTardanza(uname,entradas[entradas.length-1].hora||"00:00");
 }
 
 /* ══════════════════════════════════════════════════════
@@ -251,7 +251,7 @@ function render(){
         background:${r.tipo==="entrada"?"#16a34a":"#ef4444"}15;color:${r.tipo==="entrada"?"#16a34a":"#ef4444"}">
         ${r.tipo==="entrada"?"↗ ENTRADA":"↘ SALIDA"}
       </span>
-      <span style="color:#64748b;font-size:11px">${r.hora_registro||"—"}</span>
+      <span style="color:#64748b;font-size:11px">${r.hora||"—"}</span>
     </div>`).join("")}
   </div>`:`
   <div class="card" style="text-align:center;color:#475569;font-size:12px;padding:18px">
@@ -308,6 +308,18 @@ function renderTurnos(uname,turnoActual){
   </div>`;
 }
 
+/* ── GPS ─────────────────────────────────────────────── */
+function obtenerGPS(){
+  return new Promise(resolve=>{
+    if(!navigator.geolocation){resolve({lat:null,lng:null});return;}
+    navigator.geolocation.getCurrentPosition(
+      p=>resolve({lat:p.coords.latitude,lng:p.coords.longitude}),
+      ()=>resolve({lat:null,lng:null}),
+      {timeout:8000,maximumAge:0}
+    );
+  });
+}
+
 /* ══════════════════════════════════════════════════════
    REGISTRAR
 ══════════════════════════════════════════════════════ */
@@ -318,11 +330,13 @@ async function registrar(){
   if(!acceso.ok){alert("❌ "+acceso.msg);return;}
 
   const btn=document.getElementById("btn-registro");
-  if(btn){btn.disabled=true;btn.textContent="⏳ Registrando...";}
+  if(btn){btn.disabled=true;btn.textContent="📍 Obteniendo GPS...";}
 
   const estado=getEstado();
   const tipo=estado==="entrada"?"salida":"entrada";
   const hora=horaActual();
+  const{lat,lng}=await obtenerGPS();
+  if(btn)btn.textContent="⏳ Registrando...";
 
   // Advertencia de tardanza en entrada
   if(tipo==="entrada"){
@@ -351,7 +365,9 @@ async function registrar(){
     nombre:usuario.nombre,
     tipo,
     fecha:hoy(),
-    hora_registro:hora
+    hora,
+    lat,
+    lng
   }).select().single();
 
   if(error){
