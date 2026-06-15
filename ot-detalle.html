@@ -141,9 +141,10 @@ function calcCotEstimado(){
 }
 
 /* ── WA número por user_name ─────────────────────────── */
+function cleanTel(t){return (t||"").replace(/\D/g,"").replace(/^591/,"").replace(/^0/,"");}
 function waNum(user_name){
   const u=usuarios_db.find(x=>x.user_name===user_name?.toLowerCase());
-  if(u?.tel) return "591"+u.tel.replace(/\D/g,"");
+  if(u?.tel) return "591"+cleanTel(u.tel);
   return WA_MAP[user_name?.toLowerCase()]||"";
 }
 
@@ -346,7 +347,7 @@ function enviarCotizacionCliente(){
   const moList=(ot.procedimientos||[]).map((p,i)=>`${i+1}. ${p.nombre} — Bs. ${p.precio||0}`).join("\n");
   const repList=(ot.repuestos_conseguir||[]).map((r,i)=>`${i+1}. ${r.nombre}${r.en_inventario?" ✅":" 🔍"} — Bs. ${r.precio_estimado||0}`).join("\n");
   const msg=`🔧 *SERVI CAR PLATINIUM*\n📋 *COTIZACIÓN — OT #${otId}*\n🗓 ${new Date().toLocaleDateString("es-BO")}\n\n🚗 *${ot.placa} · ${ot.marca||""} ${ot.modelo||""}*\n👤 ${ot.cliente||"-"}\n\n*🔧 MANO DE OBRA:*\n${moList||"—"}\nSubtotal: Bs. ${cot.mo}\n\n*📦 REPUESTOS:*\n${repList||"—"}\nSubtotal: Bs. ${cot.rep}\n\n💰 *TOTAL ESTIMADO: Bs. ${cot.total}*\n${adelanto>0?`✅ Adelanto: Bs. ${adelanto}\n💳 Saldo: Bs. ${saldo}`:""}\n\n_Por favor confirme si aprueba el trabajo._\n📞 ${EMPRESA.tel1} / ${EMPRESA.tel2}`;
-  const numCliente=ot.tel?`591${ot.tel.replace(/\D/g,"")}`:null;
+  const numCliente=ot.tel?`591${cleanTel(ot.tel)}`:null;
   if(numCliente) window.open(`https://wa.me/${numCliente}?text=${encodeURIComponent(msg)}`,"_blank");
   else alert("Sin teléfono del cliente. Cotización guardada.");
 }
@@ -370,7 +371,7 @@ async function enviarCotizacionWA(){
   const cotDesglose=[moLines,repLines].filter(Boolean).join("\n")||"(ver con el encargado)";
   const dir=(ot.taller||"").includes("Montes")?"Viacha - Zona Montes":"Viacha - Bella Vista";
   const msg=`Hola ${nombre} 👋, le contactamos de *SERVI CAR PLATINIUM*.\n\nSu vehículo *${vehiculo}* - Placa *${ot.placa||"—"}* está en nuestro taller.\n\n🔧 *Trabajo a realizar:*\n${probs}\n\n💰 *Cotización:*\n${cotDesglose}\n*Total: Bs. ${cot.total}*\n\n¿Aprueba el presupuesto para proceder con el trabajo?\n\n📍 Estamos en ${dir}\n⏰ Horario: Lun-Sáb 7:00 - 19:00`;
-  const tel=ot.tel?`591${ot.tel.replace(/\D/g,"").replace(/^591/,"")}`:null;
+  const tel=ot.tel?`591${cleanTel(ot.tel)}`:null;
   if(tel) window.open(`https://wa.me/${tel}?text=${encodeURIComponent(msg)}`,"_blank");
   else alert("Sin teléfono del cliente. Estado actualizado a 'Cotización enviada'.");
 }
@@ -576,7 +577,7 @@ function enviarComprobanteCliente(mo,rep,total,desc,adelanto,total_final,saldo,m
   const moList=(ot.procedimientos||[]).map((s,i)=>`${i+1}. ${s.nombre} — Bs. ${s.precio||0}`).join("\n");
   const repList=(ot.repuestos||[]).map((r,i)=>`${i+1}. ${r.nombre} x${r.cantidad} — Bs. ${(r.precio||0)*(r.cantidad||1)}`).join("\n");
   const msg=`🔧 *SERVI CAR PLATINIUM*\n✅ *COMPROBANTE DE ENTREGA*\n📋 OT #${otId} · ${new Date().toLocaleDateString("es-BO")}\n\n🚗 *${ot.placa} · ${ot.marca||""} ${ot.modelo||""}*\n👤 ${ot.cliente||"-"}\n\n*🔧 SERVICIOS:*\n${moList||"—"}\n\n*📦 REPUESTOS:*\n${repList||"—"}\n\n💰 Total: Bs. ${total}${desc>0?`\n🎁 Descuento: -Bs. ${desc}\n💰 Total final: Bs. ${total_final}`:""}\n${adelanto>0?`✅ Adelanto: Bs. ${adelanto}\n💳 Saldo cobrado: Bs. ${saldo}`:""}\n💳 Método: ${metodo}\n\n✅ *Su vehículo ha sido entregado.*\n⚠️ Garantía: 30 días en mano de obra\n📞 ${EMPRESA.tel1} / ${EMPRESA.tel2}`;
-  const numCliente=ot.tel?`591${ot.tel.replace(/\D/g,"")}`:null;
+  const numCliente=ot.tel?`591${cleanTel(ot.tel)}`:null;
   if(numCliente) window.open(`https://wa.me/${numCliente}?text=${encodeURIComponent(msg)}`,"_blank");
 }
 
@@ -813,7 +814,7 @@ function render(){
     </div>`:""}
 
     ${enc&&ot.tel?`<div style="display:flex;gap:6px;margin-bottom:10px">
-      <a href="https://wa.me/591${ot.tel.replace(/\D/g,"")}" target="_blank"
+      <a href="https://wa.me/591${cleanTel(ot.tel)}" target="_blank"
         style="flex:1;text-align:center;padding:9px;background:#25d36620;color:#25d366;border:1px solid #25d36640;border-radius:10px;text-decoration:none;font-weight:700;font-size:12px">
         📱 WhatsApp
       </a>
@@ -1157,7 +1158,7 @@ function notificarClienteListo(){
   const placa=ot.placa||"";
   const estimado=ot.estimado_entrega?`\nPuedes pasar ${ot.estimado_entrega}.`:"";
   const msg=`Hola ${nombre}! Tu ${auto} (${placa}) ya está listo en Servi Car Platinium.${estimado}\nPuedes pasar a recogerlo cuando gustes 🔧\nCualquier consulta: 59168167264`;
-  const tel=ot.tel?("591"+ot.tel.replace(/\D/g,"").replace(/^591/,"")):"";
+  const tel=ot.tel?`591${cleanTel(ot.tel)}`:"";
   if(tel) window.open(`https://wa.me/${tel}?text=${encodeURIComponent(msg)}`,"_blank");
   else{
     const d=document.createElement("div");
