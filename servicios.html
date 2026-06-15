@@ -113,7 +113,6 @@ function Login({onLogin}){
     const{data}=await sb.from("usuarios").select("*").eq("user_name",u.toLowerCase()).eq("pass",p).single();
     setLoading(false);
     if(data){
-      if(data.rol==="mecanico"){alert(`❌ Acceso denegado\n${data.nombre}, tu acceso es solo para Órdenes de Trabajo.`);window.location.href="/ot.html";return;}
       onLogin(data);
     } else setErr("Usuario o contraseña incorrectos");
   };
