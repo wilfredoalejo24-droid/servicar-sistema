@@ -592,6 +592,151 @@ function Grua({usuario}){
   </Card>;
 }
 
+function Otros({usuario,inv,esEnc}){
+  const [desc,setDesc]=React.useState("");
+  const [cliente,setCliente]=React.useState("");
+  const [placa,setPlaca]=React.useState("");
+  const [tel,setTel]=React.useState("");
+  const [tec]=React.useState(usuario.nombre);
+  const [mo,setMo]=React.useState(0);
+  const [productos,setProductos]=React.useState([]);
+  const [busqProd,setBusqProd]=React.useState("");
+  const [mostrarProd,setMostrarProd]=React.useState(false);
+  const [loading,setLoading]=React.useState(false);
+  const tallerDef=usuario.taller==="ambos"?"":usuario.taller;
+  const [tallerSel,setTallerSel]=React.useState(tallerDef);
+
+  const totalProds=productos.reduce((s,p)=>s+(parseFloat(p.precio||0)*p.qty),0);
+  const moVal=esEnc?parseFloat(mo||0):0;
+  const total=moVal+totalProds;
+  const invFilt=inv.filter(i=>!busqProd||i.nom.toLowerCase().includes(busqProd.toLowerCase())||(i.marca||"").toLowerCase().includes(busqProd.toLowerCase()));
+
+  const agregarProd=p=>{
+    setProductos(prev=>{
+      const ex=prev.find(x=>x.id===p.id);
+      if(ex){if(ex.qty>=p.stock){alert(`Solo hay ${p.stock} en stock`);return prev;}return prev.map(x=>x.id===p.id?{...x,qty:x.qty+1}:x);}
+      return [...prev,{...p,qty:1}];
+    });
+  };
+
+  const registrar=async()=>{
+    if(!desc.trim()){alert("La descripción del servicio es obligatoria.");return;}
+    if(!tallerSel){alert("Selecciona el taller.");return;}
+    setLoading(true);
+    try{
+      const{error:errSR}=await sb.from("servicios_rapidos").insert({
+        tipo:"otro",descripcion:desc.trim(),
+        cliente:cliente||null,placa:placa||null,tel:tel||null,
+        tecnico:tec,taller:tallerSel,
+        mano_obra:moVal,
+        productos:productos.map(p=>({id:p.id,nom:p.nom,precio:p.precio,qty:p.qty})),
+        total,fecha:hoy(),creado_por:usuario.nombre
+      });
+      if(errSR)throw new Error("servicios_rapidos: "+errSR.message);
+      if(total>0) await sb.from("caja").insert({
+        fecha:hoy(),taller:tallerSel,
+        concepto:`Serv. Otro: ${desc.trim()}${placa?` — ${placa}`:""}`,
+        tipo:"ingreso",monto:total,user_name:usuario.nombre
+      });
+      for(const p of productos) await sb.from("inventario").update({stock:Math.max(0,p.stock-p.qty)}).eq("id",p.id);
+      alert(`✅ Servicio registrado${esEnc?`\n💰 Total: ${fmt(total)}`:""}`)
+      setDesc("");setCliente("");setPlaca("");
+      setMo(0);setProductos([]);setBusqProd("");setMostrarProd(false);
+    }catch(e){alert("Error al registrar: "+e.message);}
+    setLoading(false);
+  };
+
+  return <div>
+    {usuario.taller==="ambos"&&<Card><Tit text="🏢 Taller"/><Sel value={tallerSel} onChange={setTallerSel} options={TALLERES}/></Card>}
+
+    <Card>
+      <Tit text="📝 Descripción del servicio *"/>
+      <textarea value={desc} onChange={e=>setDesc(e.target.value)} rows={2}
+        placeholder="Ej: Tornería culata, Soldadura escape, Cambio retén cigüeñal..."
+        style={{width:"100%",padding:"8px 10px",border:"2px solid #f59e0b",borderRadius:8,fontSize:13,resize:"vertical",boxSizing:"border-box",fontFamily:"inherit"}}/>
+    </Card>
+
+    <Card>
+      <Tit text="👤 Cliente (opcional)"/>
+      <div style={{marginBottom:8}}>
+        <div style={{fontSize:11,color:"#3b82f6",fontWeight:700,marginBottom:4}}>🔍 Buscar cliente existente:</div>
+        <BuscadorCliente onSelect={c=>{setCliente(c.cliente||"");setPlaca(c.placa||"");setTel(c.tel||"");}}/>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+        <Campo label="Nombre"><Inp value={cliente} onChange={setCliente} placeholder="Nombre (opcional)"/></Campo>
+        <Campo label="Placa"><Inp value={placa} onChange={setPlaca} placeholder="1234ABC"/></Campo>
+        <Campo label="Teléfono"><Inp value={tel} onChange={setTel} placeholder="70000000"/></Campo>
+        <Campo label="Técnico"><Inp value={tec} readOnly style={{background:"#f8fafc",color:"#64748b"}}/></Campo>
+      </div>
+    </Card>
+
+    {esEnc&&<Card>
+      <Tit text="💼 Mano de Obra (ganancia neta 100%)"/>
+      <div style={{display:"flex",alignItems:"center",gap:10}}>
+        <span style={{fontSize:12,color:"#64748b"}}>Precio Bs.:</span>
+        <input type="number" value={mo} min={0} onChange={e=>setMo(parseFloat(e.target.value)||0)}
+          style={{width:120,padding:"8px 10px",border:"2px solid #fbbf24",borderRadius:8,fontSize:18,fontWeight:900,textAlign:"center",color:"#92400e"}}/>
+        {moVal>0&&<span style={{fontSize:12,color:"#16a34a",fontWeight:700}}>= {fmt(moVal)}</span>}
+      </div>
+    </Card>}
+
+    <Card>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:mostrarProd?8:0}}>
+        <Tit text="📦 Productos del inventario"/>
+        <button onClick={()=>{setMostrarProd(!mostrarProd);setBusqProd("");}}
+          style={{padding:"5px 12px",background:"#1d4ed8",color:"#fff",border:"none",borderRadius:7,fontSize:11,fontWeight:700,cursor:"pointer"}}>
+          {mostrarProd?"✕ Cerrar":"+ Agregar"}
+        </button>
+      </div>
+      {mostrarProd&&<div style={{marginBottom:10}}>
+        <input value={busqProd} onChange={e=>setBusqProd(e.target.value)} placeholder="🔍 Buscar producto..."
+          style={{width:"100%",padding:"7px 10px",border:"1px solid #3b82f6",borderRadius:8,fontSize:12,boxSizing:"border-box",marginBottom:6}}/>
+        <div style={{maxHeight:200,overflowY:"auto",border:"1px solid #e2e8f0",borderRadius:8}}>
+          {invFilt.length===0?<div style={{padding:12,color:"#94a3b8",fontSize:12,textAlign:"center"}}>Sin resultados</div>:
+          invFilt.map(p=><div key={p.id} onClick={()=>agregarProd(p)}
+            style={{padding:"8px 10px",cursor:"pointer",borderBottom:"1px solid #f3f4f6",display:"flex",justifyContent:"space-between",alignItems:"center",background:"#fff"}}
+            onMouseEnter={e=>e.currentTarget.style.background="#fffbeb"}
+            onMouseLeave={e=>e.currentTarget.style.background="#fff"}>
+            <div>
+              <div style={{fontWeight:700,fontSize:11}}>{p.nom}</div>
+              <div style={{fontSize:10,color:"#94a3b8"}}>Stock: {p.stock}{p.cat?` · ${p.cat}`:""}</div>
+            </div>
+            {esEnc&&<span style={{fontWeight:900,color:"#f59e0b",fontSize:12}}>{fmt(p.precio)}</span>}
+          </div>)}
+        </div>
+      </div>}
+      {productos.length===0
+        ?<div style={{color:"#94a3b8",fontSize:12,textAlign:"center",padding:"8px 0"}}>Sin productos — servicio de mano de obra pura</div>
+        :productos.map(p=><div key={p.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 8px",background:"#f8fafc",borderRadius:7,marginBottom:4,border:"1px solid #e2e8f0"}}>
+          <div>
+            <div style={{fontWeight:700,fontSize:11}}>{p.nom}</div>
+            {esEnc&&<div style={{fontSize:10,color:"#16a34a",fontWeight:700}}>{fmt(parseFloat(p.precio||0)*p.qty)}</div>}
+          </div>
+          <div style={{display:"flex",gap:4,alignItems:"center"}}>
+            <button onClick={()=>setProductos(prev=>prev.map(x=>x.id===p.id&&x.qty>1?{...x,qty:x.qty-1}:x))} style={{width:22,height:22,borderRadius:5,border:"1px solid #e2e8f0",background:"#fff",cursor:"pointer",fontSize:13,fontWeight:700}}>−</button>
+            <span style={{fontWeight:800,fontSize:13,minWidth:20,textAlign:"center"}}>{p.qty}</span>
+            <button onClick={()=>setProductos(prev=>prev.map(x=>x.id===p.id&&x.qty<x.stock?{...x,qty:x.qty+1}:x))} style={{width:22,height:22,borderRadius:5,border:"1px solid #e2e8f0",background:"#fff",cursor:"pointer",fontSize:13,fontWeight:700}}>+</button>
+            <button onClick={()=>setProductos(prev=>prev.filter(x=>x.id!==p.id))} style={{background:"#fee2e2",color:"#dc2626",border:"none",borderRadius:5,padding:"1px 6px",cursor:"pointer",fontSize:11}}>✕</button>
+          </div>
+        </div>)
+      }
+    </Card>
+
+    {esEnc&&total>0&&<Card style={{border:"2px solid #1e293b",padding:"10px 14px"}}>
+      {moVal>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#64748b",marginBottom:3}}><span>💼 Mano de obra</span><span>{fmt(moVal)}</span></div>}
+      {totalProds>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#64748b",marginBottom:3}}><span>📦 Productos</span><span>{fmt(totalProds)}</span></div>}
+      <div style={{display:"flex",justifyContent:"space-between",background:"#1e293b",borderRadius:8,padding:"8px 12px",marginTop:6}}>
+        <span style={{color:"#94a3b8",fontSize:13,fontWeight:700}}>💰 TOTAL</span>
+        <span style={{color:"#fbbf24",fontWeight:900,fontSize:18}}>{fmt(total)}</span>
+      </div>
+    </Card>}
+
+    <Btn onClick={registrar} color={loading?"#94a3b8":"#16a34a"}
+      text={loading?"⏳ Registrando...":"✅ Registrar Servicio"}
+      style={{width:"100%",padding:13,fontSize:14,marginBottom:20}}/>
+  </div>;
+}
+
 function App(){
   const [usuario,setUsuario]=React.useState(null);
   const [tab,setTab]=React.useState("aceite");
@@ -608,6 +753,7 @@ function App(){
     {k:"aceite",l:"🛢️ Aceite"},
     {k:"lavado",l:"🚿 Lavado"},
     {k:"alineado",l:"🎯 Alineado"},
+    {k:"otros",l:"🔧 Otros"},
     ...(esEnc?[{k:"grua",l:"🚛 Grúa"}]:[]),
   ];
 
@@ -633,6 +779,7 @@ function App(){
     {tab==="aceite"&&<CambioAceite usuario={usuario} inv={inv}/>}
     {tab==="lavado"&&<Lavado usuario={usuario}/>}
     {tab==="alineado"&&<Alineado usuario={usuario}/>}
+    {tab==="otros"&&<Otros usuario={usuario} inv={inv} esEnc={!!esEnc}/>}
     {tab==="grua"&&esEnc&&<Grua usuario={usuario}/>}
   </div>;
 }
