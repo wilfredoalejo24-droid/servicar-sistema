@@ -72,6 +72,8 @@ function isoWeek(){
   return Math.ceil(((dt-ys)/864e5+1)/7);
 }
 function turnoSemana(uname){
+  const ov=turnosOverride["turno_"+uname];
+  if(ov==="A"||ov==="B")return ov;
   const par=isoWeek()%2===0;
   if(uname==="evo")   return par?"A":"B";
   if(uname==="diego") return par?"B":"A";
@@ -109,21 +111,29 @@ function puedeTrabajarHoy(uname,rol){
 }
 
 /* ── Estado global ───────────────────────────────────── */
-let usuario=null,historial=[],reloj=null;
+let usuario=null,historial=[],reloj=null,turnosOverride={};
 function getSession(){try{return JSON.parse(localStorage.getItem("scp_user"))||null;}catch{return null;}}
 function salir(){localStorage.removeItem("scp_user");location.href="/";}
+
+async function cargarTurnosConfig(){
+  try{
+    const{data}=await SB.from("config").select("clave,valor").in("clave",["turno_evo","turno_diego"]);
+    turnosOverride={};
+    (data||[]).forEach(r=>{turnosOverride[r.clave]=r.valor;});
+  }catch{turnosOverride={};}
+}
 
 async function init(){
   usuario=getSession();
   if(!usuario){location.href="/";return;}
-  await cargarHistorial();
+  await Promise.all([cargarHistorial(),cargarTurnosConfig()]);
   render();
   reloj=setInterval(()=>{const el=document.getElementById("reloj");if(el)el.textContent=horaActual();},15000);
 }
 
 async function cargarHistorial(){
   const{data}=await SB.from("asistencia")
-    .select("id,tipo,hora,lat,lng,fecha")
+    .select("id,tipo,hora,lat_entrada,lng_entrada,lat_salida,lng_salida,fecha")
     .eq("user_name",usuario.user_name)
     .eq("fecha",hoy())
     .order("id",{ascending:false});
@@ -139,6 +149,19 @@ function tardanzaHoy(uname){
   return esTardanza(uname,entradas[entradas.length-1].hora||"00:00");
 }
 
+/* ── Badge de estado de turno ────────────────────────── */
+function calcEstadoBadge(uname,rol,acceso,sched){
+  const estado=getEstado();
+  if(estado==="entrada")return{label:"EN TURNO",color:"#16a34a"};
+  if(acceso.tipo==="admin"||acceso.tipo==="libre")return null;
+  if(!acceso.ok)return{label:"FUERA DE TURNO",color:"#ef4444"};
+  if(!sched)return{label:"FUERA DE TURNO",color:"#ef4444"};
+  if(estado==="salida")return{label:"TURNO TERMINADO",color:"#64748b"};
+  const salidaMin=toMin(sched[1]);
+  if(salidaMin&&toMin(horaActual())>salidaMin)return{label:"TURNO TERMINADO",color:"#64748b"};
+  return{label:"EN TURNO HOY",color:"#0891b2"};
+}
+
 /* ══════════════════════════════════════════════════════
    RENDER
 ══════════════════════════════════════════════════════ */
@@ -151,6 +174,7 @@ function render(){
   const turno=turnoSemana(uname);
   const dia=new Date().getDay();
   const tarde=tardanzaHoy(uname);
+  const badge=calcEstadoBadge(uname,rol,acceso,sched);
 
   document.getElementById("app").innerHTML=`
   <div class="fi" style="width:100%;max-width:440px;padding:16px;margin:0 auto">
@@ -173,14 +197,14 @@ function render(){
         🔄 Esta semana: Turno ${turno}
       </span>
     </div>`:""}
-    <div style="margin-top:8px">
+    ${badge?`<div style="margin-top:8px">
       <span style="padding:4px 12px;border-radius:20px;font-weight:700;font-size:11px;
-        background:${enTurno?"#16a34a":"#ef4444"}15;border:1px solid ${enTurno?"#16a34a":"#ef4444"}30;
-        color:${enTurno?"#16a34a":"#ef4444"}">
-        <span style="width:6px;height:6px;background:${enTurno?"#16a34a":"#ef4444"};border-radius:50%;display:inline-block;vertical-align:middle;margin-right:4px"></span>
-        ${enTurno?"EN TURNO":"FUERA DE TURNO"}
+        background:${badge.color}15;border:1px solid ${badge.color}30;color:${badge.color}">
+        <span style="width:6px;height:6px;background:${badge.color};border-radius:50%;display:inline-block;vertical-align:middle;margin-right:4px"></span>
+        ${badge.label}
       </span>
-    </div>
+    </div>`:""}
+    <div style="margin-top:6px;color:#475569;font-size:10px" id="reloj-mini">${horaActual()}</div>
   </div>
 
   <!-- Reloj -->
@@ -360,14 +384,16 @@ async function registrar(){
     return;
   }
 
+  const gpsFields=tipo==="entrada"
+    ?{lat_entrada:lat,lng_entrada:lng,ubicacion_entrada:lat&&lng?`${lat.toFixed(6)},${lng.toFixed(6)}`:null}
+    :{lat_salida:lat,lng_salida:lng,ubicacion_salida:lat&&lng?`${lat.toFixed(6)},${lng.toFixed(6)}`:null};
   const{data,error}=await SB.from("asistencia").insert({
     user_name:usuario.user_name,
     nombre:usuario.nombre,
     tipo,
     fecha:hoy(),
     hora,
-    lat,
-    lng
+    ...gpsFields
   }).select().single();
 
   if(error){

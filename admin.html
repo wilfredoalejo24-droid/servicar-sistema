@@ -52,6 +52,7 @@ const WORKERS_FB=["Wilfredo","William","Diego","Evo","Adolfo","Joel"];
 let usuario=null, tab="inventario";
 let inv=null, crmD=null, workers=null, herrs=null;
 let vacSaldos=null, vacSols=null;
+let turnosData=null;
 let invBusq="", invCat="";
 let crmBusq="";
 let herWorker=null;
@@ -145,9 +146,12 @@ async function cambiarTab(t){
   tab=t;
   actualizarContenido();
   if(t==="herramientas"&&!workers){await cargarWorkers();actualizarContenido();}
-  if(t==="personal"&&!vacSaldos){
-    await Promise.all([cargarVacaciones(),!workers?cargarWorkers():Promise.resolve()]);
-    actualizarContenido();
+  if(t==="personal"){
+    const ps=[];
+    if(!vacSaldos)ps.push(cargarVacaciones());
+    if(!workers)ps.push(cargarWorkers());
+    if(!turnosData)ps.push(cargarTurnos());
+    if(ps.length){await Promise.all(ps);actualizarContenido();}
   }
   if(t==="config"&&!configData){await cargarConfig();actualizarContenido();}
 }
@@ -599,9 +603,10 @@ async function cargarVacaciones(){
 function renderPersonal(){
   if(!vacSaldos) return `<div style="text-align:center;padding:30px;color:#475569">Cargando...</div>`;
   const pendientes=(vacSols||[]).filter(s=>s.estado==="Pendiente");
+  const vistas=[["resumen","📊 Saldos"],["solicitar","📝 Solicitar"],[`solicitudes`,`📋 Solicitudes${pendientes.length?" ("+pendientes.length+")":""}`],...(esAdmin()?[["turnos","🔄 Turnos A/B"]]:[])]
   return `
-  <div style="display:flex;gap:4px;margin-bottom:12px" class="noprint">
-    ${[["resumen","📊 Saldos"],["solicitar","📝 Solicitar"],["solicitudes",`📋 Solicitudes${pendientes.length?" ("+pendientes.length+")":""}`]].map(([k,l])=>`
+  <div style="display:flex;gap:4px;margin-bottom:12px;flex-wrap:wrap" class="noprint">
+    ${vistas.map(([k,l])=>`
     <button onclick="vacVista='${k}';actualizarContenido()"
       style="padding:6px 12px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;
         border:1px solid ${vacVista===k?"#a78bfa":"#334155"};
@@ -610,7 +615,8 @@ function renderPersonal(){
   </div>
   ${vacVista==="resumen"    ?renderVacResumen(pendientes):""}
   ${vacVista==="solicitar"  ?renderVacFormulario():""}
-  ${vacVista==="solicitudes"?renderVacSolicitudes():""}`;
+  ${vacVista==="solicitudes"?renderVacSolicitudes():""}
+  ${vacVista==="turnos"     ?renderAsignTurnos():""}`;
 }
 
 function renderVacResumen(pendientes){
@@ -1012,6 +1018,69 @@ async function probarConexionNotion(){
   }
 }
 
+/* ══════════════════════════════════════════════════════
+   TURNOS A/B — Asignación manual
+══════════════════════════════════════════════════════ */
+async function cargarTurnos(){
+  try{
+    const{data}=await SB.from("config").select("clave,valor").in("clave",["turno_evo","turno_diego"]);
+    turnosData={evo:null,diego:null};
+    (data||[]).forEach(r=>{
+      if(r.clave==="turno_evo")turnosData.evo=r.valor;
+      if(r.clave==="turno_diego")turnosData.diego=r.valor;
+    });
+  }catch{turnosData={evo:null,diego:null};}
+}
+
+async function guardarTurno(uname,turno){
+  const clave="turno_"+uname;
+  if(turno==="auto"){
+    await SB.from("config").delete().eq("clave",clave);
+    turnosData[uname]=null;
+  }else{
+    const{error}=await SB.from("config").upsert({clave,valor:turno},{onConflict:"clave"});
+    if(error){alert("Error: "+error.message);return;}
+    turnosData[uname]=turno;
+  }
+  actualizarContenido();
+}
+
+function renderAsignTurnos(){
+  if(!turnosData)return`<div style="text-align:center;padding:30px;color:#475569">Cargando turnos...</div>`;
+  const TRAB=[
+    {uname:"evo",   nombre:"Evo",   turnoA:["07:25","17:50"],turnoB:["08:55","19:30"]},
+    {uname:"diego", nombre:"Diego", turnoA:["08:55","19:30"],turnoB:["07:25","17:50"]},
+  ];
+  return`
+  <div class="card" style="border-color:#f59e0b30">
+    <div style="color:#f59e0b;font-size:11px;font-weight:700;text-transform:uppercase;margin-bottom:4px">🔄 Asignación de Turnos A/B</div>
+    <div style="color:#475569;font-size:11px;margin-bottom:16px">Asigná manualmente el turno de esta semana. En "Auto" se calcula por semana par/impar.</div>
+    ${TRAB.map(t=>{
+      const cur=turnosData[t.uname];
+      return`
+      <div style="background:#0f172a;border:1px solid #334155;border-radius:12px;padding:14px;margin-bottom:10px">
+        <div style="font-weight:700;font-size:14px;margin-bottom:12px">👷 ${t.nombre}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
+          ${["A","B","auto"].map(op=>{
+            const act=(op==="auto"&&!cur)||(cur===op);
+            const info=op==="A"?`${t.turnoA[0]}–${t.turnoA[1]}`:op==="B"?`${t.turnoB[0]}–${t.turnoB[1]}`:"Automático";
+            return`<button onclick="guardarTurno('${t.uname}','${op}')"
+              style="padding:10px 4px;border-radius:10px;border:2px solid ${act?"#f59e0b":"#334155"};
+                background:${act?"#f59e0b15":"#1e293b"};color:${act?"#f59e0b":"#64748b"};
+                font-weight:700;font-size:${op==="auto"?"10":"15"}px;cursor:pointer;text-align:center">
+              <div>${op==="auto"?"AUTO":op}</div>
+              <div style="font-size:9px;font-weight:400;margin-top:2px;color:${act?"#f59e0b":"#475569"}">${info}</div>
+            </button>`;
+          }).join("")}
+        </div>
+        <div style="margin-top:10px;font-size:11px;${cur?"color:#f59e0b;font-weight:700":"color:#475569"}">
+          ${cur?`✅ Turno ${cur} asignado manualmente`:"🔄 Modo automático activo"}
+        </div>
+      </div>`;
+    }).join("")}
+  </div>`;
+}
+
 /* ── Exponer globales ───────────────────────────────── */
 [
   "cambiarTab","actualizarContenido","closeModal","salir",
@@ -1021,6 +1090,7 @@ async function probarConexionNotion(){
   "calcVsDias","enviarSolicitud","aprobarVac","rechazarVac","modalEditarSaldo",
   "renderFacturas","guardarFacturaKey","mostrarProductosFactura",
   "cargarConfig","guardarConfigNotion","probarConexionNotion",
+  "cargarTurnos","guardarTurno","renderAsignTurnos",
 ].forEach(fn=>window[fn]=eval(fn));
 
 init();
