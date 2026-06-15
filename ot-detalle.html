@@ -83,7 +83,7 @@ async function init(){
   await Promise.all([cargarOT(),cargarInventario(),cargarUsuarios()]);
   // Técnicos y vendedores solo pueden ver OTs asignadas a ellos
   const esLimitado=["vendedor","mecanico"].includes(usuario.rol)||/t[eé]cnico/i.test(usuario.rol||"");
-  if(ot && esLimitado && ot.tecnico && ot.tecnico!==usuario.user_name){
+  if(ot && esLimitado && ot.creado_por!==usuario.user_name && ot.tecnico!==usuario.nombre){
     document.getElementById("app").innerHTML=`
       <div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#64748b;gap:12px;padding:24px">
         <div style="font-size:48px">🔒</div>
