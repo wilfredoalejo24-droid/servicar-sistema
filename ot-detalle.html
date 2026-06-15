@@ -802,7 +802,12 @@ function render(){
         ].map(([k,v])=>`
       <div style="background:#0f172a;border-radius:8px;padding:8px">
         <div style="color:#475569;font-size:9px;font-weight:700;margin-bottom:2px">${k}</div>
-        <div style="color:#fff;font-weight:700;font-size:12px">${v||"—"}</div>
+        ${k==="Taller"&&admin?`
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="color:#fff;font-weight:700;font-size:12px">${v||"—"}</span>
+          <button onclick="cambiarTaller()" style="padding:2px 8px;background:#f59e0b20;color:#f59e0b;border:1px solid #f59e0b40;border-radius:6px;font-size:10px;cursor:pointer;font-weight:700">✏️</button>
+        </div>`
+        :`<div style="color:#fff;font-weight:700;font-size:12px">${v||"—"}</div>`}
       </div>`).join("")}
     </div>
     <!-- Problema reportado -->
@@ -1230,12 +1235,35 @@ async function notionGuardarOT(mo,rep){
   );
 }
 
+/* ── Cambiar taller (solo admin) ────────────────────── */
+function cambiarTaller(){
+  document.getElementById("modal-area").innerHTML=`
+  <div class="modal" onclick="if(event.target===this)cerrarModal()">
+  <div class="modal-box su" style="max-width:320px">
+    <div style="color:#fbbf24;font-weight:900;font-size:14px;margin-bottom:12px">🏪 Cambiar taller</div>
+    <div style="color:#94a3b8;font-size:12px;margin-bottom:12px">Taller actual: <strong style="color:#fff">${ot.taller||"—"}</strong></div>
+    <select id="sel_taller_new" class="input" style="margin-bottom:16px">
+      <option value="Taller 1 · Montes"${(ot.taller||"").includes("Montes")?" selected":""}>Taller 1 · Montes</option>
+      <option value="Taller 2 · Bella Vista"${(ot.taller||"").includes("Bella")?" selected":""}>Taller 2 · Bella Vista</option>
+    </select>
+    <button onclick="confirmarCambioTaller()" style="width:100%;padding:12px;background:#f59e0b;color:#1e293b;border:none;border-radius:10px;font-weight:900;cursor:pointer">✅ Confirmar cambio</button>
+  </div></div>`;
+}
+
+async function confirmarCambioTaller(){
+  const nuevo=document.getElementById("sel_taller_new")?.value;
+  if(!nuevo||nuevo===ot.taller){cerrarModal();return;}
+  await guardar({taller:nuevo});
+  cerrarModal();
+}
+
 /* ── Exponer globales ────────────────────────────────── */
 [
   "cerrarModal","tomarFoto","borrarFoto","verFoto","tomarFotoEntrada","tomarFotoSalida",
   "modalServicio","agregarServicio","borrarServicio",
   "modalRepRequerido","agregarRepRequerido","marcarConseguido",
   "enviarInformeEncargado",
+  "cambiarTaller","confirmarCambioTaller",
   "modalCotizacion","guardarCotizacion","enviarCotizacionCliente","enviarCotizacionWA",
   "registrarAprobacion","rechazarCotizacion",
   "modalRepInventario","selRep","filtrarInv","agregarRepInventario",
