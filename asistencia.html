@@ -29,6 +29,14 @@ function horaActual(){
   const d=new Date();
   return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
 }
+// Extrae hora local "HH:MM" de un ISO timestamp o devuelve el string tal cual
+function isoToHHMM(iso){
+  if(!iso)return"00:00";
+  if(iso.length<=5)return iso;
+  const d=new Date(iso);
+  return`${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+}
+
 // Convierte "HH:MM" o "8:25 a. m." → minutos totales del día
 function toMin(hhmm){
   if(!hhmm)return 0;
@@ -146,7 +154,7 @@ function getEstado(){return historial.length?historial[0].tipo:"sin_registro";}
 function tardanzaHoy(uname){
   const entradas=historial.filter(r=>r.tipo==="entrada");
   if(!entradas.length)return false;
-  return esTardanza(uname,entradas[entradas.length-1].hora||"00:00");
+  return esTardanza(uname,isoToHHMM(entradas[entradas.length-1].hora));
 }
 
 /* ── Badge de estado de turno ────────────────────────── */
@@ -275,7 +283,7 @@ function render(){
         background:${r.tipo==="entrada"?"#16a34a":"#ef4444"}15;color:${r.tipo==="entrada"?"#16a34a":"#ef4444"}">
         ${r.tipo==="entrada"?"↗ ENTRADA":"↘ SALIDA"}
       </span>
-      <span style="color:#64748b;font-size:11px">${r.hora||"—"}</span>
+      <span style="color:#64748b;font-size:11px">${r.hora?isoToHHMM(r.hora):"—"}</span>
     </div>`).join("")}
   </div>`:`
   <div class="card" style="text-align:center;color:#475569;font-size:12px;padding:18px">
@@ -358,7 +366,8 @@ async function registrar(){
 
   const estado=getEstado();
   const tipo=estado==="entrada"?"salida":"entrada";
-  const hora=horaActual();
+  const hora=horaActual();      // "HH:MM" local — para mensajes y tardanza
+  const horaISO=new Date().toISOString(); // timestamp completo — para Supabase
   const{lat,lng}=await obtenerGPS();
   if(btn)btn.textContent="⏳ Registrando...";
 
@@ -392,7 +401,7 @@ async function registrar(){
     nombre:usuario.nombre,
     tipo,
     fecha:hoy(),
-    hora,
+    hora:horaISO,
     ...gpsFields
   }).select().single();
 
