@@ -48,6 +48,8 @@ const PASOS=[
   {n:6,label:"Entrega",     icon:"💵",color:"#16a34a"},
 ];
 const TIPOS_SRV=["Servicio Mecánico","Servicio Eléctrico","Servicio Electrónico","Servicio de Tornería"];
+const ESTADO_COL={"Pendiente cotización":"#a78bfa","Cotización enviada":"#f59e0b","En proceso":"#f97316","Listo para entregar":"#22d3ee","Entregado":"#16a34a"};
+function ecol(e){return ESTADO_COL[e]||"#64748b";}
 
 /* WhatsApp por user_name — fallback si no está en DB */
 const WA_MAP={
@@ -263,7 +265,7 @@ async function enviarInformeEncargado(){
   const msg=`🔧 *SERVI CAR PLATINIUM*\n📋 *Informe Técnico — OT #${otId}*\n\n🚗 *${ot.placa} · ${ot.marca||""} ${ot.modelo||""}*\n👤 Cliente: ${ot.cliente||"-"}\n\n*📝 SERVICIOS A REALIZAR:*\n${procs}\n\n*🔍 REPUESTOS REQUERIDOS:*\n${reps||"Ninguno"}\n\n_Técnico: ${usuario.nombre}_\n_Por favor revisar y cotizar._`;
   const encargadoUN=ot.taller?.includes("Montes")?"william":"wilfredo";
   const numEnc=waNum(encargadoUN);
-  await guardar({paso:3,estado:"Cotización",informe_enviado:true});
+  await guardar({paso:3,estado:"Pendiente cotización",informe_enviado:true});
   if(numEnc) window.open(`https://wa.me/${numEnc}?text=${encodeURIComponent(msg)}`,"_blank");
   else alert("Informe enviado. No se encontró número del encargado.");
 }
@@ -327,7 +329,7 @@ async function guardarCotizacion(){
     if(v)rcs[i].en_inventario=v.value==="1";
   });
   const adelanto=parseFloat(document.getElementById("cot_adelanto")?.value)||0;
-  await guardar({procedimientos:procs,repuestos_conseguir:rcs,adelanto});
+  await guardar({procedimientos:procs,repuestos_conseguir:rcs,adelanto,paso:4,estado:"Cotización enviada"});
   cerrarModal();
   enviarCotizacionCliente();
 }
@@ -349,7 +351,7 @@ async function registrarAprobacion(){
   const tecUN=(ot.tecnico||"").toLowerCase().replace(" ","");
   const num=waNum(tecUN);
   const msg=`✅ *SERVI CAR PLATINIUM*\n🔔 *¡El cliente APROBÓ el trabajo!*\n\n🚗 ${ot.placa} · ${ot.marca||""} ${ot.modelo||""}\n👤 ${ot.cliente||"-"}\nOT #${otId}\n\n💪 Por favor continúa con la ejecución.`;
-  await guardar({paso:5,estado:"Ejecución",aprobado:true});
+  await guardar({paso:5,estado:"En proceso",aprobado:true});
   if(num) window.open(`https://wa.me/${num}?text=${encodeURIComponent(msg)}`,"_blank");
 }
 
@@ -527,7 +529,7 @@ async function confirmarCobro(){
     });
     /* OT cerrada */
     await guardar({
-      paso:6,estado:"Entregada",entregado:true,
+      paso:6,estado:"Entregado",entregado:true,
       entregado_por:usuario.nombre,
       fecha_entrega:new Date().toLocaleDateString("es-BO"),
       total:total_final,descuento:desc,adelanto,metodo_pago:metodo
@@ -646,8 +648,8 @@ function render(){
       </div>
       <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
         <button onclick="generarPDF()" style="padding:6px 10px;background:#1d4ed820;color:#60a5fa;border:1px solid #1d4ed840;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer">📄 PDF</button>
-        <span style="padding:3px 9px;border-radius:20px;font-size:10px;font-weight:700;white-space:nowrap;background:${PASOS[paso-1]?.color||"#64748b"}20;color:${PASOS[paso-1]?.color||"#64748b"};border:1px solid ${PASOS[paso-1]?.color||"#64748b"}40">
-          Paso ${paso}/6
+        <span style="padding:3px 9px;border-radius:20px;font-size:10px;font-weight:700;white-space:nowrap;background:${ecol(ot.estado)}20;color:${ecol(ot.estado)};border:1px solid ${ecol(ot.estado)}40">
+          ${ot.estado||"Pendiente cotización"}
         </span>
       </div>
     </div>
@@ -868,9 +870,22 @@ function render(){
 
     <!-- Marcar terminado -->
     ${paso===5?`
-    <button onclick="guardar({paso:6,estado:'Cobro y entrega'})" style="width:100%;padding:12px;background:#f97316;color:#fff;border:none;border-radius:10px;font-weight:900;font-size:13px;cursor:pointer;margin-top:10px">
-      🏁 Marcar trabajo terminado → Cobro
+    <button onclick="guardar({paso:6,estado:'Listo para entregar'})" style="width:100%;padding:12px;background:#22d3ee;color:#0f172a;border:none;border-radius:10px;font-weight:900;font-size:13px;cursor:pointer;margin-top:10px">
+      🏁 Marcar trabajo terminado → Listo para entregar
     </button>`:""}
+  </div>`:""}
+
+  <!-- Vista técnico cuando ya está listo para entregar -->
+  ${!enc&&paso>=6?`
+  <div class="card">
+    <div style="background:${ot.entregado?"#16a34a15":"#22d3ee15"};border:1px solid ${ot.entregado?"#16a34a30":"#22d3ee30"};border-radius:12px;padding:14px;text-align:center">
+      <div style="color:${ot.entregado?"#4ade80":"#22d3ee"};font-weight:900;font-size:14px;margin-bottom:4px">
+        ${ot.entregado?"✅ Vehículo entregado al cliente":"🏁 Listo para entregar"}
+      </div>
+      <div style="color:#64748b;font-size:11px">
+        ${ot.entregado?`Entregado el ${ot.fecha_entrega||"—"}`:"El encargado realizará el cobro y cierre de la OT"}
+      </div>
+    </div>
   </div>`:""}
 
   <!-- ════════════════════════════════════════════
