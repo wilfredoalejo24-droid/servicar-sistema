@@ -67,9 +67,9 @@ function spinnerCargando(){
 /* ── Queries ──────────────────────────────────────────── */
 async function cargarOTs(){
   let q=SB.from("ots").select("*").order("id",{ascending:false});
-  // mecanico y vendedor solo ven sus OTs asignadas (tecnico = su user_name)
+  // mecanico y vendedor ven las OTs que crearon O que tienen asignadas
   if(usuario.rol==="mecanico"||usuario.rol==="vendedor"){
-    q=q.eq("tecnico",usuario.user_name);
+    q=q.or(`creado_por.eq.${usuario.user_name},tecnico.eq.${usuario.nombre}`);
   } else if(usuario.taller && usuario.taller!=="ambos"){
     q=q.eq("taller",usuario.taller);
   }
