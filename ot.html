@@ -109,8 +109,11 @@ function renderLista(){
   const esEnc=["admin","encargado"].includes(usuario.rol);
   const tieneAmbos=usuario.taller==="ambos";
   const cRol=ROL_COLOR[usuario.rol]||"#64748b";
-  const pendCot=esEnc?ots.filter(o=>o.estado==="Pendiente cotización").length:0;
-  const pendEnt=esEnc?ots.filter(o=>o.estado==="Listo para entregar").length:0;
+  // Badges filtrados por taller visible (para encargados single-taller, filtroTaller no aplica)
+  const otsVistas=tieneAmbos&&filtroTaller!=="todos"?ots.filter(o=>o.taller===filtroTaller):ots;
+  const pendCot=esEnc?otsVistas.filter(o=>o.estado==="Pendiente cotización").length:0;
+  const pendEnt=esEnc?otsVistas.filter(o=>o.estado==="Listo para entregar").length:0;
+  const tallerLabel=tieneAmbos?(filtroTaller==="todos"?"ambos talleres":filtroTaller):(usuario.taller||"");
 
   document.getElementById("app").innerHTML=`
   <!-- Header sticky -->
@@ -119,8 +122,8 @@ function renderLista(){
       <div>
         <a href="/" style="color:#475569;text-decoration:none;font-size:10px;font-weight:700">← Inicio</a>
         <div style="color:#fbbf24;font-weight:900;font-size:15px;margin-top:1px">📋 Órdenes de Trabajo</div>
-        ${pendCot>0?`<span style="display:inline-block;padding:1px 7px;background:#a78bfa25;color:#a78bfa;border:1px solid #a78bfa40;border-radius:10px;font-size:9px;font-weight:700;margin-top:2px">💰 ${pendCot} sin cotizar</span>`:""}
-        ${pendEnt>0?`<span style="display:inline-block;padding:1px 7px;background:#22d3ee25;color:#22d3ee;border:1px solid #22d3ee40;border-radius:10px;font-size:9px;font-weight:700;margin-top:2px">🏁 ${pendEnt} para cobrar</span>`:""}
+        ${pendCot>0?`<span style="display:inline-block;padding:2px 8px;background:#ef444425;color:#ef4444;border:1px solid #ef444440;border-radius:10px;font-size:9px;font-weight:700;margin-top:3px">🔴 ${pendCot} sin cotizar</span>`:""}
+        ${pendEnt>0?`<span style="display:inline-block;padding:2px 8px;background:#f59e0b25;color:#f59e0b;border:1px solid #f59e0b40;border-radius:10px;font-size:9px;font-weight:700;margin-top:3px">🏁 ${pendEnt} para cobrar</span>`:""}
         <div style="color:#475569;font-size:10px;margin-top:1px">
           ${usuario.nombre}
           <span style="padding:1px 7px;background:${cRol}20;color:${cRol};border-radius:10px;font-size:9px;font-weight:700;margin-left:4px">${usuario.rol}</span>
@@ -168,7 +171,7 @@ function renderLista(){
 
     <!-- Contador -->
     <div style="color:#334155;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">
-      ${filtradas.length} orden${filtradas.length!==1?"es":""}
+      ${filtradas.length} orden${filtradas.length!==1?"es":""} · ${tallerLabel}
     </div>
 
     <!-- Lista -->
@@ -250,14 +253,21 @@ async function confirmarBorrar(id){
 
 /* ── Modal crear OT ───────────────────────────────────── */
 function mostrarCrear(){
-  const puedeAsignar=["admin","encargado"].includes(usuario.rol);
+  const esEnc2=["admin","encargado"].includes(usuario.rol);
+  // Taller: enc/admin pueden elegir, vendedor/mecanico tienen el suyo fijo
   const tallerOpts=usuario.taller==="ambos"
     ?`<option value="Taller 1 · Montes">Taller 1 · Montes</option>
       <option value="Taller 2 · Bella Vista">Taller 2 · Bella Vista</option>`
     :`<option value="${usuario.taller}">${usuario.taller}</option>`;
 
-  const tecOpts=tecnicos.length
-    ?tecnicos.map(t=>`<option value="${t.nombre}"${t.user_name===usuario.user_name?" selected":""}>${t.nombre}${t.user_name===usuario.user_name?" (yo)":""}</option>`).join("")
+  // Técnicos: filtrar por taller del usuario (o ambos si admin)
+  const tecsFiltrados=tecnicos.filter(t=>
+    esEnc2
+      ? (usuario.taller==="ambos" || t.taller===usuario.taller || t.taller==="ambos")
+      : (t.taller===usuario.taller || t.taller==="ambos")
+  );
+  const tecOpts=tecsFiltrados.length
+    ?tecsFiltrados.map(t=>`<option value="${t.nombre}"${t.user_name===usuario.user_name?" selected":""}>${t.nombre}${t.user_name===usuario.user_name?" (yo)":""}</option>`).join("")
     :`<option value="${usuario.nombre}">${usuario.nombre} (yo)</option>`;
 
   document.getElementById("modal-area").innerHTML=`
@@ -293,8 +303,8 @@ function mostrarCrear(){
     <div class="label">Técnico asignado</div>
     <select id="n_tecnico" class="input" style="margin-bottom:10px">${tecOpts}</select>
 
-    <div class="label">Taller</div>
-    <select id="n_taller" class="input" style="margin-bottom:18px" ${usuario.taller!=="ambos"?"disabled":""}>${tallerOpts}</select>
+    <div class="label">Taller ${!esEnc2?"<span style='color:#475569;font-weight:400'>(asignado automáticamente)</span>":""}</div>
+    <select id="n_taller" class="input" style="margin-bottom:18px;${!esEnc2?"opacity:.6;pointer-events:none":""}" ${!esEnc2&&usuario.taller!=="ambos"?"":""}>${tallerOpts}</select>
 
     <button id="btn_crear" onclick="crearOT()" style="width:100%;padding:13px;background:#f59e0b;color:#1e293b;border:none;border-radius:10px;font-weight:900;font-size:14px;cursor:pointer">
       ✅ Crear OT
