@@ -198,15 +198,21 @@ function renderInventario(){
   <div class="ovf">
     <table class="tbl">
       <thead><tr>
-        <th>Código</th><th>Producto</th><th>Marca</th><th>Cat.</th><th>Para</th><th>Stock</th><th>P.Venta</th>
+        <th style="width:48px">Foto</th><th>Código</th><th>Producto</th><th>Marca</th><th>Cat.</th><th>Para</th><th>Stock</th><th>P.Venta</th>
         ${esAdmin()?`<th>Costo</th><th>Margen</th>`:""}
       </tr></thead>
       <tbody>
-      ${filtrado.length===0?`<tr><td colspan="9" style="text-align:center;padding:24px;color:#334155">Sin resultados</td></tr>`:""}
+      ${filtrado.length===0?`<tr><td colspan="12" style="text-align:center;padding:24px;color:#334155">Sin resultados</td></tr>`:""}
       ${filtrado.map(i=>{
         const margen=i.precio>0?((i.precio-i.costo)/i.precio*100):0;
         const sc=i.stock===0?"#ef4444":i.stock<=(i.min||2)?"#f97316":"#16a34a";
         return `<tr>
+          <td style="padding:5px">
+            ${i.foto_url
+              ?`<img src="${i.foto_url}" onclick="verFotoInv(${i.id})" title="Ver foto"
+                  style="width:40px;height:40px;object-fit:cover;border-radius:7px;cursor:pointer;display:block"/>`
+              :`<div style="width:40px;height:40px;background:#0f172a;border:1px dashed #334155;border-radius:7px;display:flex;align-items:center;justify-content:center;color:#334155;font-size:16px">📷</div>`}
+          </td>
           <td style="color:#64748b;font-size:10px">${i.cod||"—"}</td>
           <td>
             <div style="font-weight:700">${i.nom}</div>
@@ -235,9 +241,29 @@ function exportarInvCSV(){
   blobCSV([cols.map(c=>`"${c}"`), ...rows].map(r=>r.join(",")).join("\n"),"inventario_servicar.csv");
 }
 
+function verFotoInv(id){
+  const item=(inv||[]).find(i=>i.id===id);
+  if(!item?.foto_url)return;
+  document.getElementById("modal").innerHTML=`
+  <div class="modal-bg" onclick="closeModal()" style="align-items:center;justify-content:center">
+    <div onclick="event.stopPropagation()" style="background:#1e293b;border:1px solid #334155;border-radius:14px;padding:16px;max-width:380px;width:90%;max-height:90vh;overflow-y:auto">
+      <div style="color:#fbbf24;font-weight:700;font-size:13px;margin-bottom:10px">📷 ${item.nom}</div>
+      <img src="${item.foto_url}" style="width:100%;border-radius:8px;object-fit:contain;max-height:280px"/>
+      ${item.foto_caja_url?`
+      <div style="color:#64748b;font-size:11px;font-weight:700;text-transform:uppercase;margin:12px 0 6px">📦 Foto de la caja / empaque</div>
+      <img src="${item.foto_caja_url}" style="width:100%;border-radius:8px;object-fit:contain;max-height:200px"/>`:""}
+      <button onclick="closeModal()" style="width:100%;margin-top:12px;padding:10px;background:#334155;color:#94a3b8;border:none;border-radius:8px;font-weight:700;cursor:pointer">Cerrar</button>
+    </div>
+  </div>`;
+}
+
 function modalNuevoProd(){
-  let n={nom:"",marca:"",cat:"",stock:0,min:2,costo:0,precio:0,prov:"",para:"",medida:"",foto:null};
+  let n={nom:"",marca:"",cat:"",stock:0,min:2,costo:0,precio:0,prov:"",para:"",medida:""};
   let dup="";
+  let fotoFile=null,fotoCajaFile=null,fotoPreview=null,fotoCajaPreview=null;
+  const thumb=(prev)=>prev
+    ?`<img src="${prev}" style="width:64px;height:64px;object-fit:cover;border-radius:8px"/>`
+    :`<div style="width:64px;height:64px;background:#0f172a;border:1px dashed #334155;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#475569;font-size:20px">📷</div>`;
   const draw=()=>{
     document.getElementById("modal").innerHTML=`
     <div class="modal-bg" onclick="if(event.target===this)closeModal()">
@@ -270,15 +296,25 @@ function modalNuevoProd(){
           <div><div class="label">Para qué vehículo</div><input id="pn_para" class="input" value="${n.para}" placeholder="Toyota Corolla 2015-2020"/></div>
           <div><div class="label">Medida / Especificación</div><input id="pn_medida" class="input" value="${n.medida}" placeholder="500ml, 1L, 14mm..."/></div>
           <div><div class="label">Proveedor</div><input id="pn_prov" class="input" value="${n.prov}" placeholder="Nombre del proveedor"/></div>
-          <div>
-            <div class="label">📷 Foto (opcional)</div>
-            <input type="file" accept="image/*" id="pn_foto" onchange="pnFoto()" style="font-size:12px;color:#94a3b8"/>
-            <div id="pn_fp">${n.foto?`<img src="${n.foto}" style="width:70px;height:70px;object-fit:cover;border-radius:8px;margin-top:5px"/>`:""}</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div>
+              <div class="label">📷 Foto del producto</div>
+              <input type="file" accept="image/*" id="pn_foto" onchange="pnFoto('prod')" style="width:100%;font-size:11px;color:#94a3b8"/>
+              <div id="pn_fp" style="margin-top:5px">${thumb(fotoPreview)}</div>
+            </div>
+            <div>
+              <div class="label">📦 Foto de la caja</div>
+              <input type="file" accept="image/*" id="pn_foto_caja" onchange="pnFoto('caja')" style="width:100%;font-size:11px;color:#94a3b8"/>
+              <div id="pn_fp_caja" style="margin-top:5px">${thumb(fotoCajaPreview)}</div>
+            </div>
+          </div>
+          <div style="color:#475569;font-size:10px;padding:8px;background:#0f172a;border-radius:8px">
+            💡 Las fotos se suben al bucket <strong style="color:#94a3b8">inventario</strong> en Supabase Storage. Asegúrate de que el bucket exista con acceso público.
           </div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px">
           <button onclick="closeModal()" style="padding:11px;background:#334155;color:#94a3b8;border:none;border-radius:10px;font-weight:700;cursor:pointer">Cancelar</button>
-          <button onclick="pnGuardar()" style="padding:11px;background:#16a34a;color:#fff;border:none;border-radius:10px;font-weight:700;cursor:pointer">✅ Agregar</button>
+          <button id="pn_btn_guardar" onclick="pnGuardar()" style="padding:11px;background:#16a34a;color:#fff;border:none;border-radius:10px;font-weight:700;cursor:pointer">✅ Agregar</button>
         </div>
       </div>
     </div>`;
@@ -289,20 +325,15 @@ function modalNuevoProd(){
       const el=$$("pn_dup");if(el)el.textContent=dup;
     };
     window.pnCat=val=>{n.cat=val;draw();};
-    window.pnFoto=()=>{
-      const f=$$("pn_foto")?.files?.[0];if(!f)return;
+    window.pnFoto=(tipo)=>{
+      const f=$$(tipo==="prod"?"pn_foto":"pn_foto_caja")?.files?.[0];if(!f)return;
+      if(tipo==="prod")fotoFile=f;else fotoCajaFile=f;
       const r=new FileReader();
       r.onload=ev=>{
-        const img=new Image();
-        img.onload=()=>{
-          const cv=document.createElement("canvas"),MAX=200;
-          let w=img.width,h=img.height;
-          if(w>h){if(w>MAX){h=h*(MAX/w);w=MAX;}}else{if(h>MAX){w=w*(MAX/h);h=MAX;}}
-          cv.width=w;cv.height=h;cv.getContext("2d").drawImage(img,0,0,w,h);
-          n.foto=cv.toDataURL("image/jpeg",0.6);
-          const fp=$$("pn_fp");if(fp)fp.innerHTML=`<img src="${n.foto}" style="width:70px;height:70px;object-fit:cover;border-radius:8px;margin-top:5px"/>`;
-        };
-        img.src=ev.target.result;
+        const prev=ev.target.result;
+        if(tipo==="prod")fotoPreview=prev;else fotoCajaPreview=prev;
+        const el=$$(tipo==="prod"?"pn_fp":"pn_fp_caja");
+        if(el)el.innerHTML=`<img src="${prev}" style="width:64px;height:64px;object-fit:cover;border-radius:8px"/>`;
       };
       r.readAsDataURL(f);
     };
@@ -313,8 +344,26 @@ function modalNuevoProd(){
       if(!n.nom||!n.cat){alert("Nombre y categoría son obligatorios");return;}
       if(dup){alert("Ya existe ese producto");return;}
       const cod=genCod(n.cat);
-      const{data,error}=await SB.from("inventario").insert({...n,cod}).select().single();
-      if(error){alert("Error: "+error.message);return;}
+      const btn=$$("pn_btn_guardar");if(btn){btn.disabled=true;btn.textContent="⏳ Guardando...";}
+      let foto_url=null,foto_caja_url=null;
+      if(fotoFile){
+        const path=`productos/${Date.now()}_${cod}.${(fotoFile.name.split(".").pop()||"jpg")}`;
+        const{error:e1}=await SB.storage.from("inventario").upload(path,fotoFile,{contentType:fotoFile.type,upsert:true});
+        if(!e1)foto_url=SB.storage.from("inventario").getPublicUrl(path).data.publicUrl;
+        else console.warn("Error subiendo foto:",e1.message);
+      }
+      if(fotoCajaFile){
+        const path=`cajas/${Date.now()}_${cod}.${(fotoCajaFile.name.split(".").pop()||"jpg")}`;
+        const{error:e2}=await SB.storage.from("inventario").upload(path,fotoCajaFile,{contentType:fotoCajaFile.type,upsert:true});
+        if(!e2)foto_caja_url=SB.storage.from("inventario").getPublicUrl(path).data.publicUrl;
+        else console.warn("Error subiendo foto caja:",e2.message);
+      }
+      const{data,error}=await SB.from("inventario").insert({...n,cod,foto_url,foto_caja_url}).select().single();
+      if(error){
+        alert("Error: "+error.message);
+        if(btn){btn.disabled=false;btn.textContent="✅ Agregar";}
+        return;
+      }
       inv=[...inv,data].sort((a,b)=>(a.nom||"").localeCompare(b.nom||""));
       closeModal();actualizarContenido();
     };
@@ -966,7 +1015,7 @@ async function probarConexionNotion(){
 /* ── Exponer globales ───────────────────────────────── */
 [
   "cambiarTab","actualizarContenido","closeModal","salir",
-  "exportarInvCSV","modalNuevoProd",
+  "exportarInvCSV","modalNuevoProd","verFotoInv",
   "exportarCRMCSV",
   "selWorker","cambiarEstH","eliminarHerr","modalNuevaHerr","imprimirActa",
   "calcVsDias","enviarSolicitud","aprobarVac","rechazarVac","modalEditarSaldo",

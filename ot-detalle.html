@@ -373,14 +373,15 @@ function modalRepInventario(){
     <div id="inv_lista" style="max-height:260px;overflow-y:auto">
       ${inventario.map(p=>`
       <div onclick="selRep(${p.id})" style="padding:10px;background:#0f172a;border:1px solid #334155;border-radius:8px;margin-bottom:6px;cursor:pointer;display:flex;gap:8px;align-items:center">
-        ${p.foto?`<img src="${p.foto}" style="width:36px;height:36px;border-radius:6px;object-fit:cover"/>`:
-          `<div style="width:36px;height:36px;background:#334155;border-radius:6px;display:flex;align-items:center;justify-content:center">📦</div>`}
-        <div style="flex:1">
-          <div style="font-size:12px;font-weight:700">${p.nombre}</div>
+        ${(p.foto_url||p.foto)
+          ?`<img src="${p.foto_url||p.foto}" style="width:42px;height:42px;border-radius:7px;object-fit:cover;flex-shrink:0"/>`
+          :`<div style="width:42px;height:42px;background:#334155;border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#64748b;font-size:18px">📷</div>`}
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.nom||p.nombre}</div>
           <div style="font-size:10px;color:${(p.stock||0)>0?"#16a34a":"#ef4444"};font-weight:700">
             ${(p.stock||0)>0?"Stock: "+p.stock:"❌ SIN STOCK"}
           </div>
-          <div style="font-size:10px;color:#fbbf24">Bs. ${p.precio_venta||0}</div>
+          <div style="font-size:10px;color:#fbbf24">Bs. ${p.precio||p.precio_venta||0}</div>
         </div>
       </div>`).join("")}
     </div>
@@ -399,7 +400,7 @@ function selRep(id){
   const p=inventario.find(x=>x.id===id);
   if(!p||(p.stock||0)<=0){alert("❌ Sin stock disponible");return;}
   repSelId=id;
-  document.getElementById("rep_precio").value=p.precio_venta||0;
+  document.getElementById("rep_precio").value=p.precio||p.precio_venta||0;
   document.getElementById("inv_form").style.display="block";
   document.getElementById("inv_lista").style.display="none";
 }
@@ -418,7 +419,7 @@ async function agregarRepInventario(){
   if(cant>(p.stock||0)){alert(`Solo hay ${p.stock} en stock`);return;}
   await SB.from("inventario").update({stock:Math.max(0,(p.stock||0)-cant)}).eq("id",p.id);
   p.stock=Math.max(0,(p.stock||0)-cant);
-  const arr=[...(ot.repuestos||[]),{inv_id:p.id,nombre:p.nombre,foto:p.foto||null,cantidad:cant,precio}];
+  const arr=[...(ot.repuestos||[]),{inv_id:p.id,nombre:p.nom||p.nombre,foto:p.foto_url||p.foto||null,cantidad:cant,precio}];
   await guardar({repuestos:arr});
   cerrarModal();
 }
