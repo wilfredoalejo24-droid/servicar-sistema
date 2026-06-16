@@ -125,7 +125,8 @@ async function cargarUsuarios(){
 
 /* ── Guardar ─────────────────────────────────────────── */
 async function guardar(campos){
-  await SB.from("ots").update(campos).eq("id",otId);
+  const{error}=await SB.from("ots").update(campos).eq("id",otId);
+  if(error){console.error("guardar error:",error);alert("Error al guardar: "+error.message);return;}
   Object.assign(ot,campos);
   render();
 }
@@ -235,7 +236,6 @@ async function guardarServicio(idx){
   const tiempo=(document.getElementById("srv_tiempo")?.value||"").trim();
   const precio=parseFloat(document.getElementById("srv_precio")?.value)||0;
   if(!nombre){alert("Escribe el nombre del servicio");return;}
-  if(!desc){alert("Describe el trabajo");return;}
   const arr=[...(ot.procedimientos||[])];
   const item={nombre,desc,tiempo,tecnico:usuario.nombre,precio};
   if(idx>=0) arr[idx]={...arr[idx],...item};
@@ -343,63 +343,124 @@ async function enviarInformeEncargado(){
 }
 
 /* ── PASO 3: Cotización ──────────────────────────────── */
+let _cotSrvExtra=0, _cotRepExtra=0;
+
 function modalCotizacion(){
+  _cotSrvExtra=0; _cotRepExtra=0;
   const procs=ot.procedimientos||[];
   const rcs=ot.repuestos_conseguir||[];
   document.getElementById("modal-area").innerHTML=`
   <div class="modal" onclick="if(event.target===this)cerrarModal()">
   <div class="modal-box su">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-      <strong style="color:#fbbf24">💰 Llenar cotización</strong>
+      <strong style="color:#fbbf24">💰 Cotización y servicios</strong>
       <button onclick="cerrarModal()" style="padding:5px 10px;background:#334155;color:#94a3b8;border:none;border-radius:8px;cursor:pointer;font-weight:700">✕</button>
     </div>
 
-    <div style="color:#60a5fa;font-size:11px;font-weight:700;margin-bottom:8px;text-transform:uppercase">Mano de obra</div>
+    <div style="color:#60a5fa;font-size:11px;font-weight:700;margin-bottom:8px;text-transform:uppercase">🔧 Mano de obra</div>
+    <div id="cot_servicios">
     ${procs.length===0
-      ?`<div style="color:#475569;font-size:12px;padding:8px;text-align:center">Sin servicios</div>`
+      ?`<div style="color:#475569;font-size:12px;padding:8px;text-align:center;font-style:italic">Sin servicios — agrega uno abajo</div>`
       :procs.map((p,i)=>`
-      <div style="background:#0f172a;border:1px solid #1d4ed830;border-radius:8px;padding:10px;margin-bottom:8px">
-        <div style="font-size:12px;font-weight:700;color:#fbbf24;margin-bottom:2px">${p.nombre}</div>
-        <div style="font-size:11px;color:#64748b;margin-bottom:6px">${p.desc}</div>
-        <div class="label">Precio Bs.</div>
+      <div style="background:#0f172a;border:1px solid #1d4ed840;border-radius:10px;padding:10px;margin-bottom:8px">
+        <input id="mo_nom_${i}" class="input" style="margin-bottom:6px;font-weight:700;color:#fbbf24" value="${(p.nombre||"").replace(/"/g,"&quot;")}" placeholder="Nombre del servicio"/>
+        <textarea id="mo_desc_${i}" rows="2" style="width:100%;padding:8px 10px;background:#1e293b;border:1px solid #334155;border-radius:6px;color:#94a3b8;font-size:11px;resize:none;margin-bottom:6px;font-family:inherit">${p.desc||""}</textarea>
+        <div class="label">Precio mano de obra (Bs.)</div>
         <input id="mo_${i}" type="number" value="${p.precio||0}" class="input" placeholder="0"/>
       </div>`).join("")}
+    </div>
+    <button onclick="cotNuevoServicio()" style="width:100%;padding:8px;background:#1d4ed820;color:#60a5fa;border:1px solid #1d4ed840;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;margin-bottom:14px">+ Agregar servicio</button>
 
-    <div style="color:#f97316;font-size:11px;font-weight:700;margin:12px 0 8px;text-transform:uppercase">Repuestos requeridos</div>
+    <div style="color:#f97316;font-size:11px;font-weight:700;margin-bottom:8px;text-transform:uppercase">📦 Repuestos requeridos</div>
+    <div id="cot_repuestos">
     ${rcs.length===0
-      ?`<div style="color:#475569;font-size:12px;padding:8px;text-align:center">Sin repuestos pendientes</div>`
+      ?`<div style="color:#475569;font-size:12px;padding:8px;text-align:center;font-style:italic">Sin repuestos — agrega uno abajo</div>`
       :rcs.map((r,i)=>`
-      <div style="background:#0f172a;border:1px solid #f9731630;border-radius:8px;padding:10px;margin-bottom:8px">
-        <div style="font-size:12px;font-weight:700;color:#fb923c;margin-bottom:6px">${r.nombre}${r.nota?` · ${r.nota}`:""}</div>
+      <div style="background:#0f172a;border:1px solid #f9731640;border-radius:10px;padding:10px;margin-bottom:8px">
+        <input id="rp_nom_${i}" class="input" style="margin-bottom:6px;font-weight:700;color:#fb923c" value="${(r.nombre||"").replace(/"/g,"&quot;")}" placeholder="Nombre del repuesto"/>
+        ${r.nota?`<div style="font-size:10px;color:#64748b;margin-bottom:6px">${r.nota}</div>`:""}
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
-          <div><div class="label">Precio Bs.</div><input id="rp_${i}" type="number" value="${r.precio_estimado||0}" class="input"/></div>
+          <div><div class="label">Precio c/u (Bs.)</div><input id="rp_${i}" type="number" value="${r.precio_estimado||0}" class="input"/></div>
           <div><div class="label">¿En tienda?</div>
             <select id="inv_${i}" class="input">
-              <option value="0" ${!r.en_inventario?"selected":""}>No — conseguir</option>
-              <option value="1" ${r.en_inventario?"selected":""}>Sí — en tienda</option>
+              <option value="0" ${!r.en_inventario?"selected":""}>🔍 Conseguir</option>
+              <option value="1" ${r.en_inventario?"selected":""}>✅ En tienda</option>
             </select>
           </div>
         </div>
       </div>`).join("")}
+    </div>
+    <button onclick="cotNuevoRepuesto()" style="width:100%;padding:8px;background:#f9731620;color:#f97316;border:1px solid #f9731640;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;margin-bottom:14px">+ Agregar repuesto</button>
 
-    <div class="label" style="margin-top:8px">Adelanto recibido (Bs.)</div>
+    <div class="label">Adelanto recibido (Bs.)</div>
     <input id="cot_adelanto" type="number" value="${ot.adelanto||0}" class="input" style="margin-bottom:16px"/>
     <button onclick="guardarCotizacion()" style="width:100%;padding:13px;background:#f59e0b;color:#1e293b;border:none;border-radius:10px;font-weight:900;cursor:pointer">
-      💾 Guardar y enviar al cliente
+      💾 Guardar cotización
     </button>
   </div></div>`;
 }
 
+function cotNuevoServicio(){
+  const idx=_cotSrvExtra++;
+  const div=document.createElement("div");
+  div.style.cssText="background:#0f172a;border:1px solid #1d4ed840;border-radius:10px;padding:10px;margin-bottom:8px";
+  div.innerHTML=`
+    <input id="cot_srv_nom_${idx}" class="input" style="margin-bottom:6px" placeholder="Nombre del servicio *"/>
+    <div class="label">Precio mano de obra (Bs.)</div>
+    <input id="cot_srv_precio_${idx}" type="number" class="input" value="0"/>`;
+  document.getElementById("cot_servicios").appendChild(div);
+}
+
+function cotNuevoRepuesto(){
+  const idx=_cotRepExtra++;
+  const div=document.createElement("div");
+  div.style.cssText="background:#0f172a;border:1px solid #f9731640;border-radius:10px;padding:10px;margin-bottom:8px";
+  div.innerHTML=`
+    <input id="cot_rep_nom_${idx}" class="input" style="margin-bottom:6px" placeholder="Nombre del repuesto *"/>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+      <div><div class="label">Precio c/u (Bs.)</div><input id="cot_rep_precio_${idx}" type="number" class="input" value="0"/></div>
+      <div><div class="label">¿En tienda?</div>
+        <select id="cot_rep_inv_${idx}" class="input">
+          <option value="0">🔍 Conseguir</option>
+          <option value="1">✅ En tienda</option>
+        </select>
+      </div>
+    </div>`;
+  document.getElementById("cot_repuestos").appendChild(div);
+}
+
 async function guardarCotizacion(){
   const procs=[...(ot.procedimientos||[])];
-  procs.forEach((_,i)=>{const el=document.getElementById(`mo_${i}`);if(el)procs[i].precio=parseFloat(el.value)||0;});
+  procs.forEach((_,i)=>{
+    const nom=document.getElementById(`mo_nom_${i}`);
+    const desc=document.getElementById(`mo_desc_${i}`);
+    const precio=document.getElementById(`mo_${i}`);
+    if(nom) procs[i].nombre=nom.value.trim()||procs[i].nombre;
+    if(desc) procs[i].desc=desc.value.trim();
+    if(precio) procs[i].precio=parseFloat(precio.value)||0;
+  });
+  for(let i=0;i<_cotSrvExtra;i++){
+    const nom=(document.getElementById(`cot_srv_nom_${i}`)?.value||"").trim();
+    const precio=parseFloat(document.getElementById(`cot_srv_precio_${i}`)?.value)||0;
+    if(nom) procs.push({nombre:nom,desc:"",precio,tecnico:usuario.nombre});
+  }
+
   const rcs=[...(ot.repuestos_conseguir||[])];
   rcs.forEach((_,i)=>{
+    const nom=document.getElementById(`rp_nom_${i}`);
     const p=document.getElementById(`rp_${i}`);
     const v=document.getElementById(`inv_${i}`);
+    if(nom) rcs[i].nombre=nom.value.trim()||rcs[i].nombre;
     if(p)rcs[i].precio_estimado=parseFloat(p.value)||0;
     if(v)rcs[i].en_inventario=v.value==="1";
   });
+  for(let i=0;i<_cotRepExtra;i++){
+    const nom=(document.getElementById(`cot_rep_nom_${i}`)?.value||"").trim();
+    const precio=parseFloat(document.getElementById(`cot_rep_precio_${i}`)?.value)||0;
+    const enInv=document.getElementById(`cot_rep_inv_${i}`)?.value==="1";
+    if(nom) rcs.push({nombre:nom,nota:"",cantidad:1,unidad:"unid",conseguido:false,precio_estimado:precio,en_inventario:enInv});
+  }
+
   const adelanto=parseFloat(document.getElementById("cot_adelanto")?.value)||0;
   await guardar({procedimientos:procs,repuestos_conseguir:rcs,adelanto,paso:4,estado:"Cotización enviada"});
   cerrarModal();
@@ -1353,7 +1414,7 @@ async function confirmarCambioTaller(){
   "modalRepRequerido","agregarRepRequerido","marcarConseguido","buscarInvRR","selInvRR",
   "enviarInformeEncargado",
   "cambiarTaller","confirmarCambioTaller",
-  "modalCotizacion","guardarCotizacion","enviarCotizacionCliente","enviarCotizacionWA",
+  "modalCotizacion","guardarCotizacion","cotNuevoServicio","cotNuevoRepuesto","enviarCotizacionCliente","enviarCotizacionWA",
   "registrarAprobacion","rechazarCotizacion",
   "modalRepInventario","selRep","filtrarInv","agregarRepInventario",
   "editarPrecioRep","borrarRepUsado",
