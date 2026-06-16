@@ -354,6 +354,18 @@ async function enviarInformeEncargado(){
 /* ── PASO 3: Cotización ──────────────────────────────── */
 let _cotSrvExtra=0, _cotRepExtra=0;
 
+function recalcTot(){
+  let mo=0,rep=0;
+  document.querySelectorAll("[data-cotmo]").forEach(el=>mo+=(parseFloat(el.value)||0));
+  document.querySelectorAll("[data-cotrep]").forEach(el=>rep+=(parseFloat(el.value)||0)*(parseFloat(el.dataset.cant)||1));
+  const em=document.getElementById("tot_mo");
+  const er=document.getElementById("tot_rep");
+  const eg=document.getElementById("tot_gen");
+  if(em)em.textContent="Bs. "+mo;
+  if(er)er.textContent="Bs. "+rep;
+  if(eg)eg.textContent="Bs. "+(mo+rep);
+}
+
 function modalCotizacion(){
   _cotSrvExtra=0; _cotRepExtra=0;
   const procs=ot.procedimientos||[];
@@ -375,7 +387,7 @@ function modalCotizacion(){
         <input id="mo_nom_${i}" class="input" style="margin-bottom:6px;font-weight:700;color:#fbbf24" value="${(p.nombre||"").replace(/"/g,"&quot;")}" placeholder="Nombre del servicio"/>
         <textarea id="mo_desc_${i}" rows="2" style="width:100%;padding:8px 10px;background:#1e293b;border:1px solid #334155;border-radius:6px;color:#94a3b8;font-size:11px;resize:none;margin-bottom:6px;font-family:inherit">${p.desc||""}</textarea>
         <div class="label">Precio mano de obra (Bs.)</div>
-        <input id="mo_${i}" type="number" value="${p.precio||0}" class="input" placeholder="0"/>
+        <input id="mo_${i}" type="number" value="${p.precio||0}" class="input" placeholder="0" data-cotmo oninput="recalcTot()"/>
       </div>`).join("")}
     </div>
     <button onclick="cotNuevoServicio()" style="width:100%;padding:8px;background:#1d4ed820;color:#60a5fa;border:1px solid #1d4ed840;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;margin-bottom:14px">+ Agregar servicio</button>
@@ -394,8 +406,8 @@ function modalCotizacion(){
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;align-items:end">
           <div>
             <div class="label">Precio c/u (Bs.)</div>
-            <input id="rp_${i}" type="number" value="${r.precio_estimado||0}" class="input"
-              oninput="document.getElementById('rp_sub_${i}').textContent='Subtotal: Bs. '+(parseFloat(this.value)||0)*${cant}"/>
+            <input id="rp_${i}" type="number" value="${r.precio_estimado||0}" class="input" data-cotrep data-cant="${cant}"
+              oninput="document.getElementById('rp_sub_${i}').textContent='Subtotal: Bs. '+(parseFloat(this.value)||0)*${cant};recalcTot()"/>
           </div>
           <div>
             <div class="label">¿En tienda?</div>
@@ -414,15 +426,15 @@ function modalCotizacion(){
     <div style="background:#0f172a;border:1px solid #fbbf2440;border-radius:10px;padding:12px;margin-bottom:14px">
       <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
         <span style="color:#64748b">Mano de obra</span>
-        <span style="color:#60a5fa;font-weight:700">Bs. ${procs.reduce((s,p)=>s+(p.precio||0),0)}</span>
+        <span id="tot_mo" style="color:#60a5fa;font-weight:700">Bs. ${procs.reduce((s,p)=>s+(p.precio||0),0)}</span>
       </div>
       <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px">
         <span style="color:#64748b">Repuestos</span>
-        <span style="color:#f97316;font-weight:700">Bs. ${rcs.reduce((s,r)=>s+(r.precio_estimado||0)*(r.cantidad||1),0)}</span>
+        <span id="tot_rep" style="color:#f97316;font-weight:700">Bs. ${rcs.reduce((s,r)=>s+(r.precio_estimado||0)*(r.cantidad||1),0)}</span>
       </div>
       <div style="display:flex;justify-content:space-between;font-size:14px;font-weight:900;border-top:1px solid #334155;padding-top:8px">
         <span>TOTAL</span>
-        <span style="color:#fbbf24">Bs. ${procs.reduce((s,p)=>s+(p.precio||0),0)+rcs.reduce((s,r)=>s+(r.precio_estimado||0)*(r.cantidad||1),0)}</span>
+        <span id="tot_gen" style="color:#fbbf24">Bs. ${procs.reduce((s,p)=>s+(p.precio||0),0)+rcs.reduce((s,r)=>s+(r.precio_estimado||0)*(r.cantidad||1),0)}</span>
       </div>
     </div>
 
@@ -441,7 +453,7 @@ function cotNuevoServicio(){
   div.innerHTML=`
     <input id="cot_srv_nom_${idx}" class="input" style="margin-bottom:6px" placeholder="Nombre del servicio *"/>
     <div class="label">Precio mano de obra (Bs.)</div>
-    <input id="cot_srv_precio_${idx}" type="number" class="input" value="0"/>`;
+    <input id="cot_srv_precio_${idx}" type="number" class="input" value="0" data-cotmo oninput="recalcTot()"/>`;
   document.getElementById("cot_servicios").appendChild(div);
 }
 
@@ -452,7 +464,7 @@ function cotNuevoRepuesto(){
   div.innerHTML=`
     <input id="cot_rep_nom_${idx}" class="input" style="margin-bottom:6px" placeholder="Nombre del repuesto *"/>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
-      <div><div class="label">Precio c/u (Bs.)</div><input id="cot_rep_precio_${idx}" type="number" class="input" value="0"/></div>
+      <div><div class="label">Precio c/u (Bs.)</div><input id="cot_rep_precio_${idx}" type="number" class="input" value="0" data-cotrep data-cant="1" oninput="recalcTot()"/></div>
       <div><div class="label">¿En tienda?</div>
         <select id="cot_rep_inv_${idx}" class="input">
           <option value="0">🔍 Conseguir</option>
