@@ -851,8 +851,16 @@ function actualizarSaldo(){
 async function confirmarCobro(){
   const mo=(ot.procedimientos||[]).reduce((s,x)=>s+(x.precio||0),0);
   const repArr=[...(ot.repuestos||[]),...(ot.repuestos_usados||[])];
-  const rep=repArr.reduce((s,x)=>s+((x.precio||0)*(x.cantidad||1)),0);
-  const total=mo+rep;
+  /* venta_rep = lo que pagó el cliente por repuestos (precio_venta × cant) */
+  const venta_rep=repArr.reduce((s,x)=>s+((x.precio||0)*(x.cantidad||1)),0);
+  /* capital = lo que costó comprar los repuestos (costo inventario × cant) */
+  const capital=repArr.reduce((s,x)=>{
+    const inv_item=inventario.find(i=>i.id===x.inv_id);
+    return s+((inv_item?.costo||0)*(x.cantidad||1));
+  },0);
+  const margen_rep=venta_rep-capital;
+  const ganancia_neta=mo+margen_rep;   /* MO + margen de repuestos */
+  const total=mo+venta_rep;            /* total cobrado al cliente  */
   const desc=parseFloat(document.getElementById("cobro_desc")?.value)||0;
   const adelanto=parseFloat(document.getElementById("cobro_adelanto")?.value)||0;
   const metodo=document.getElementById("cobro_metodo")?.value||"Efectivo";
@@ -868,9 +876,9 @@ async function confirmarCobro(){
       nombre:ot.cliente,tel:ot.tel,placa:ot.placa,
       marca:ot.marca,modelo:ot.modelo,
       servicio:JSON.stringify(ot.procedimientos||[]),
-      repuestos:JSON.stringify([...(ot.repuestos||[]),...(ot.repuestos_usados||[])]),
+      repuestos:JSON.stringify(repArr),
       total:total_final,descuento:desc,adelanto,
-      ganancia_neta:mo,capital:rep,
+      ganancia_neta,capital,
       fecha:new Date().toLocaleDateString("es-BO"),
       taller:ot.taller,tecnico:ot.tecnico,metodo_pago:metodo
     });
@@ -881,10 +889,10 @@ async function confirmarCobro(){
       taller:ot.taller,fecha:new Date().toLocaleDateString("es-BO"),
       registrado_por:usuario.user_name,metodo_pago:metodo
     });
-    /* Caja — repuestos */
-    if(rep>0) await SB.from("caja").insert({
+    /* Caja — repuestos (precio cobrado al cliente) */
+    if(venta_rep>0) await SB.from("caja").insert({
       concepto:`OT #${otId} · ${ot.placa} · ${ot.cliente} — Repuestos`,
-      monto:rep,tipo:"ingreso",subtipo:"capital_tienda",
+      monto:venta_rep,tipo:"ingreso",subtipo:"capital_tienda",
       taller:ot.taller,fecha:new Date().toLocaleDateString("es-BO"),
       registrado_por:usuario.user_name,metodo_pago:metodo
     });
@@ -893,11 +901,12 @@ async function confirmarCobro(){
       paso:6,estado:"Entregado",entregado:true,
       entregado_por:usuario.nombre,
       fecha_entrega:new Date().toLocaleDateString("es-BO"),
-      total:total_final,descuento:desc,adelanto,metodo_pago:metodo
+      total:total_final,ganancia_neta,capital,
+      descuento:desc,adelanto,metodo_pago:metodo
     });
     cerrarModal();
-    enviarComprobanteCliente(mo,rep,total,desc,adelanto,total_final,saldo,metodo);
-    notionGuardarOT(mo,rep).then(ok=>notionToast(ok));
+    enviarComprobanteCliente(mo,venta_rep,total,desc,adelanto,total_final,saldo,metodo);
+    notionGuardarOT(mo,venta_rep).then(ok=>notionToast(ok));
   }catch(e){
     alert("Error: "+e.message);
     if(btn){btn.disabled=false;btn.textContent="✅ Confirmar cobro y entregar";}

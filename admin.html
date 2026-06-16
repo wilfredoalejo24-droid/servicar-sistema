@@ -366,16 +366,23 @@ function modalNuevoProd(){
    TAB: CRM
 ══════════════════════════════════════════════════════ */
 async function cargarCRM(){
-  const{data}=await SB.from("ots")
-    .select("num,placa,cliente,marca,modelo,taller,tecnico,procedimientos,repuestos,repuestos_usados,fecha,fecha_entrega,entregado,estado,metodo_pago")
-    .or("entregado.is.true,estado.eq.Entregado")
-    .order("fecha_entrega",{ascending:false,nullsFirst:false});
+  const[{data},{data:invData}]=await Promise.all([
+    SB.from("ots")
+      .select("num,placa,cliente,marca,modelo,taller,tecnico,procedimientos,repuestos,repuestos_usados,fecha,fecha_entrega,entregado,estado,metodo_pago")
+      .or("entregado.is.true,estado.eq.Entregado")
+      .order("fecha_entrega",{ascending:false,nullsFirst:false}),
+    SB.from("inventario").select("id,costo")
+  ]);
+  /* mapa id → costo para lookup O(1) */
+  const costMap={};(invData||[]).forEach(p=>costMap[p.id]=parseFloat(p.costo)||0);
   const parseJ=v=>{if(!v)return[];if(Array.isArray(v))return v;try{return JSON.parse(v);}catch{return[];}};
   crmD=(data||[]).map(o=>{
     const procs=parseJ(o.procedimientos);
     const reps=[...parseJ(o.repuestos),...parseJ(o.repuestos_usados)];
-    const ganancia_neta=procs.reduce((s,x)=>s+(parseFloat(x.precio)||0),0);
-    const capital=reps.reduce((s,x)=>s+(parseFloat(x.precio)||0)*(parseFloat(x.cantidad)||1),0);
+    const mo=procs.reduce((s,x)=>s+(parseFloat(x.precio)||0),0);
+    const venta_rep=reps.reduce((s,x)=>s+(parseFloat(x.precio)||0)*(parseFloat(x.cantidad)||1),0);
+    const capital=reps.reduce((s,x)=>s+(costMap[x.inv_id]||0)*(parseFloat(x.cantidad)||1),0);
+    const ganancia_neta=mo+(venta_rep-capital);
     return{
       num:o.num,placa:o.placa,cliente:o.cliente,
       vehiculo:`${o.marca||""} ${o.modelo||""}`.trim(),
