@@ -1479,6 +1479,10 @@ function render(){
     <button onclick="generarPDF()" style="width:100%;padding:10px;background:#1d4ed820;color:#60a5fa;border:1px solid #1d4ed840;border-radius:10px;font-weight:700;font-size:12px;cursor:pointer;margin-top:8px">
       📄 Generar PDF / Comprobante
     </button>
+    ${ot.entregado?`
+    <button onclick="enviarComprobanteWA()" style="width:100%;padding:11px;background:#25d36620;color:#25d366;border:1px solid #25d36640;border-radius:10px;font-weight:900;font-size:13px;cursor:pointer;margin-top:8px;display:flex;align-items:center;justify-content:center;gap:8px">
+      📱 Enviar comprobante al cliente por WhatsApp
+    </button>`:""}
   </div>`:""}
 
   <!-- ════════════════════════════════════════════
@@ -1561,6 +1565,19 @@ function render(){
 }
 
 function cerrarModal(){document.getElementById("modal-area").innerHTML="";}
+
+/* ── WhatsApp: comprobante de entrega al cliente ─────── */
+function enviarComprobanteWA(){
+  const repArr=[...(ot.repuestos||[]),...(ot.repuestos_usados||[])];
+  const moList=(ot.procedimientos||[]).map((s,i)=>`${i+1}. ${s.nombre} — Bs. ${s.precio||0}`).join("\n");
+  const repList=repArr.length?repArr.map((r,i)=>`${i+1}. ${r.nombre} x${r.cantidad||1} — Bs. ${(r.precio||0)*(r.cantidad||1)}`).join("\n"):"—";
+  const fecha=ot.fecha_entrega||new Date().toLocaleDateString("es-BO");
+  const auto=`${ot.marca||""} ${ot.modelo||""}`.trim();
+  const msg=`✅ *SERVI CAR PLATINIUM*\n🚗 Su vehículo está listo y entregado.\n\n📋 *COMPROBANTE OT #${ot.num||otId}*\n📅 ${fecha}\n\n🚘 ${auto} - Placa ${ot.placa||"—"}\n\n🔧 *Servicios realizados:*\n${moList||"—"}\n\n🔩 *Repuestos utilizados:*\n${repList}\n\n💰 *TOTAL COBRADO: Bs. ${ot.total||0}*\n💳 Método de pago: ${ot.metodo_pago||"—"}\n\n✅ Garantía: 30 días en mano de obra\n📍 SERVI CAR PLATINIUM — Viacha, La Paz\n📞 68167264 / 60574920\n\n¡Gracias por su preferencia! 🙏`;
+  const tel=ot.tel?`591${cleanTel(ot.tel)}`:null;
+  if(tel) window.open(`https://wa.me/${tel}?text=${encodeURIComponent(msg)}`,"_blank");
+  else alert("Sin teléfono del cliente registrado.");
+}
 
 /* ── WhatsApp: notificar cliente ────────────────────── */
 function notificarClienteListo(){
@@ -1672,7 +1689,7 @@ async function confirmarCambioTaller(){
   "esVinculado","modalServicioExtra","guardarServicioExtra","borrarServicioExtra","actualizarCotFinal","marcarTerminado",
   "modalCobro","actualizarSaldo","confirmarCobro",
   "generarPDF","guardar",
-  "notificarClienteListo"
+  "notificarClienteListo","enviarComprobanteWA"
 ].forEach(fn=>window[fn]=eval(fn));
 
 init();
