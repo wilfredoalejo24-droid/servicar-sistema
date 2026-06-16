@@ -300,17 +300,10 @@ function modalNuevoProd(){
           <div><div class="label">Para qué vehículo</div><input id="pn_para" class="input" value="${n.para}" placeholder="Toyota Corolla 2015-2020"/></div>
           <div><div class="label">Medida / Especificación</div><input id="pn_medida" class="input" value="${n.medida}" placeholder="500ml, 1L, 14mm..."/></div>
           <div><div class="label">Proveedor</div><input id="pn_prov" class="input" value="${n.prov}" placeholder="Nombre del proveedor"/></div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-            <div>
-              <div class="label">📷 Foto del producto</div>
-              <input type="file" accept="image/*" id="pn_foto" onchange="pnFoto('prod')" style="width:100%;font-size:11px;color:#94a3b8"/>
-              <div id="pn_fp" style="margin-top:5px">${thumb(fotoPreview)}</div>
-            </div>
-            <div>
-              <div class="label">📦 Foto de la caja</div>
-              <input type="file" accept="image/*" id="pn_foto_caja" onchange="pnFoto('caja')" style="width:100%;font-size:11px;color:#94a3b8"/>
-              <div id="pn_fp_caja" style="margin-top:5px">${thumb(fotoCajaPreview)}</div>
-            </div>
+          <div>
+            <div class="label">📷 Foto del producto</div>
+            <input type="file" accept="image/*" capture="environment" id="pn_foto" onchange="pnFoto('prod')" style="width:100%;font-size:11px;color:#94a3b8"/>
+            <div id="pn_fp" style="margin-top:5px">${thumb(fotoPreview)}</div>
           </div>
           <div style="color:#475569;font-size:10px;padding:8px;background:#0f172a;border-radius:8px">
             💡 Las fotos se suben al bucket <strong style="color:#94a3b8">inventario</strong> en Supabase Storage. Asegúrate de que el bucket exista con acceso público.
@@ -349,20 +342,14 @@ function modalNuevoProd(){
       if(dup){alert("Ya existe ese producto");return;}
       const cod=genCod(n.cat);
       const btn=$$("pn_btn_guardar");if(btn){btn.disabled=true;btn.textContent="⏳ Guardando...";}
-      let foto_url=null,foto_caja_url=null;
+      let foto_url=null;
       if(fotoFile){
         const path=`productos/${Date.now()}_${cod}.${(fotoFile.name.split(".").pop()||"jpg")}`;
         const{error:e1}=await SB.storage.from("inventario").upload(path,fotoFile,{contentType:fotoFile.type,upsert:true});
         if(!e1)foto_url=SB.storage.from("inventario").getPublicUrl(path).data.publicUrl;
         else console.warn("Error subiendo foto:",e1.message);
       }
-      if(fotoCajaFile){
-        const path=`cajas/${Date.now()}_${cod}.${(fotoCajaFile.name.split(".").pop()||"jpg")}`;
-        const{error:e2}=await SB.storage.from("inventario").upload(path,fotoCajaFile,{contentType:fotoCajaFile.type,upsert:true});
-        if(!e2)foto_caja_url=SB.storage.from("inventario").getPublicUrl(path).data.publicUrl;
-        else console.warn("Error subiendo foto caja:",e2.message);
-      }
-      const{data,error}=await SB.from("inventario").insert({...n,cod,foto_url,foto_caja_url}).select().single();
+      const{data,error}=await SB.from("inventario").insert({...n,cod,foto_url}).select().single();
       if(error){
         alert("Error: "+error.message);
         if(btn){btn.disabled=false;btn.textContent="✅ Agregar";}
