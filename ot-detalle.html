@@ -137,7 +137,8 @@ function calcRep()  {return(ot.repuestos||[]).reduce((s,x)=>s+((x.precio||0)*(x.
 function calcTotal(){return calcMO()+calcRep();}
 function calcCotEstimado(){
   const mo=(ot.procedimientos||[]).reduce((s,x)=>s+(x.precio||0),0);
-  const rep=(ot.repuestos_requeridos||[]).reduce((s,x)=>s+(x.precio_estimado||0),0);
+  const rcs=(ot.repuestos_requeridos&&ot.repuestos_requeridos.length)?ot.repuestos_requeridos:(ot.repuestos_conseguir||[]);
+  const rep=rcs.reduce((s,x)=>s+(x.precio_estimado||0)*(x.cantidad||1),0);
   return{mo,rep,total:mo+rep};
 }
 
