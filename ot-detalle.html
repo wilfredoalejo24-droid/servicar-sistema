@@ -114,7 +114,7 @@ async function cargarOT(){
 }
 
 async function cargarInventario(){
-  const{data}=await SB.from("inventario").select("*").order("nombre");
+  const{data}=await SB.from("inventario").select("*").order("nom");
   inventario=data||[];
 }
 
@@ -1017,7 +1017,7 @@ function render(){
   const repCotInfo=repCot.map(rc=>{
     const added=esVinculado(rc,ot.repuestos||[]);
     const q=(rc.nombre||"").toLowerCase().trim();
-    const invMatches=q.length>=2?inventario.filter(p=>(p.nom||"").toLowerCase().includes(q)&&(p.stock||0)>0).slice(0,3):[];
+    const invMatches=q.length>=2?inventario.filter(p=>{const pn=(p.nom||p.nombre||"").toLowerCase();return pn.length>0&&(pn.includes(q)||q.includes(pn))&&(p.stock||0)>0;}).slice(0,3):[];
     return{rc,added,invMatches};
   });
   const sinVincular=enc?repCotInfo.filter(x=>!x.added&&x.invMatches.length===0).length:0;
