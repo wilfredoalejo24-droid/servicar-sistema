@@ -103,7 +103,7 @@ async function cargarOT(){
     if(!ot[k])ot[k]=[];
     else if(!Array.isArray(ot[k]))try{ot[k]=JSON.parse(ot[k]||"[]")}catch{ot[k]=[];}
   };
-  ["procedimientos","repuestos","fotos_recepcion","fotos_trabajo","repuestos_requeridos","repuestos_conseguir","fotos_entrada","fotos_salida","problemas"].forEach(parseArr);
+  ["procedimientos","repuestos","repuestos_usados","fotos_recepcion","fotos_trabajo","repuestos_requeridos","repuestos_conseguir","fotos_entrada","fotos_salida","problemas"].forEach(parseArr);
   // checklist_fluidos es objeto, no array
   if(!ot.checklist_fluidos||Array.isArray(ot.checklist_fluidos))ot.checklist_fluidos={};
   else if(typeof ot.checklist_fluidos==="string"){try{ot.checklist_fluidos=JSON.parse(ot.checklist_fluidos);}catch{ot.checklist_fluidos={};}}
@@ -755,7 +755,10 @@ async function marcarTerminado(){
 
 /* ── PASO 6: Cobro y entrega ─────────────────────────── */
 function modalCobro(){
-  const mo=calcMO(),rep=calcRep(),total=mo+rep;
+  const mo=(ot.procedimientos||[]).reduce((s,x)=>s+(x.precio||0),0);
+  const repArr=[...(ot.repuestos||[]),...(ot.repuestos_usados||[])];
+  const rep=repArr.reduce((s,x)=>s+((x.precio||0)*(x.cantidad||1)),0);
+  const total=mo+rep;
   document.getElementById("modal-area").innerHTML=`
   <div class="modal" onclick="if(event.target===this)cerrarModal()">
   <div class="modal-box su">
@@ -781,7 +784,7 @@ function modalCobro(){
     <div class="label">Adelanto ya recibido (Bs.)</div>
     <input id="cobro_adelanto" type="number" value="${ot.adelanto||0}" class="input" style="margin-bottom:10px" oninput="actualizarSaldo()"/>
     <div id="cobro_saldo" style="background:#16a34a20;border:1px solid #16a34a40;border-radius:10px;padding:12px;margin-bottom:12px;text-align:center;color:#4ade80;font-weight:700;font-size:14px">
-      A cobrar: Bs. ${Math.max(0,total-(ot.adelanto||0))}
+      A cobrar: Bs. ${Math.max(0,total-(ot.descuento||0)-(ot.adelanto||0))}
     </div>
     <div class="label">Método de pago</div>
     <select id="cobro_metodo" class="input" style="margin-bottom:16px">
@@ -794,7 +797,10 @@ function modalCobro(){
 }
 
 function actualizarSaldo(){
-  const total=calcMO()+calcRep();
+  const mo=(ot.procedimientos||[]).reduce((s,x)=>s+(x.precio||0),0);
+  const repArr=[...(ot.repuestos||[]),...(ot.repuestos_usados||[])];
+  const rep=repArr.reduce((s,x)=>s+((x.precio||0)*(x.cantidad||1)),0);
+  const total=mo+rep;
   const desc=parseFloat(document.getElementById("cobro_desc")?.value)||0;
   const adel=parseFloat(document.getElementById("cobro_adelanto")?.value)||0;
   const el=document.getElementById("cobro_saldo");
@@ -802,7 +808,10 @@ function actualizarSaldo(){
 }
 
 async function confirmarCobro(){
-  const mo=calcMO(),rep=calcRep(),total=mo+rep;
+  const mo=(ot.procedimientos||[]).reduce((s,x)=>s+(x.precio||0),0);
+  const repArr=[...(ot.repuestos||[]),...(ot.repuestos_usados||[])];
+  const rep=repArr.reduce((s,x)=>s+((x.precio||0)*(x.cantidad||1)),0);
+  const total=mo+rep;
   const desc=parseFloat(document.getElementById("cobro_desc")?.value)||0;
   const adelanto=parseFloat(document.getElementById("cobro_adelanto")?.value)||0;
   const metodo=document.getElementById("cobro_metodo")?.value||"Efectivo";
@@ -818,7 +827,7 @@ async function confirmarCobro(){
       nombre:ot.cliente,tel:ot.tel,placa:ot.placa,
       marca:ot.marca,modelo:ot.modelo,
       servicio:JSON.stringify(ot.procedimientos||[]),
-      repuestos:JSON.stringify(ot.repuestos||[]),
+      repuestos:JSON.stringify([...(ot.repuestos||[]),...(ot.repuestos_usados||[])]),
       total:total_final,descuento:desc,adelanto,
       ganancia_neta:mo,capital:rep,
       fecha:new Date().toLocaleDateString("es-BO"),
