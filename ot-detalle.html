@@ -492,7 +492,7 @@ async function guardarCotizacion(){
     if(nom) procs.push({nombre:nom,desc:"",precio,tecnico:usuario.nombre});
   }
 
-  const rcs=[...(ot.repuestos_requeridos||[])];
+  const rcs=[...((ot.repuestos_requeridos&&ot.repuestos_requeridos.length)?ot.repuestos_requeridos:(ot.repuestos_conseguir||[]))];
   rcs.forEach((_,i)=>{
     const nom=document.getElementById(`rp_nom_${i}`);
     const p=document.getElementById(`rp_${i}`);
@@ -509,7 +509,10 @@ async function guardarCotizacion(){
   }
 
   const adelanto=parseFloat(document.getElementById("cot_adelanto")?.value)||0;
-  await guardar({procedimientos:procs,repuestos_requeridos:rcs,adelanto,paso:4,estado:"Cotización enviada"});
+  const moTotal=procs.reduce((s,p)=>s+(p.precio||0),0);
+  const repTotal=rcs.reduce((s,r)=>s+(r.precio_estimado||0)*(r.cantidad||1),0);
+  const total=moTotal+repTotal;
+  await guardar({procedimientos:procs,repuestos_requeridos:rcs,adelanto,total,paso:4,estado:"Cotización enviada"});
   cerrarModal();
   enviarCotizacionWA();
 }
