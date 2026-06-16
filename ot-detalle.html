@@ -205,6 +205,7 @@ function verFoto(campo,idx){
 
 /* ── PASO 2: Diagnóstico ─────────────────────────────── */
 function modalServicio(idx){
+  const enc=esEncargado();
   const editing=typeof idx==="number"&&idx>=0;
   const p=editing?(ot.procedimientos||[])[idx]:{};
   document.getElementById("modal-area").innerHTML=`
@@ -955,6 +956,13 @@ function render(){
           ${!r.conseguido&&enc?`<button onclick="marcarConseguido(${i})" style="padding:4px 10px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-size:10px;font-weight:700;cursor:pointer;flex-shrink:0;margin-left:8px">✓ Listo</button>`:""}
         </div>
       </div>`).join("")}
+
+    <!-- Fotos del diagnóstico -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin:12px 0 6px">
+      <div style="color:#a78bfa;font-size:11px;font-weight:700">📸 Fotos del diagnóstico (${(ot.fotos_trabajo||[]).length})</div>
+      <button onclick="tomarFoto('fotos_trabajo')" style="padding:5px 10px;background:#a78bfa20;color:#a78bfa;border:1px solid #a78bfa40;border-radius:8px;font-size:10px;font-weight:700;cursor:pointer">📷 Agregar foto</button>
+    </div>
+    ${renderFotos("fotos_trabajo")}
 
     ${paso===2?`
     <!-- Resumen antes de enviar -->
