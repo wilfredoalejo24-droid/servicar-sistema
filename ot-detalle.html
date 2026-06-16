@@ -1499,8 +1499,8 @@ function render(){
     </div>
   </div>`:""}
 
-  <!-- Eliminar OT (solo admin) -->
-  ${admin?`
+  <!-- Eliminar OT (solo wilfredo) -->
+  ${admin&&usuario?.user_name==="wilfredo"?`
   <button onclick="if(confirm('¿Eliminar esta OT permanentemente?'))SB.from('ots').delete().eq('id',${otId}).then(()=>location.href='/ot.html')"
     style="width:100%;padding:10px;background:#ef444412;color:#ef4444;border:1px solid #ef444430;border-radius:10px;font-weight:700;font-size:12px;cursor:pointer;margin-bottom:8px">
     🗑 Eliminar OT
