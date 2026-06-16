@@ -103,7 +103,7 @@ async function cargarOT(){
     if(!ot[k])ot[k]=[];
     else if(!Array.isArray(ot[k]))try{ot[k]=JSON.parse(ot[k]||"[]")}catch{ot[k]=[];}
   };
-  ["procedimientos","repuestos","fotos_recepcion","fotos_trabajo","repuestos_requeridos","fotos_entrada","fotos_salida","problemas"].forEach(parseArr);
+  ["procedimientos","repuestos","fotos_recepcion","fotos_trabajo","repuestos_requeridos","repuestos_conseguir","fotos_entrada","fotos_salida","problemas"].forEach(parseArr);
   // checklist_fluidos es objeto, no array
   if(!ot.checklist_fluidos||Array.isArray(ot.checklist_fluidos))ot.checklist_fluidos={};
   else if(typeof ot.checklist_fluidos==="string"){try{ot.checklist_fluidos=JSON.parse(ot.checklist_fluidos);}catch{ot.checklist_fluidos={};}}
@@ -357,7 +357,7 @@ let _cotSrvExtra=0, _cotRepExtra=0;
 function modalCotizacion(){
   _cotSrvExtra=0; _cotRepExtra=0;
   const procs=ot.procedimientos||[];
-  const rcs=ot.repuestos_requeridos||[];
+  const rcs=(ot.repuestos_requeridos&&ot.repuestos_requeridos.length)?ot.repuestos_requeridos:(ot.repuestos_conseguir||[]);
   document.getElementById("modal-area").innerHTML=`
   <div class="modal" onclick="if(event.target===this)cerrarModal()">
   <div class="modal-box su">
