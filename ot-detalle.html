@@ -204,29 +204,41 @@ function verFoto(campo,idx){
 }
 
 /* ── PASO 2: Diagnóstico ─────────────────────────────── */
-function modalServicio(){
+function modalServicio(idx){
+  const editing=typeof idx==="number"&&idx>=0;
+  const p=editing?(ot.procedimientos||[])[idx]:{};
   document.getElementById("modal-area").innerHTML=`
   <div class="modal" onclick="if(event.target===this)cerrarModal()">
   <div class="modal-box su">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-      <strong style="color:#60a5fa">+ Servicio / trabajo</strong>
+      <strong style="color:#60a5fa">${editing?"✏️ Editar servicio":"+ Servicio / trabajo"}</strong>
       <button onclick="cerrarModal()" style="padding:5px 10px;background:#334155;color:#94a3b8;border:none;border-radius:8px;cursor:pointer;font-weight:700">✕</button>
     </div>
-    <div class="label">Tipo</div>
-    <select id="srv_tipo" class="input" style="margin-bottom:10px">
-      ${TIPOS_SRV.map(t=>`<option>${t}</option>`).join("")}
-    </select>
-    <div class="label">Descripción detallada del trabajo *</div>
-    <textarea id="srv_desc" rows="4" style="width:100%;padding:10px 12px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#fff;font-size:13px;resize:vertical;margin-bottom:14px" placeholder="Ej: Desmontado de motor, cambio de anillas, rectificado de culata..."></textarea>
-    <button onclick="agregarServicio()" style="width:100%;padding:12px;background:#16a34a;color:#fff;border:none;border-radius:10px;font-weight:900;cursor:pointer">✅ Agregar servicio</button>
+    <div class="label">Nombre del servicio *</div>
+    <input id="srv_nombre" class="input" style="margin-bottom:10px" placeholder="Ej: Cambio de anillas, Diagnóstico eléctrico..." value="${(p.nombre||"").replace(/"/g,"&quot;")}"/>
+    <div class="label">Descripción detallada *</div>
+    <textarea id="srv_desc" rows="3" style="width:100%;padding:10px 12px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#fff;font-size:13px;resize:vertical;margin-bottom:10px" placeholder="Detalla los pasos del trabajo a realizar...">${p.desc||""}</textarea>
+    <div class="label">Tiempo estimado</div>
+    <input id="srv_tiempo" class="input" style="margin-bottom:10px" placeholder="Ej: 2 horas, 1 día, 3 días" value="${p.tiempo||""}"/>
+    ${enc?`<div class="label">Precio mano de obra (Bs.)</div>
+    <input id="srv_precio" type="number" class="input" style="margin-bottom:14px" placeholder="0" value="${p.precio||0}"/>`:""}
+    <button onclick="guardarServicio(${editing?idx:-1})" style="width:100%;padding:12px;background:#16a34a;color:#fff;border:none;border-radius:10px;font-weight:900;cursor:pointer">
+      ${editing?"💾 Guardar cambios":"✅ Agregar servicio"}
+    </button>
   </div></div>`;
 }
 
-async function agregarServicio(){
-  const tipo=document.getElementById("srv_tipo")?.value||"";
+async function guardarServicio(idx){
+  const nombre=(document.getElementById("srv_nombre")?.value||"").trim();
   const desc=(document.getElementById("srv_desc")?.value||"").trim();
+  const tiempo=(document.getElementById("srv_tiempo")?.value||"").trim();
+  const precio=parseFloat(document.getElementById("srv_precio")?.value)||0;
+  if(!nombre){alert("Escribe el nombre del servicio");return;}
   if(!desc){alert("Describe el trabajo");return;}
-  const arr=[...(ot.procedimientos||[]),{nombre:tipo,desc,tecnico:usuario.nombre,precio:0}];
+  const arr=[...(ot.procedimientos||[])];
+  const item={nombre,desc,tiempo,tecnico:usuario.nombre,precio};
+  if(idx>=0) arr[idx]={...arr[idx],...item};
+  else arr.push(item);
   await guardar({procedimientos:arr});
   cerrarModal();
 }
@@ -247,18 +259,66 @@ function modalRepRequerido(){
       <button onclick="cerrarModal()" style="padding:5px 10px;background:#334155;color:#94a3b8;border:none;border-radius:8px;cursor:pointer;font-weight:700">✕</button>
     </div>
     <div class="label">Nombre del repuesto *</div>
-    <input id="rr_nombre" class="input" placeholder="Ej: Anillas de motor" style="margin-bottom:10px"/>
+    <input id="rr_nombre" class="input" placeholder="Ej: Anillas de motor" style="margin-bottom:4px" oninput="buscarInvRR()"/>
+    <div id="rr_inv_res" style="background:#0f172a;border:1px solid #334155;border-radius:8px;margin-bottom:6px;display:none;max-height:140px;overflow-y:auto"></div>
+    <div id="rr_stock_badge" style="margin-bottom:10px;min-height:16px"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+      <div>
+        <div class="label">Cantidad *</div>
+        <input id="rr_cant" type="number" min="1" value="1" class="input"/>
+      </div>
+      <div>
+        <div class="label">Unidad</div>
+        <input id="rr_unidad" class="input" placeholder="unid, litros..." value="unid"/>
+      </div>
+    </div>
     <div class="label">Referencia / código / medidas</div>
     <textarea id="rr_nota" rows="2" style="width:100%;padding:10px 12px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#fff;font-size:13px;resize:vertical;margin-bottom:14px" placeholder="Marca, código, medidas específicas..."></textarea>
-    <button onclick="agregarRepRequerido()" style="width:100%;padding:12px;background:#f97316;color:#fff;border:none;border-radius:10px;font-weight:900;cursor:pointer">✅ Agregar</button>
+    <button onclick="agregarRepRequerido()" style="width:100%;padding:12px;background:#f97316;color:#fff;border:none;border-radius:10px;font-weight:900;cursor:pointer">✅ Agregar repuesto</button>
   </div></div>`;
+}
+
+function buscarInvRR(){
+  const q=(document.getElementById("rr_nombre")?.value||"").toLowerCase().trim();
+  const res=document.getElementById("rr_inv_res");
+  const badge=document.getElementById("rr_stock_badge");
+  if(!res) return;
+  if(q.length<2){res.style.display="none";res.innerHTML="";if(badge)badge.innerHTML="";return;}
+  const matches=inventario.filter(i=>(i.nom||"").toLowerCase().includes(q)||(i.marca||"").toLowerCase().includes(q)).slice(0,6);
+  res.style.display="block";
+  if(!matches.length){
+    res.innerHTML=`<div style="color:#64748b;font-size:11px;padding:8px">Sin coincidencias en inventario — se buscará externo</div>`;
+    if(badge) badge.innerHTML=`<span style="color:#f59e0b;font-size:11px">🔍 No está en inventario — a conseguir</span>`;
+    return;
+  }
+  res.innerHTML=matches.map(i=>`
+    <div onclick="selInvRR('${(i.nom||"").replace(/'/g,"\\'")}',${i.stock>0},${i.stock||0})"
+      style="padding:8px 10px;border-bottom:1px solid #1e293b;cursor:pointer;display:flex;justify-content:space-between;align-items:center">
+      <span style="color:#fbbf24;font-size:12px;font-weight:700">${i.nom}</span>
+      <span style="color:${i.stock>0?"#16a34a":"#ef4444"};font-size:11px;font-weight:700">${i.stock>0?"✅ "+i.stock+" disp.":"❌ Sin stock"}</span>
+    </div>`).join("");
+}
+
+function selInvRR(nom,hayStock,stock){
+  const inp=document.getElementById("rr_nombre");
+  const badge=document.getElementById("rr_stock_badge");
+  const res=document.getElementById("rr_inv_res");
+  if(inp) inp.value=nom;
+  if(badge) badge.innerHTML=hayStock
+    ?`<span style="color:#16a34a;font-size:11px;font-weight:700">✅ En inventario — ${stock} disponibles</span>`
+    :`<span style="color:#ef4444;font-size:11px;font-weight:700">❌ Sin stock en tienda — a conseguir</span>`;
+  badge.dataset.hayStock=hayStock?"1":"0";
+  if(res){res.style.display="none";res.innerHTML="";}
 }
 
 async function agregarRepRequerido(){
   const nombre=(document.getElementById("rr_nombre")?.value||"").trim();
   const nota=(document.getElementById("rr_nota")?.value||"").trim();
+  const cantidad=parseInt(document.getElementById("rr_cant")?.value)||1;
+  const unidad=(document.getElementById("rr_unidad")?.value||"unid").trim();
+  const enInv=document.getElementById("rr_stock_badge")?.dataset?.hayStock==="1";
   if(!nombre){alert("Escribe el nombre del repuesto");return;}
-  const arr=[...(ot.repuestos_conseguir||[]),{nombre,nota,conseguido:false,precio_estimado:0,en_inventario:false}];
+  const arr=[...(ot.repuestos_conseguir||[]),{nombre,nota,cantidad,unidad,conseguido:false,precio_estimado:0,en_inventario:enInv}];
   await guardar({repuestos_conseguir:arr});
   cerrarModal();
 }
@@ -863,10 +923,14 @@ function render(){
         <div style="display:flex;justify-content:space-between;align-items:flex-start">
           <div style="flex:1">
             <div style="font-size:12px;font-weight:700;color:#fbbf24">${p.nombre}</div>
-            <div style="font-size:11px;color:#64748b;margin-top:2px;line-height:1.4">${p.desc||""}</div>
-            ${p.precio?`<div style="font-size:11px;color:#16a34a;margin-top:4px;font-weight:700">Bs. ${p.precio}</div>`:""}
+            <div style="font-size:11px;color:#94a3b8;margin-top:3px;line-height:1.5">${p.desc||""}</div>
+            ${p.tiempo?`<div style="font-size:10px;color:#475569;margin-top:3px">⏱ ${p.tiempo}</div>`:""}
+            ${enc&&p.precio?`<div style="font-size:11px;color:#16a34a;margin-top:4px;font-weight:700">Bs. ${p.precio}</div>`:""}
           </div>
-          ${admin?`<button onclick="borrarServicio(${i})" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:14px;padding:0 0 0 8px;flex-shrink:0" title="Solo Wilfredo puede borrar">🗑</button>`:""}
+          <div style="display:flex;gap:2px;flex-shrink:0;margin-left:8px">
+            ${enc?`<button onclick="modalServicio(${i})" style="background:none;border:none;color:#60a5fa;cursor:pointer;font-size:15px;padding:2px 4px">✏️</button>`:""}
+            ${admin?`<button onclick="borrarServicio(${i})" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:15px;padding:2px 4px">🗑</button>`:""}
+          </div>
         </div>
       </div>`).join("")}
 
@@ -881,17 +945,34 @@ function render(){
       <div style="padding:9px 12px;border-radius:10px;margin-bottom:6px;background:${r.conseguido?"#16a34a12":"#f9731612"};border:1px solid ${r.conseguido?"#16a34a30":"#f9731630"}">
         <div style="display:flex;justify-content:space-between;align-items:center">
           <div style="flex:1">
-            <div style="font-size:12px;font-weight:700">${r.conseguido?"✅":"🔍"} ${r.nombre}</div>
-            ${r.nota?`<div style="font-size:10px;color:#64748b">${r.nota}</div>`:""}
-            ${r.precio_estimado?`<div style="font-size:10px;color:#fbbf24;font-weight:700">Bs. ${r.precio_estimado} · ${r.en_inventario?"✅ En tienda":"🔍 A conseguir"}</div>`:""}
+            <div style="font-size:12px;font-weight:700">${r.conseguido?"✅":"🔍"} ${r.nombre}${r.cantidad>1?` <span style="color:#60a5fa">×${r.cantidad}${r.unidad?" "+r.unidad:""}</span>`:""}</div>
+            ${r.nota?`<div style="font-size:10px;color:#64748b;margin-top:2px">${r.nota}</div>`:""}
+            <div style="font-size:10px;margin-top:3px;color:${r.en_inventario?"#16a34a":"#f59e0b"};font-weight:700">
+              ${r.en_inventario?"✅ En inventario":"🔍 A conseguir externamente"}
+            </div>
+            ${enc&&r.precio_estimado?`<div style="font-size:10px;color:#fbbf24;font-weight:700;margin-top:2px">Bs. ${r.precio_estimado} c/u</div>`:""}
           </div>
           ${!r.conseguido&&enc?`<button onclick="marcarConseguido(${i})" style="padding:4px 10px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-size:10px;font-weight:700;cursor:pointer;flex-shrink:0;margin-left:8px">✓ Listo</button>`:""}
         </div>
       </div>`).join("")}
 
-    ${paso===2
-      ?`<button onclick="enviarInformeEncargado()" class="btn-wa" style="margin-top:12px">📤 Enviar informe al encargado</button>`
-      :""}
+    ${paso===2?`
+    <!-- Resumen antes de enviar -->
+    <div style="background:#0f172a;border:1px solid #334155;border-radius:10px;padding:12px;margin:14px 0 8px">
+      <div style="color:#94a3b8;font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:8px">📋 Resumen del diagnóstico</div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <span style="color:${(ot.procedimientos||[]).length>0?"#16a34a":"#ef4444"};font-size:12px;font-weight:700">
+          ${(ot.procedimientos||[]).length>0?"✅":"⚠️"} ${(ot.procedimientos||[]).length} servicio(s)
+        </span>
+        <span style="color:#60a5fa;font-size:12px;font-weight:700">
+          📦 ${(ot.repuestos_conseguir||[]).length} repuesto(s) listado(s)
+        </span>
+      </div>
+      ${(ot.procedimientos||[]).length===0?`<div style="color:#ef4444;font-size:11px;margin-top:6px">⚠️ Agrega al menos un servicio antes de enviar al encargado</div>`:""}
+    </div>
+    <button onclick="enviarInformeEncargado()" class="btn-wa" style="margin-top:4px;${(ot.procedimientos||[]).length===0?"opacity:.45;pointer-events:none":""}">
+      📤 Enviar informe al encargado
+    </button>`:""}
   </div>
 
   <!-- ════════════════════════════════════════════
@@ -1260,8 +1341,8 @@ async function confirmarCambioTaller(){
 /* ── Exponer globales ────────────────────────────────── */
 [
   "cerrarModal","tomarFoto","borrarFoto","verFoto","tomarFotoEntrada","tomarFotoSalida",
-  "modalServicio","agregarServicio","borrarServicio",
-  "modalRepRequerido","agregarRepRequerido","marcarConseguido",
+  "modalServicio","guardarServicio","borrarServicio",
+  "modalRepRequerido","agregarRepRequerido","marcarConseguido","buscarInvRR","selInvRR",
   "enviarInformeEncargado",
   "cambiarTaller","confirmarCambioTaller",
   "modalCotizacion","guardarCotizacion","enviarCotizacionCliente","enviarCotizacionWA",
