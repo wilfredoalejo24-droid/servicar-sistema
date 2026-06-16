@@ -755,37 +755,78 @@ async function marcarTerminado(){
 
 /* ── PASO 6: Cobro y entrega ─────────────────────────── */
 function modalCobro(){
-  const mo=(ot.procedimientos||[]).reduce((s,x)=>s+(x.precio||0),0);
+  const procs=ot.procedimientos||[];
   const repArr=[...(ot.repuestos||[]),...(ot.repuestos_usados||[])];
+  const mo=procs.reduce((s,x)=>s+(x.precio||0),0);
   const rep=repArr.reduce((s,x)=>s+((x.precio||0)*(x.cantidad||1)),0);
   const total=mo+rep;
+  const acobrar=Math.max(0,total-(ot.descuento||0)-(ot.adelanto||0));
+
+  const rowSrv=(s,i)=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 0;${i>0?'border-top:1px solid #1e293b':''}">
+    <span style="color:#cbd5e1">${s.nombre||'—'}${s.extra?'<span style="font-size:10px;color:#fbbf24;margin-left:4px">[extra]</span>':''}</span>
+    <span style="color:#a3e635;font-weight:600;white-space:nowrap">Bs. ${s.precio||0}</span>
+  </div>`;
+
+  const rowRep=(r,i)=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 0;${i>0?'border-top:1px solid #1e293b':''}">
+    <span style="color:#cbd5e1">${r.nombre||'—'} <span style="color:#64748b">×${r.cantidad||1}</span></span>
+    <span style="color:#60a5fa;font-weight:600;white-space:nowrap">Bs. ${(r.precio||0)*(r.cantidad||1)}</span>
+  </div>`;
+
   document.getElementById("modal-area").innerHTML=`
   <div class="modal" onclick="if(event.target===this)cerrarModal()">
-  <div class="modal-box su">
+  <div class="modal-box su" style="max-height:90vh;overflow-y:auto">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
       <strong style="color:#fbbf24">💵 Cobrar y entregar</strong>
       <button onclick="cerrarModal()" style="padding:5px 10px;background:#334155;color:#94a3b8;border:none;border-radius:8px;cursor:pointer;font-weight:700">✕</button>
     </div>
+
+    <!-- Servicios -->
+    <div style="background:#0f172a;border-radius:10px;padding:12px;margin-bottom:10px">
+      <div style="font-size:11px;font-weight:700;color:#64748b;letter-spacing:.05em;margin-bottom:8px">SERVICIOS REALIZADOS</div>
+      ${procs.length?procs.map(rowSrv).join(''):'<div style="color:#475569;font-size:12px">Sin servicios</div>'}
+      <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;border-top:1px solid #334155;padding-top:8px;margin-top:8px">
+        <span style="color:#64748b">Subtotal mano de obra</span>
+        <span style="color:#a3e635">Bs. ${mo}</span>
+      </div>
+    </div>
+
+    <!-- Repuestos -->
+    <div style="background:#0f172a;border-radius:10px;padding:12px;margin-bottom:10px">
+      <div style="font-size:11px;font-weight:700;color:#64748b;letter-spacing:.05em;margin-bottom:8px">REPUESTOS UTILIZADOS</div>
+      ${repArr.length?repArr.map(rowRep).join(''):'<div style="color:#475569;font-size:12px">Sin repuestos</div>'}
+      <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;border-top:1px solid #334155;padding-top:8px;margin-top:8px">
+        <span style="color:#64748b">Subtotal repuestos</span>
+        <span style="color:#60a5fa">Bs. ${rep}</span>
+      </div>
+    </div>
+
+    <!-- Resumen -->
     <div style="background:#0f172a;border-radius:10px;padding:12px;margin-bottom:12px">
+      <div style="font-size:11px;font-weight:700;color:#64748b;letter-spacing:.05em;margin-bottom:8px">RESUMEN</div>
       <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px">
-        <span style="color:#64748b">Mano de obra</span>
-        <span style="color:#16a34a;font-weight:700">Bs. ${mo}</span>
+        <span style="color:#64748b">Mano de obra (ganancia neta)</span>
+        <span style="color:#a3e635;font-weight:600">Bs. ${mo}</span>
       </div>
-      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:8px">
-        <span style="color:#64748b">Repuestos</span>
-        <span style="color:#60a5fa;font-weight:700">Bs. ${rep}</span>
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:10px">
+        <span style="color:#64748b">Repuestos (capital)</span>
+        <span style="color:#60a5fa;font-weight:600">Bs. ${rep}</span>
       </div>
-      <div style="display:flex;justify-content:space-between;font-size:14px;font-weight:700;border-top:1px solid #334155;padding-top:8px">
-        <span>TOTAL</span><span style="color:#fbbf24">Bs. ${total}</span>
+      <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;border-top:1px solid #334155;padding-top:8px;margin-bottom:12px">
+        <span>Total</span><span style="color:#fbbf24">Bs. ${total}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <label style="color:#64748b;font-size:12px;flex:1">Descuento (Bs.)</label>
+        <input id="cobro_desc" type="number" min="0" value="${ot.descuento||0}" class="input" style="width:110px;margin:0" oninput="actualizarSaldo()"/>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        <label style="color:#64748b;font-size:12px;flex:1">Adelanto recibido (Bs.)</label>
+        <input id="cobro_adelanto" type="number" min="0" value="${ot.adelanto||0}" class="input" style="width:110px;margin:0" oninput="actualizarSaldo()"/>
+      </div>
+      <div id="cobro_saldo" style="background:#16a34a20;border:1px solid #16a34a40;border-radius:10px;padding:12px;text-align:center;color:#4ade80;font-weight:900;font-size:16px">
+        A cobrar: Bs. ${acobrar}
       </div>
     </div>
-    <div class="label">Descuento (Bs.)</div>
-    <input id="cobro_desc" type="number" value="${ot.descuento||0}" class="input" style="margin-bottom:10px" oninput="actualizarSaldo()"/>
-    <div class="label">Adelanto ya recibido (Bs.)</div>
-    <input id="cobro_adelanto" type="number" value="${ot.adelanto||0}" class="input" style="margin-bottom:10px" oninput="actualizarSaldo()"/>
-    <div id="cobro_saldo" style="background:#16a34a20;border:1px solid #16a34a40;border-radius:10px;padding:12px;margin-bottom:12px;text-align:center;color:#4ade80;font-weight:700;font-size:14px">
-      A cobrar: Bs. ${Math.max(0,total-(ot.descuento||0)-(ot.adelanto||0))}
-    </div>
+
     <div class="label">Método de pago</div>
     <select id="cobro_metodo" class="input" style="margin-bottom:16px">
       <option>Efectivo</option><option>QR</option><option>Transferencia</option><option>Mixto</option>
