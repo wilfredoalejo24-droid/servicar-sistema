@@ -366,8 +366,24 @@ function modalNuevoProd(){
    TAB: CRM
 ══════════════════════════════════════════════════════ */
 async function cargarCRM(){
-  const{data}=await SB.from("crm").select("*").order("created_at",{ascending:false});
-  crmD=data||[];
+  const{data}=await SB.from("ots")
+    .select("num,placa,cliente,marca,modelo,taller,tecnico,procedimientos,repuestos,repuestos_usados,fecha,fecha_entrega,entregado,estado,metodo_pago")
+    .or("entregado.is.true,estado.eq.Entregado")
+    .order("fecha_entrega",{ascending:false,nullsFirst:false});
+  const parseJ=v=>{if(!v)return[];if(Array.isArray(v))return v;try{return JSON.parse(v);}catch{return[];}};
+  crmD=(data||[]).map(o=>{
+    const procs=parseJ(o.procedimientos);
+    const reps=[...parseJ(o.repuestos),...parseJ(o.repuestos_usados)];
+    const ganancia_neta=procs.reduce((s,x)=>s+(parseFloat(x.precio)||0),0);
+    const capital=reps.reduce((s,x)=>s+(parseFloat(x.precio)||0)*(parseFloat(x.cantidad)||1),0);
+    return{
+      num:o.num,placa:o.placa,cliente:o.cliente,
+      vehiculo:`${o.marca||""} ${o.modelo||""}`.trim(),
+      taller:o.taller,tecnico:o.tecnico,
+      fecha:o.fecha_entrega||o.fecha||"",
+      ganancia_neta,capital
+    };
+  });
 }
 
 function renderCRM(){
