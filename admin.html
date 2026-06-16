@@ -43,8 +43,8 @@ const SB=window.supabase.createClient(
 );
 const EMPRESA={nombre:"SERVI CAR PLATINIUM",ciudad:"Viacha - La Paz"};
 const TALLERES=["Taller 1 · Montes","Taller 2 · Bella Vista"];
-const CATS_INV=["Aceites","Lubricantes","Filtros","Líquidos","Repuestos mecánicos","Repuestos electrónicos","Accesorios","Prod. lavado","Herramientas","Insumos"];
-const PREF_INV={Aceites:"AC",Lubricantes:"LB",Filtros:"FI","Líquidos":"LQ","Repuestos mecánicos":"RM","Repuestos electrónicos":"RE",Accesorios:"ACC","Prod. lavado":"PL",Herramientas:"HE",Insumos:"IN"};
+const CATS_INV=["Lubricantes","Repuestos","Repuestos usados"];
+const PREF_INV={Lubricantes:"LB",Repuestos:"RP","Repuestos usados":"RU"};
 const EST_COLORS={Activa:"#16a34a",Dañada:"#f97316",Transferida:"#3b82f6","Dada de baja":"#64748b",Faltante:"#ef4444"};
 const WORKERS_FB=["Wilfredo","William","Diego","Evo","Adolfo","Joel"];
 
@@ -858,7 +858,7 @@ window.analizarFactura=async function(){
     const data=await resp.json();
     const jsonStr=(data.candidates?.[0]?.content?.parts?.[0]?.text||"{}").replace(/```json\n?/g,"").replace(/```\n?/g,"").trim();
     const parsed=JSON.parse(jsonStr);
-    facturaProductos=(parsed.productos||[]).map(p=>({...p,categoria:"Repuestos mecánicos",precio_venta:p.precio_venta||Math.round((p.costo||0)*1.3)||0}));
+    facturaProductos=(parsed.productos||[]).map(p=>({...p,categoria:"Repuestos",precio_venta:p.precio_venta||Math.round((p.costo||0)*1.3)||0}));
     mostrarProductosFactura();
   }catch(e){
     if(res) res.innerHTML=`<div class="card" style="border-color:#ef444430;text-align:center;padding:20px;color:#ef4444">Error: ${e.message}</div>`;
@@ -900,7 +900,7 @@ window.registrarFactura=async function(){
   let ok=0,err=0;
   for(const p of facturaProductos){
     if(!p.nombre)continue;
-    const cat=p.categoria||"Repuestos mecánicos";
+    const cat=p.categoria||"Repuestos";
     const pref=PREF_INV[cat]||"PR";
     const{data:ex}=await SB.from("inventario").select("id,stock").ilike("nom",p.nombre).limit(1);
     if(ex?.length){
