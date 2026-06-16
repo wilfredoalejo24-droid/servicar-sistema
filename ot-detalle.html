@@ -330,6 +330,15 @@ async function marcarConseguido(idx){
   await guardar({repuestos_conseguir:arr});
 }
 
+async function guardarDiagnostico(){
+  const diag=(document.getElementById("diag_txt")?.value||"").trim();
+  await guardar({diagnostico:diag});
+  // feedback visual en el botón
+  const btn=document.getElementById("btn_guardar_diag");
+  if(btn){btn.textContent="✅ Guardado";btn.style.background="#16a34a20";btn.style.color="#4ade80";
+    setTimeout(()=>{btn.textContent="💾 Guardar diagnóstico";btn.style.background="#334155";btn.style.color="#94a3b8";},2000);}
+}
+
 async function enviarInformeEncargado(){
   if(!(ot.procedimientos||[]).length){alert("Agrega al menos un servicio antes de enviar.");return;}
   const procs=(ot.procedimientos||[]).map((p,i)=>`${i+1}. *${p.nombre}*\n   ${p.desc}`).join("\n\n");
@@ -971,7 +980,7 @@ function render(){
     <div style="color:${sc(2)};font-size:11px;font-weight:700;text-transform:uppercase;margin-bottom:12px">🔍 Paso 2 — Diagnóstico</div>
 
     <textarea id="diag_txt" rows="3" style="width:100%;padding:10px 12px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#fff;font-size:13px;resize:vertical;margin-bottom:6px" placeholder="Descripción del diagnóstico...">${ot.diagnostico||""}</textarea>
-    <button onclick="guardar({diagnostico:document.getElementById('diag_txt').value})" style="width:100%;padding:8px;background:#334155;color:#94a3b8;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;margin-bottom:14px">💾 Guardar diagnóstico</button>
+    <button id="btn_guardar_diag" onclick="guardarDiagnostico()" style="width:100%;padding:8px;background:#334155;color:#94a3b8;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;margin-bottom:14px">💾 Guardar diagnóstico</button>
 
     <!-- Servicios -->
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
@@ -1412,7 +1421,7 @@ async function confirmarCambioTaller(){
   "cerrarModal","tomarFoto","borrarFoto","verFoto","tomarFotoEntrada","tomarFotoSalida",
   "modalServicio","guardarServicio","borrarServicio",
   "modalRepRequerido","agregarRepRequerido","marcarConseguido","buscarInvRR","selInvRR",
-  "enviarInformeEncargado",
+  "guardarDiagnostico","enviarInformeEncargado",
   "cambiarTaller","confirmarCambioTaller",
   "modalCotizacion","guardarCotizacion","cotNuevoServicio","cotNuevoRepuesto","enviarCotizacionCliente","enviarCotizacionWA",
   "registrarAprobacion","rechazarCotizacion",
