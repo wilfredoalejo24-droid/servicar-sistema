@@ -649,6 +649,58 @@ async function borrarRepUsado(idx){
   await guardar({repuestos:arr});
 }
 
+/* ── PASO 5: Servicios extra + marcar terminado ──────── */
+function modalServicioExtra(){
+  document.getElementById("modal-area").innerHTML=`
+  <div class="modal" onclick="if(event.target===this)cerrarModal()">
+  <div class="modal-box su">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <strong style="color:#a78bfa">⚡ Servicio adicional</strong>
+      <button onclick="cerrarModal()" style="padding:5px 10px;background:#334155;color:#94a3b8;border:none;border-radius:8px;cursor:pointer;font-weight:700">✕</button>
+    </div>
+    <div class="label">Descripción del servicio *</div>
+    <input id="sex_nom" class="input" placeholder="Ej: Cambio de correa auxiliar" style="margin-bottom:10px"/>
+    <div class="label">Precio (Bs.)</div>
+    <input id="sex_precio" type="number" class="input" value="0" style="margin-bottom:14px"/>
+    <button onclick="guardarServicioExtra()" style="width:100%;padding:12px;background:#7c3aed;color:#fff;border:none;border-radius:10px;font-weight:900;cursor:pointer">
+      ✅ Agregar servicio
+    </button>
+  </div></div>`;
+}
+
+async function guardarServicioExtra(){
+  const nombre=(document.getElementById("sex_nom")?.value||"").trim();
+  if(!nombre){alert("Escribe la descripción del servicio");return;}
+  const precio=parseFloat(document.getElementById("sex_precio")?.value)||0;
+  const arr=[...(ot.procedimientos||[]),{nombre,desc:"",precio,extra:true,tecnico:usuario.nombre}];
+  await guardar({procedimientos:arr});
+  cerrarModal();
+}
+
+async function borrarServicioExtra(idx){
+  if(!esAdmin())return;
+  if(!confirm("¿Borrar servicio adicional?"))return;
+  const arr=[...(ot.procedimientos||[])];arr.splice(idx,1);
+  await guardar({procedimientos:arr});
+}
+
+async function actualizarCotFinal(){
+  const mo=calcMO(),rep=calcRep(),total=mo+rep;
+  const btn=document.getElementById("btn_act_cot");
+  if(btn){btn.textContent="⏳ Guardando...";btn.disabled=true;}
+  await guardar({total});
+  if(btn){btn.textContent="✅ Actualizado";setTimeout(()=>render(),1500);}
+}
+
+async function marcarTerminado(){
+  const mo=calcMO(),rep=calcRep(),total=mo+rep;
+  await guardar({paso:6,estado:"Listo para entregar",total});
+  const encUN=ot.taller?.includes("Montes")?"william":"wilfredo";
+  const numEnc=waNum(encUN);
+  const msg=`🔧 *SERVI CAR PLATINIUM*\n✅ *Trabajo terminado — OT #${otId}*\n\n🚗 *${ot.placa} · ${ot.marca||""} ${ot.modelo||""}*\n👤 Cliente: ${ot.cliente||"-"}\n🔧 Técnico: ${usuario.nombre}\n\n💰 Total: Bs. ${total}\n\n_El vehículo está listo para entregar al cliente._`;
+  if(numEnc) window.open(`https://wa.me/${numEnc}?text=${encodeURIComponent(msg)}`,"_blank");
+}
+
 /* ── PASO 6: Cobro y entrega ─────────────────────────── */
 function modalCobro(){
   const mo=calcMO(),rep=calcRep(),total=mo+rep;
@@ -908,6 +960,7 @@ function render(){
   const admin=esAdmin();
   const mo=calcMO(),rep=calcRep(),total=mo+rep;
   const cot=calcCotEstimado();
+  const extras=(ot.procedimientos||[]).map((s,oi)=>({...s,_oi:oi})).filter(s=>s.extra);
 
   const sc=(n)=>paso>n?"#16a34a":paso===n?PASOS[n-1].color:"#334155";
   const bc=(n)=>paso>n?"#16a34a20":paso===n?PASOS[n-1].color+"18":"transparent";
@@ -1180,7 +1233,31 @@ function render(){
         ${admin?`<button onclick="borrarRepUsado(${i})" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:14px">🗑</button>`:""}
       </div>`).join("")}
     ${(ot.repuestos||[]).length>0?`<div style="text-align:right;color:#fbbf24;font-weight:700;font-size:13px;padding-top:6px;border-top:1px solid #334155">Subtotal: Bs. ${rep}</div>`:""}
-    <div style="margin-bottom:14px"></div>`:""}
+    <div style="margin-bottom:14px"></div>
+
+    <!-- Servicios adicionales (enc) -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div style="color:#a78bfa;font-size:11px;font-weight:700">⚡ Servicios adicionales</div>
+      <button onclick="modalServicioExtra()" style="padding:5px 10px;background:#7c3aed20;color:#a78bfa;border:1px solid #7c3aed40;border-radius:8px;font-size:10px;font-weight:700;cursor:pointer">+ Agregar</button>
+    </div>
+    ${extras.length===0
+      ?`<div style="color:#334155;font-size:11px;text-align:center;padding:8px">Sin servicios adicionales</div>`
+      :extras.map(s=>`
+      <div style="padding:10px;background:#0f172a;border:1px solid #7c3aed30;border-radius:10px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-size:12px;font-weight:700">${s.nombre}</div>
+          <div style="font-size:10px;color:#fbbf24">Bs. ${s.precio||0}</div>
+        </div>
+        ${admin?`<button onclick="borrarServicioExtra(${s._oi})" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:14px">🗑</button>`:""}
+      </div>`).join("")}
+    ${extras.length>0?`<div style="text-align:right;color:#a78bfa;font-weight:700;font-size:12px;padding-top:6px;border-top:1px solid #334155;margin-bottom:12px">Subtotal extra: Bs. ${extras.reduce((s,e)=>s+(e.precio||0),0)}</div>`:"<div style='margin-bottom:10px'></div>"}
+
+    <!-- Actualizar cotización final -->
+    ${paso===5?`
+    <button id="btn_act_cot" onclick="actualizarCotFinal()" style="width:100%;padding:10px;background:#7c3aed20;color:#a78bfa;border:1px solid #7c3aed40;border-radius:10px;font-weight:700;font-size:12px;cursor:pointer;margin-bottom:10px">
+      💾 Actualizar cotización final (Bs. ${mo+rep})
+    </button>`:""}
+    `:""}
 
     <!-- Fotos del trabajo -->
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
@@ -1213,7 +1290,7 @@ function render(){
 
     <!-- Marcar terminado -->
     ${paso===5?`
-    <button onclick="guardar({paso:6,estado:'Listo para entregar'})" style="width:100%;padding:12px;background:#22d3ee;color:#0f172a;border:none;border-radius:10px;font-weight:900;font-size:13px;cursor:pointer;margin-top:10px">
+    <button onclick="marcarTerminado()" style="width:100%;padding:12px;background:#22d3ee;color:#0f172a;border:none;border-radius:10px;font-weight:900;font-size:13px;cursor:pointer;margin-top:10px">
       🏁 Marcar trabajo terminado → Listo para entregar
     </button>`:""}
   </div>`:""}
@@ -1468,6 +1545,7 @@ async function confirmarCambioTaller(){
   "registrarAprobacion","rechazarCotizacion",
   "modalRepInventario","selRep","filtrarInv","agregarRepInventario",
   "editarPrecioRep","borrarRepUsado",
+  "modalServicioExtra","guardarServicioExtra","borrarServicioExtra","actualizarCotFinal","marcarTerminado",
   "modalCobro","actualizarSaldo","confirmarCobro",
   "generarPDF","guardar",
   "notificarClienteListo"
