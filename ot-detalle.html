@@ -518,12 +518,12 @@ async function guardarCotizacion(){
 }
 
 function enviarCotizacionCliente(){
-  const cot=calcCotEstimado();
+  const mo=calcMO(), rep=calcRep(), total=mo+rep;
   const adelanto=ot.adelanto||0;
-  const saldo=cot.total-adelanto;
-  const moList=(ot.procedimientos||[]).map((p,i)=>`${i+1}. ${p.nombre} — Bs. ${p.precio||0}`).join("\n");
-  const repList=(ot.repuestos_requeridos||[]).map((r,i)=>`${i+1}. ${r.nombre}${r.en_inventario?" ✅":" 🔍"} — Bs. ${r.precio_estimado||0}`).join("\n");
-  const msg=`🔧 *SERVI CAR PLATINIUM*\n📋 *COTIZACIÓN — OT #${otId}*\n🗓 ${new Date().toLocaleDateString("es-BO")}\n\n🚗 *${ot.placa} · ${ot.marca||""} ${ot.modelo||""}*\n👤 ${ot.cliente||"-"}\n\n*🔧 MANO DE OBRA:*\n${moList||"—"}\nSubtotal: Bs. ${cot.mo}\n\n*📦 REPUESTOS:*\n${repList||"—"}\nSubtotal: Bs. ${cot.rep}\n\n💰 *TOTAL ESTIMADO: Bs. ${cot.total}*\n${adelanto>0?`✅ Adelanto: Bs. ${adelanto}\n💳 Saldo: Bs. ${saldo}`:""}\n\n_Por favor confirme si aprueba el trabajo._\n📞 ${EMPRESA.tel1} / ${EMPRESA.tel2}`;
+  const saldo=total-adelanto;
+  const moList=(ot.procedimientos||[]).filter(p=>p.precio>0).map((p,i)=>`${i+1}. ${p.nombre} — Bs. ${p.precio}`).join("\n");
+  const repList=(ot.repuestos||[]).map((r,i)=>`${i+1}. ${r.nombre} x${r.cantidad} — Bs. ${(r.precio||0)*(r.cantidad||1)}`).join("\n");
+  const msg=`🔧 *SERVI CAR PLATINIUM*\n📋 *COTIZACIÓN FINAL — OT #${otId}*\n🗓 ${new Date().toLocaleDateString("es-BO")}\n\n🚗 *${ot.placa} · ${ot.marca||""} ${ot.modelo||""}*\n👤 ${ot.cliente||"-"}\n\n*🔧 MANO DE OBRA:*\n${moList||"—"}\nSubtotal: Bs. ${mo}\n\n*📦 REPUESTOS:*\n${repList||"—"}\nSubtotal: Bs. ${rep}\n\n💰 *TOTAL FINAL: Bs. ${total}*\n${adelanto>0?`✅ Adelanto: Bs. ${adelanto}\n💳 Saldo: Bs. ${saldo}`:""}\n\n📞 ${EMPRESA.tel1} / ${EMPRESA.tel2}`;
   const numCliente=ot.tel?`591${cleanTel(ot.tel)}`:null;
   if(numCliente) window.open(`https://wa.me/${numCliente}?text=${encodeURIComponent(msg)}`,"_blank");
   else alert("Sin teléfono del cliente. Cotización guardada.");
