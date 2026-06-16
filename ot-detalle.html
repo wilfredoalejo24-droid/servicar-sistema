@@ -103,7 +103,7 @@ async function cargarOT(){
     if(!ot[k])ot[k]=[];
     else if(!Array.isArray(ot[k]))try{ot[k]=JSON.parse(ot[k]||"[]")}catch{ot[k]=[];}
   };
-  ["procedimientos","repuestos","fotos_recepcion","fotos_trabajo","repuestos_conseguir","fotos_entrada","fotos_salida","problemas"].forEach(parseArr);
+  ["procedimientos","repuestos","fotos_recepcion","fotos_trabajo","repuestos_requeridos","fotos_entrada","fotos_salida","problemas"].forEach(parseArr);
   // checklist_fluidos es objeto, no array
   if(!ot.checklist_fluidos||Array.isArray(ot.checklist_fluidos))ot.checklist_fluidos={};
   else if(typeof ot.checklist_fluidos==="string"){try{ot.checklist_fluidos=JSON.parse(ot.checklist_fluidos);}catch{ot.checklist_fluidos={};}}
@@ -137,7 +137,7 @@ function calcRep()  {return(ot.repuestos||[]).reduce((s,x)=>s+((x.precio||0)*(x.
 function calcTotal(){return calcMO()+calcRep();}
 function calcCotEstimado(){
   const mo=(ot.procedimientos||[]).reduce((s,x)=>s+(x.precio||0),0);
-  const rep=(ot.repuestos_conseguir||[]).reduce((s,x)=>s+(x.precio_estimado||0),0);
+  const rep=(ot.repuestos_requeridos||[]).reduce((s,x)=>s+(x.precio_estimado||0),0);
   return{mo,rep,total:mo+rep};
 }
 
@@ -319,15 +319,15 @@ async function agregarRepRequerido(){
   const unidad=(document.getElementById("rr_unidad")?.value||"unid").trim();
   const enInv=document.getElementById("rr_stock_badge")?.dataset?.hayStock==="1";
   if(!nombre){alert("Escribe el nombre del repuesto");return;}
-  const arr=[...(ot.repuestos_conseguir||[]),{nombre,nota,cantidad,unidad,conseguido:false,precio_estimado:0,en_inventario:enInv}];
-  await guardar({repuestos_conseguir:arr});
+  const arr=[...(ot.repuestos_requeridos||[]),{nombre,nota,cantidad,unidad,conseguido:false,precio_estimado:0,en_inventario:enInv}];
+  await guardar({repuestos_requeridos:arr});
   cerrarModal();
 }
 
 async function marcarConseguido(idx){
-  const arr=[...(ot.repuestos_conseguir||[])];
+  const arr=[...(ot.repuestos_requeridos||[])];
   arr[idx].conseguido=true;
-  await guardar({repuestos_conseguir:arr});
+  await guardar({repuestos_requeridos:arr});
 }
 
 async function guardarDiagnostico(){
@@ -342,7 +342,7 @@ async function guardarDiagnostico(){
 async function enviarInformeEncargado(){
   if(!(ot.procedimientos||[]).length){alert("Agrega al menos un servicio antes de enviar.");return;}
   const procs=(ot.procedimientos||[]).map((p,i)=>`${i+1}. *${p.nombre}*\n   ${p.desc}`).join("\n\n");
-  const reps=(ot.repuestos_conseguir||[]).map((r,i)=>`${i+1}. ${r.nombre}${r.nota?" ("+r.nota+")":""}`).join("\n");
+  const reps=(ot.repuestos_requeridos||[]).map((r,i)=>`${i+1}. ${r.nombre}${r.nota?" ("+r.nota+")":""}`).join("\n");
   const msg=`🔧 *SERVI CAR PLATINIUM*\n📋 *Informe Técnico — OT #${otId}*\n\n🚗 *${ot.placa} · ${ot.marca||""} ${ot.modelo||""}*\n👤 Cliente: ${ot.cliente||"-"}\n\n*📝 SERVICIOS A REALIZAR:*\n${procs}\n\n*🔍 REPUESTOS REQUERIDOS:*\n${reps||"Ninguno"}\n\n_Técnico: ${usuario.nombre}_\n_Por favor revisar y cotizar._`;
   const encargadoUN=ot.taller?.includes("Montes")?"william":"wilfredo";
   const numEnc=waNum(encargadoUN);
@@ -357,7 +357,7 @@ let _cotSrvExtra=0, _cotRepExtra=0;
 function modalCotizacion(){
   _cotSrvExtra=0; _cotRepExtra=0;
   const procs=ot.procedimientos||[];
-  const rcs=ot.repuestos_conseguir||[];
+  const rcs=ot.repuestos_requeridos||[];
   document.getElementById("modal-area").innerHTML=`
   <div class="modal" onclick="if(event.target===this)cerrarModal()">
   <div class="modal-box su">
@@ -454,7 +454,7 @@ async function guardarCotizacion(){
     if(nom) procs.push({nombre:nom,desc:"",precio,tecnico:usuario.nombre});
   }
 
-  const rcs=[...(ot.repuestos_conseguir||[])];
+  const rcs=[...(ot.repuestos_requeridos||[])];
   rcs.forEach((_,i)=>{
     const nom=document.getElementById(`rp_nom_${i}`);
     const p=document.getElementById(`rp_${i}`);
@@ -471,7 +471,7 @@ async function guardarCotizacion(){
   }
 
   const adelanto=parseFloat(document.getElementById("cot_adelanto")?.value)||0;
-  await guardar({procedimientos:procs,repuestos_conseguir:rcs,adelanto,paso:4,estado:"Cotización enviada"});
+  await guardar({procedimientos:procs,repuestos_requeridos:rcs,adelanto,paso:4,estado:"Cotización enviada"});
   cerrarModal();
   enviarCotizacionWA();
 }
@@ -481,7 +481,7 @@ function enviarCotizacionCliente(){
   const adelanto=ot.adelanto||0;
   const saldo=cot.total-adelanto;
   const moList=(ot.procedimientos||[]).map((p,i)=>`${i+1}. ${p.nombre} — Bs. ${p.precio||0}`).join("\n");
-  const repList=(ot.repuestos_conseguir||[]).map((r,i)=>`${i+1}. ${r.nombre}${r.en_inventario?" ✅":" 🔍"} — Bs. ${r.precio_estimado||0}`).join("\n");
+  const repList=(ot.repuestos_requeridos||[]).map((r,i)=>`${i+1}. ${r.nombre}${r.en_inventario?" ✅":" 🔍"} — Bs. ${r.precio_estimado||0}`).join("\n");
   const msg=`🔧 *SERVI CAR PLATINIUM*\n📋 *COTIZACIÓN — OT #${otId}*\n🗓 ${new Date().toLocaleDateString("es-BO")}\n\n🚗 *${ot.placa} · ${ot.marca||""} ${ot.modelo||""}*\n👤 ${ot.cliente||"-"}\n\n*🔧 MANO DE OBRA:*\n${moList||"—"}\nSubtotal: Bs. ${cot.mo}\n\n*📦 REPUESTOS:*\n${repList||"—"}\nSubtotal: Bs. ${cot.rep}\n\n💰 *TOTAL ESTIMADO: Bs. ${cot.total}*\n${adelanto>0?`✅ Adelanto: Bs. ${adelanto}\n💳 Saldo: Bs. ${saldo}`:""}\n\n_Por favor confirme si aprueba el trabajo._\n📞 ${EMPRESA.tel1} / ${EMPRESA.tel2}`;
   const numCliente=ot.tel?`591${cleanTel(ot.tel)}`:null;
   if(numCliente) window.open(`https://wa.me/${numCliente}?text=${encodeURIComponent(msg)}`,"_blank");
@@ -503,7 +503,7 @@ async function enviarCotizacionWA(){
     ?(ot.problemas||[]).map((p,i)=>`${i+1}. ${p}`).join("\n")
     :(ot.problema||"—");
   const moLines=(ot.procedimientos||[]).filter(p=>p.precio>0).map((p,i)=>`${i+1}. ${p.nombre}: Bs. ${p.precio}`).join("\n");
-  const repLines=(ot.repuestos_conseguir||[]).filter(r=>r.precio_estimado>0).map((r,i)=>`${i+1}. ${r.nombre}: Bs. ${r.precio_estimado}`).join("\n");
+  const repLines=(ot.repuestos_requeridos||[]).filter(r=>r.precio_estimado>0).map((r,i)=>`${i+1}. ${r.nombre}: Bs. ${r.precio_estimado}`).join("\n");
   const cotDesglose=[moLines,repLines].filter(Boolean).join("\n")||"(ver con el encargado)";
   const dir=(ot.taller||"").includes("Montes")?"Viacha - Zona Montes":"Viacha - Bella Vista";
   const msg=`Hola ${nombre} 👋, le contactamos de *SERVI CAR PLATINIUM*.\n\nSu vehículo *${vehiculo}* - Placa *${ot.placa||"—"}* está en nuestro taller.\n\n🔧 *Trabajo a realizar:*\n${probs}\n\n💰 *Cotización:*\n${cotDesglose}\n*Total: Bs. ${cot.total}*\n\n¿Aprueba el presupuesto para proceder con el trabajo?\n\n📍 Estamos en ${dir}\n⏰ Horario: Lun-Sáb 7:00 - 19:00`;
@@ -1010,9 +1010,9 @@ function render(){
       <div style="color:#f97316;font-size:11px;font-weight:700">Repuestos requeridos</div>
       <button onclick="modalRepRequerido()" style="padding:5px 10px;background:#f9731620;color:#f97316;border:1px solid #f9731640;border-radius:8px;font-size:10px;font-weight:700;cursor:pointer">+ Agregar</button>
     </div>
-    ${(ot.repuestos_conseguir||[]).length===0
+    ${(ot.repuestos_requeridos||[]).length===0
       ?`<div style="color:#334155;font-size:11px;text-align:center;padding:8px">Sin repuestos pendientes</div>`
-      :(ot.repuestos_conseguir||[]).map((r,i)=>`
+      :(ot.repuestos_requeridos||[]).map((r,i)=>`
       <div style="padding:9px 12px;border-radius:10px;margin-bottom:6px;background:${r.conseguido?"#16a34a12":"#f9731612"};border:1px solid ${r.conseguido?"#16a34a30":"#f9731630"}">
         <div style="display:flex;justify-content:space-between;align-items:center">
           <div style="flex:1">
@@ -1043,7 +1043,7 @@ function render(){
           ${(ot.procedimientos||[]).length>0?"✅":"⚠️"} ${(ot.procedimientos||[]).length} servicio(s)
         </span>
         <span style="color:#60a5fa;font-size:12px;font-weight:700">
-          📦 ${(ot.repuestos_conseguir||[]).length} repuesto(s) listado(s)
+          📦 ${(ot.repuestos_requeridos||[]).length} repuesto(s) listado(s)
         </span>
       </div>
       ${(ot.procedimientos||[]).length===0?`<div style="color:#ef4444;font-size:11px;margin-top:6px">⚠️ Agrega al menos un servicio antes de enviar al encargado</div>`:""}
@@ -1067,7 +1067,7 @@ function render(){
         <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
           <span style="color:#64748b">${p.nombre}</span><span style="color:#16a34a;font-weight:700">Bs. ${p.precio}</span>
         </div>`).join("")}
-      ${(ot.repuestos_conseguir||[]).filter(r=>r.precio_estimado>0).map(r=>`
+      ${(ot.repuestos_requeridos||[]).filter(r=>r.precio_estimado>0).map(r=>`
         <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
           <span style="color:#64748b">${r.nombre}</span><span style="color:#60a5fa;font-weight:700">Bs. ${r.precio_estimado}</span>
         </div>`).join("")}
