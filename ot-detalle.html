@@ -626,8 +626,7 @@ async function agregarRepInventario(){
   const cant=parseInt(document.getElementById("rep_cant")?.value)||1;
   const precio=parseFloat(document.getElementById("rep_precio")?.value)||p.precio_venta||0;
   if(cant>(p.stock||0)){alert(`Solo hay ${p.stock} en stock`);return;}
-  await SB.from("inventario").update({stock:Math.max(0,(p.stock||0)-cant)}).eq("id",p.id);
-  p.stock=Math.max(0,(p.stock||0)-cant);
+  // Stock se descuenta al marcar terminado, no aquí
   const arr=[...(ot.repuestos||[]),{inv_id:p.id,nombre:p.nom||p.nombre,foto:p.foto_url||p.foto||null,cantidad:cant,precio}];
   await guardar({repuestos:arr});
   cerrarModal();
@@ -692,7 +691,40 @@ async function actualizarCotFinal(){
   if(btn){btn.textContent="✅ Actualizado";setTimeout(()=>render(),1500);}
 }
 
+function esVinculado(rc, repUsados){
+  const n=(rc.nombre||"").toLowerCase().trim();
+  if(!n)return true;
+  return repUsados.some(r=>{
+    const rn=(r.nombre||"").toLowerCase().trim();
+    return rn.includes(n)||n.includes(rn);
+  });
+}
+
 async function marcarTerminado(){
+  // Validar vinculación
+  const repCot=ot.repuestos_conseguir||[];
+  const repUsados=ot.repuestos||[];
+  const sinVincular=repCot.filter(rc=>!esVinculado(rc,repUsados));
+  if(sinVincular.length>0){
+    alert(`⛔ Faltan ${sinVincular.length} repuesto(s) sin vincular al inventario:\n${sinVincular.map(r=>"• "+r.nombre).join("\n")}`);
+    return;
+  }
+  // Validar y descontar stock
+  for(const r of repUsados){
+    const p=inventario.find(x=>x.id===r.inv_id);
+    if(!p)continue;
+    if((p.stock||0)<r.cantidad){
+      alert(`❌ Stock insuficiente: solo hay ${p.stock} unidad(es) de "${r.nombre}"`);
+      return;
+    }
+  }
+  for(const r of repUsados){
+    const p=inventario.find(x=>x.id===r.inv_id);
+    if(!p)continue;
+    const nuevoStock=Math.max(0,(p.stock||0)-r.cantidad);
+    await SB.from("inventario").update({stock:nuevoStock}).eq("id",p.id);
+    p.stock=nuevoStock;
+  }
   const mo=calcMO(),rep=calcRep(),total=mo+rep;
   await guardar({paso:6,estado:"Listo para entregar",total});
   const encUN=ot.taller?.includes("Montes")?"william":"wilfredo";
@@ -961,6 +993,8 @@ function render(){
   const mo=calcMO(),rep=calcRep(),total=mo+rep;
   const cot=calcCotEstimado();
   const extras=(ot.procedimientos||[]).map((s,oi)=>({...s,_oi:oi})).filter(s=>s.extra);
+  const repCot=ot.repuestos_conseguir||[];
+  const sinVincular=enc?repCot.filter(rc=>!esVinculado(rc,ot.repuestos||[])).length:0;
 
   const sc=(n)=>paso>n?"#16a34a":paso===n?PASOS[n-1].color:"#334155";
   const bc=(n)=>paso>n?"#16a34a20":paso===n?PASOS[n-1].color+"18":"transparent";
@@ -1212,8 +1246,27 @@ function render(){
   <div style="background:#1e293b;border:1px solid ${bd(5)};border-radius:14px;padding:16px;margin-bottom:12px">
     <div style="color:${sc(5)};font-size:11px;font-weight:700;text-transform:uppercase;margin-bottom:12px">🔧 Paso 5 — Ejecución</div>
 
-    <!-- Repuestos del inventario (encargado) -->
+    <!-- Checklist vinculación + Repuestos del inventario (encargado) -->
     ${enc?`
+    ${repCot.length>0?`
+    <div style="margin-bottom:14px">
+      <div style="color:#f97316;font-size:11px;font-weight:700;text-transform:uppercase;margin-bottom:8px">🔗 Checklist de repuestos (cotización)</div>
+      ${sinVincular>0?`<div style="background:#ef444415;border:1px solid #ef444430;border-radius:8px;padding:8px 10px;font-size:11px;color:#fca5a5;margin-bottom:8px">⚠️ Debes vincular todos los repuestos al inventario antes de continuar</div>`:""}
+      ${repCot.map(rc=>{
+        const vinc=esVinculado(rc,ot.repuestos||[]);
+        return`<div style="padding:8px 10px;background:#0f172a;border:1px solid ${vinc?"#16a34a40":"#ef444440"};border-radius:8px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div style="font-size:12px;font-weight:700;color:${vinc?"#4ade80":"#f87171"}">${rc.nombre}</div>
+            <div style="font-size:10px;color:#64748b">×${rc.cantidad||1} ${rc.unidad||"unid"}</div>
+          </div>
+          ${vinc
+            ?`<span style="color:#4ade80;font-size:11px;font-weight:700">✅</span>`
+            :`<div style="text-align:right">
+                <div style="color:#ef4444;font-size:10px;font-weight:700">⚠️ No vinculado</div>
+                <a href="inventario.html" target="_blank" style="font-size:9px;color:#f97316;text-decoration:underline">➕ Ir a inventario</a>
+              </div>`}
+        </div>`;}).join("")}
+    </div>`:""}
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
       <div style="color:#60a5fa;font-size:11px;font-weight:700">Repuestos del inventario</div>
       <button onclick="modalRepInventario()" style="padding:5px 10px;background:#1d4ed820;color:#60a5fa;border:1px solid #1d4ed840;border-radius:8px;font-size:10px;font-weight:700;cursor:pointer">+ Agregar</button>
@@ -1290,9 +1343,13 @@ function render(){
 
     <!-- Marcar terminado -->
     ${paso===5?`
+    ${enc&&sinVincular>0?`
+    <div style="background:#ef444415;border:1px solid #ef444430;border-radius:10px;padding:10px;text-align:center;margin-top:10px;font-size:12px;color:#fca5a5;font-weight:700">
+      ⛔ Debes vincular todos los repuestos al inventario (${sinVincular} pendiente${sinVincular>1?"s":""})
+    </div>`:`
     <button onclick="marcarTerminado()" style="width:100%;padding:12px;background:#22d3ee;color:#0f172a;border:none;border-radius:10px;font-weight:900;font-size:13px;cursor:pointer;margin-top:10px">
       🏁 Marcar trabajo terminado → Listo para entregar
-    </button>`:""}
+    </button>`}`:""}
   </div>`:""}
 
   <!-- Vista técnico cuando ya está listo para entregar -->
@@ -1545,7 +1602,7 @@ async function confirmarCambioTaller(){
   "registrarAprobacion","rechazarCotizacion",
   "modalRepInventario","selRep","filtrarInv","agregarRepInventario",
   "editarPrecioRep","borrarRepUsado",
-  "modalServicioExtra","guardarServicioExtra","borrarServicioExtra","actualizarCotFinal","marcarTerminado",
+  "esVinculado","modalServicioExtra","guardarServicioExtra","borrarServicioExtra","actualizarCotFinal","marcarTerminado",
   "modalCobro","actualizarSaldo","confirmarCobro",
   "generarPDF","guardar",
   "notificarClienteListo"
