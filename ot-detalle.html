@@ -993,7 +993,7 @@ function generarPDF(){
 /* ── Checklist + Problemas (helpers render) ─────────── */
 function renderChecklist(){
   const fl=ot.checklist_fluidos||{};
-  const COL={Bien:"#16a34a",Regular:"#f59e0b",Sucio:"#f97316",Bajo:"#f97316",Baja:"#f97316","Le falta":"#ef4444"};
+  const COL={Bien:"#16a34a",Regular:"#f59e0b",Sucio:"#f97316",Bajo:"#f97316",Baja:"#f97316","Le falta":"#ef4444","Vacío/No cuenta":"#475569"};
   const items=[["🛢️ Aceite motor","aceite_motor"],["🔵 Aceite frenos","aceite_frenos"],["🟢 Refrigerante","refrigerante"],["🔋 Agua batería","agua_bateria"]];
   const GFUEL={"Lleno":"#16a34a","¾":"#22c55e","½":"#f59e0b","¼":"#f97316","Reserva":"#ef4444"};
   const GPCT={"Lleno":100,"¾":75,"½":50,"¼":25,"Reserva":10};
