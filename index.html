@@ -16,7 +16,7 @@
     input:focus{border-color:#f59e0b !important}
     @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
     .fi{animation:fadeIn .3s ease both}
-    </style>
+  </style>
 </head>
 <body>
 <div id="root"></div>
@@ -29,66 +29,63 @@ const sb = window.supabase.createClient(SUPA_URL, SUPA_KEY);
 const EMPRESA = { nombre:"SERVI CAR PLATINIUM", ciudad:"Viacha - La Paz", tel1:"68167264", tel2:"60574920" };
 const SESSION_KEY = "scp_user";
 
-// Módulos filtrados por ROL según plan maestro
-// Roles: admin=Wilfredo | encargado=William/Selena | vendedor=Diego/Evo/Joel/Adolfo
 const MODULOS = [
-  { k:"ventas",     icon:"🏪", label:"Ventas",          desc:"Venta de productos de tienda",              url:"/ventas.html",            color:"#1d4ed8", roles:["admin","encargado","vendedor","mecanico"] },
-  { k:"servicios",  icon:"🔧", label:"Servicios",       desc:"Aceite · Lavado · Alineado · Grúa",         url:"/servicios.html",         color:"#16a34a", roles:["admin","encargado","vendedor","mecanico"] },
-  { k:"ot",         icon:"📋", label:"Mis OTs",         desc:"Ver órdenes de trabajo asignadas",          url:"/ot.html",                color:"#0891b2", roles:["admin","encargado","vendedor","mecanico"] },
-  { k:"caja",       icon:"💵", label:"Caja",            desc:"Apertura · Cierre · Informes",              url:"/caja.html",              color:"#f59e0b", roles:["admin","encargado"] },
-  { k:"compras",    icon:"🛒", label:"Compras",         desc:"Registrar compras e insumos",               url:"/compras.html",           color:"#8b5cf6", roles:["admin"] },
-  { k:"produccion", icon:"🏭", label:"Producción",      desc:"Envasado y fabricación de aceites",         url:"/produccion.html",        color:"#f97316", roles:["admin","encargado"] },
-  { k:"creditos",   icon:"💳", label:"Créditos",        desc:"Control de deudas con proveedores",         url:"/creditos.html",          color:"#ec4899", roles:["admin"] },
-  { k:"admin",      icon:"⚙️", label:"Administración",  desc:"Inventario · CRM · Personal · Vacaciones",  url:"/admin.html",             color:"#7c3aed", roles:["admin","encargado"] },
-  { k:"equilibrio", icon:"🎯", label:"Metas y Equilibrio", desc:"Punto de equilibrio · Semáforo · Bonos",  url:"/equilibrio.html",        color:"#16a34a", roles:["admin"] },
-  { k:"gastos",     icon:"💸", label:"Gastos y Proyectos", desc:"Operativos · Inversiones · Balance semanal", url:"/gastos.html",           color:"#ef4444", roles:["admin","finanzas"] },
-  { k:"dashboard",  icon:"📊", label:"Dashboard",       desc:"KPIs en tiempo real · Punto de equilibrio", url:"/dashboard.html",         color:"#a21caf", roles:["admin"] },
-  { k:"usuarios",   icon:"👥", label:"Usuarios",        desc:"Gestionar accesos y contraseñas",           url:"/usuarios.html",          color:"#be185d", roles:["admin"] },
-  { k:"claude",    icon:"🤖", label:"Consultar a Claude", desc:"Abrir Claude AI en nueva pestaña",      url:"https://claude.ai",        color:"#f59e0b", roles:["admin","encargado"], target:"_blank" },
-  { k:"wa-help",   icon:"💬", label:"Asistente Técnico", desc:"Contactar a Wilfredo por WhatsApp",     url:"https://wa.me/59168167264", color:"#16a34a", roles:["vendedor","mecanico"],  target:"_blank" },
-  { k:"asistencia", icon:"⏰", label:"Mi Asistencia",   desc:"Marcar entrada y salida del turno",         url:"/asistencia.html",        color:"#0891b2", roles:["admin","encargado","vendedor","mecanico"] },
+  { k:"ventas",     icon:"🏪", label:"Ventas",             desc:"Venta de productos de tienda",                 url:"/ventas.html",            color:"#1d4ed8", roles:["admin","encargado","vendedor","mecanico"] },
+  { k:"servicios",  icon:"🔧", label:"Servicios",          desc:"Aceite · Lavado · Alineado · Grua",            url:"/servicios.html",         color:"#16a34a", roles:["admin","encargado","vendedor","mecanico"] },
+  { k:"ot",         icon:"📋", label:"Mis OTs",            desc:"Ver ordenes de trabajo asignadas",             url:"/ot.html",                color:"#0891b2", roles:["admin","encargado","vendedor","mecanico"] },
+  { k:"caja",       icon:"💵", label:"Caja",               desc:"Apertura · Cierre · Informes",                 url:"/caja.html",              color:"#f59e0b", roles:["admin","encargado"] },
+  { k:"admin",      icon:"⚙️", label:"Administracion",    desc:"Inventario · CRM · Personal · Vacaciones",     url:"/admin.html",             color:"#7c3aed", roles:["admin","encargado"] },
+  { k:"gastos",     icon:"💸", label:"Gastos y Proyectos", desc:"Operativos · Inversiones · Balance semanal",   url:"/gastos.html",            color:"#ef4444", roles:["admin","finanzas"] },
+  { k:"reportes",   icon:"📊", label:"Reportes",           desc:"Informes del dia y por rango",                 url:"/reportes.html",          color:"#a21caf", roles:["admin","encargado"] },
+  { k:"dashboard",  icon:"🎯", label:"Dashboard",          desc:"KPIs en tiempo real · Punto de equilibrio",   url:"/dashboard.html",         color:"#16a34a", roles:["admin"] },
+  { k:"usuarios",   icon:"👥", label:"Usuarios",           desc:"Gestionar accesos y contrasenas",              url:"/usuarios.html",          color:"#be185d", roles:["admin"] },
+  { k:"claude",     icon:"🤖", label:"Consultar a Claude", desc:"Abrir Claude AI en nueva pestana",             url:"https://claude.ai",       color:"#f59e0b", roles:["admin","encargado"], target:"_blank" },
+  { k:"wa-help",    icon:"💬", label:"Asistente Tecnico",  desc:"Contactar a Wilfredo por WhatsApp",            url:"https://wa.me/59168167264", color:"#16a34a", roles:["vendedor","mecanico"], target:"_blank" },
+  { k:"asistencia", icon:"⏰", label:"Mi Asistencia",      desc:"Marcar entrada y salida del turno",            url:"/asistencia.html",        color:"#0891b2", roles:["admin","encargado","vendedor","mecanico"] },
 ];
 
 const ROL = {
   admin:     { label:"👑 Administrador", color:"#f59e0b" },
   encargado: { label:"🔧 Encargado",     color:"#3b82f6" },
   vendedor:  { label:"🛒 Vendedor",      color:"#16a34a" },
-  mecanico:  { label:"⚙️ Mecánico",      color:"#a16207" },
+  mecanico:  { label:"⚙️ Mecanico",     color:"#a16207" },
+  finanzas:  { label:"💰 Finanzas",      color:"#ec4899" },
 };
 
 const TALLER_COLOR = {
-  "ambos":               "#f59e0b",
-  "Taller 1 · Montes":   "#3b82f6",
+  "ambos":                "#f59e0b",
+  "Taller 1 · Montes":    "#3b82f6",
   "Taller 2 · Bella Vista":"#10b981",
 };
 
-/* ─── LOGIN ─────────────────────────────────────────────── */
+/* ─── LOGIN ─────────────────────────────────────────── */
 function Login({ onLogin }) {
-  const [u, setU]           = React.useState("");
-  const [p, setP]           = React.useState("");
-  const [err, setErr]       = React.useState("");
-  const [loading, setLoad]  = React.useState(false);
-  const [showP, setShowP]   = React.useState(false);
+  const [u, setU]          = React.useState("");
+  const [p, setP]          = React.useState("");
+  const [err, setErr]      = React.useState("");
+  const [loading, setLoad] = React.useState(false);
+  const [showP, setShowP]  = React.useState(false);
 
   const entrar = async () => {
-    if (!u || !p) { setErr("Ingresa usuario y contraseña"); return; }
+    if (!u || !p) { setErr("Ingresa usuario y contrasena"); return; }
     setLoad(true); setErr("");
     const { data } = await sb.from("usuarios").select("*")
       .eq("user_name", u.toLowerCase().trim()).eq("pass", p).single();
     setLoad(false);
     if (data) { localStorage.setItem(SESSION_KEY, JSON.stringify(data)); onLogin(data); }
-    else setErr("Usuario o contraseña incorrectos");
+    else setErr("Usuario o contrasena incorrectos");
   };
 
-  const inp = { background:"#0f172a", border:"1px solid #334155", borderRadius:10,
-    color:"#fff", fontSize:14, width:"100%", padding:"11px 14px" };
+  const inp = {
+    background:"#0f172a", border:"1px solid #334155", borderRadius:10,
+    color:"#fff", fontSize:14, width:"100%", padding:"11px 14px"
+  };
 
   return (
     <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#0f172a,#1e293b)",
       display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
       <div className="fi" style={{width:"100%",maxWidth:340}}>
 
-        {/* Logo */}
         <div style={{textAlign:"center",marginBottom:28}}>
           <div style={{fontSize:54,marginBottom:10}}>🔧</div>
           <div style={{color:"#fbbf24",fontWeight:900,fontSize:22,letterSpacing:1}}>{EMPRESA.nombre}</div>
@@ -96,25 +93,22 @@ function Login({ onLogin }) {
           <div style={{color:"#334155",fontSize:11,marginTop:2}}>📞 {EMPRESA.tel1} · {EMPRESA.tel2}</div>
         </div>
 
-        {/* Card */}
         <div style={{background:"#1e293b",borderRadius:18,padding:26,boxShadow:"0 20px 50px rgba(0,0,0,.6)"}}>
           <div style={{color:"#475569",fontSize:11,fontWeight:700,letterSpacing:1,textAlign:"center",marginBottom:20}}>
-            INICIAR SESIÓN
+            INICIAR SESION
           </div>
 
-          {/* Usuario */}
           <div style={{marginBottom:14}}>
             <div style={{color:"#64748b",fontSize:11,fontWeight:700,marginBottom:5}}>👤 Usuario</div>
             <input style={inp} type="text" value={u} placeholder="tu usuario"
               onChange={e=>setU(e.target.value)} onKeyDown={e=>e.key==="Enter"&&entrar()}/>
           </div>
 
-          {/* Contraseña */}
           <div style={{marginBottom:6}}>
-            <div style={{color:"#64748b",fontSize:11,fontWeight:700,marginBottom:5}}>🔑 Contraseña</div>
+            <div style={{color:"#64748b",fontSize:11,fontWeight:700,marginBottom:5}}>🔑 Contrasena</div>
             <div style={{position:"relative"}}>
               <input style={{...inp,paddingRight:40}} type={showP?"text":"password"}
-                value={p} placeholder="tu contraseña"
+                value={p} placeholder="tu contrasena"
                 onChange={e=>setP(e.target.value)} onKeyDown={e=>e.key==="Enter"&&entrar()}/>
               <button onClick={()=>setShowP(!showP)}
                 style={{position:"absolute",right:11,top:"50%",transform:"translateY(-50%)",
@@ -124,13 +118,11 @@ function Login({ onLogin }) {
             </div>
           </div>
 
-          {/* Error */}
           {err && <div style={{background:"#fef2f2",border:"1px solid #fca5a5",color:"#dc2626",
             fontSize:11,padding:"8px 12px",borderRadius:8,margin:"12px 0",textAlign:"center",fontWeight:700}}>
             {err}
           </div>}
 
-          {/* Botón */}
           <button onClick={entrar} disabled={loading}
             style={{width:"100%",padding:13,marginTop:10,border:"none",borderRadius:10,
               fontWeight:900,fontSize:15,cursor:loading?"not-allowed":"pointer",
@@ -140,14 +132,14 @@ function Login({ onLogin }) {
         </div>
 
         <div style={{textAlign:"center",marginTop:18,color:"#1e3a5f",fontSize:9,letterSpacing:1}}>
-          SISTEMA DE GESTIÓN v2.0
+          SISTEMA DE GESTION v2.0
         </div>
       </div>
     </div>
   );
 }
 
-/* ─── INICIO / MENÚ ─────────────────────────────────────── */
+/* ─── MENU PRINCIPAL ────────────────────────────────── */
 function Inicio({ usuario, onSalir }) {
   const [hora, setHora] = React.useState(
     new Date().toLocaleTimeString("es-BO",{hour:"2-digit",minute:"2-digit"})
@@ -159,21 +151,19 @@ function Inicio({ usuario, onSalir }) {
     return () => clearInterval(t);
   }, []);
 
-  // Normaliza variantes de técnico ("tecnico", "técnico montes", "técnico bv", etc.) → "mecanico"
   const rolEfectivo = r => /t[eé]cnico/i.test(r) ? "mecanico" : r;
 
-  // Filtrar por rol del plan maestro y adaptar labels según rol
-  const esEnc = ["admin","encargado"].includes(usuario.rol);
+  const esEnc = ["admin","encargado"].includes(rolEfectivo(usuario.rol));
   const mods = MODULOS
     .filter(m => m.roles.includes(rolEfectivo(usuario.rol)))
     .map(m => m.k === "ot" ? {
       ...m,
-      label: esEnc ? "Órdenes (OT)" : "Mis OTs",
-      desc:  esEnc ? "Crear y gestionar órdenes de trabajo" : "Ver órdenes asignadas a mí",
+      label: esEnc ? "Ordenes (OT)" : "Mis OTs",
+      desc:  esEnc ? "Crear y gestionar ordenes de trabajo" : "Ver ordenes asignadas a mi",
     } : m);
 
   const h     = new Date().getHours();
-  const sal   = h < 12 ? "¡Buen día" : h < 19 ? "¡Buenas tardes" : "¡Buenas noches";
+  const sal   = h < 12 ? "¡Buen dia" : h < 19 ? "¡Buenas tardes" : "¡Buenas noches";
   const rol   = ROL[rolEfectivo(usuario.rol)] || { label: usuario.rol, color:"#64748b" };
   const cTall = TALLER_COLOR[usuario.taller] || "#64748b";
 
@@ -188,7 +178,6 @@ function Inicio({ usuario, onSalir }) {
   return (
     <div style={{minHeight:"100vh",background:"linear-gradient(160deg,#0f172a 0%,#1e293b 55%,#0f172a 100%)"}}>
 
-      {/* Header */}
       <div style={{background:"rgba(255,255,255,.02)",borderBottom:"1px solid rgba(255,255,255,.05)",padding:"12px 16px"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",maxWidth:520,margin:"0 auto"}}>
           <div>
@@ -205,7 +194,6 @@ function Inicio({ usuario, onSalir }) {
 
       <div className="fi" style={{padding:"18px 14px",maxWidth:520,margin:"0 auto"}}>
 
-        {/* Bienvenida */}
         <div style={{background:"linear-gradient(135deg,#1e293b,#0f172a)",
           border:"1px solid #1e3a5f",borderRadius:14,padding:"16px 18px",marginBottom:20}}>
           <div style={{color:"#475569",fontSize:11,marginBottom:2}}>{sal},</div>
@@ -222,19 +210,19 @@ function Inicio({ usuario, onSalir }) {
           </div>
         </div>
 
-        {/* Módulos */}
         <div style={{color:"#334155",fontSize:10,fontWeight:700,textTransform:"uppercase",
           letterSpacing:1,marginBottom:10}}>
-          Mis módulos ({mods.length})
+          Mis modulos ({mods.length})
         </div>
 
         {mods.length === 0
           ? <div style={{textAlign:"center",padding:36,color:"#475569",fontSize:12}}>
-              Sin módulos asignados. Contactá al administrador.
+              Sin modulos asignados. Contacta al administrador.
             </div>
           : <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:20}}>
               {mods.map(m => (
-                <a key={m.k} href={m.url} target={m.target||"_self"} rel={m.target==="_blank"?"noopener noreferrer":undefined}
+                <a key={m.k} href={m.url} target={m.target||"_self"}
+                  rel={m.target==="_blank"?"noopener noreferrer":undefined}
                   style={{textDecoration:"none",background:"#1e293b",border:`1px solid ${m.color}22`,
                     borderRadius:14,padding:"16px 14px",display:"block",transition:"all .18s"}}
                   onMouseEnter={e=>{
@@ -256,9 +244,9 @@ function Inicio({ usuario, onSalir }) {
                   </div>
                 </a>
               ))}
-            </div>}
+            </div>
+        }
 
-        {/* Compartir */}
         <div style={{background:"#1e293b",border:"1px solid #1e3a5f",borderRadius:12,
           padding:"11px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div>
@@ -277,14 +265,14 @@ function Inicio({ usuario, onSalir }) {
         </div>
 
         <div style={{textAlign:"center",marginTop:14,color:"#1e3a5f",fontSize:9,letterSpacing:.5}}>
-          SERVI CAR PLATINIUM · Sistema de gestión v2.0
+          SERVI CAR PLATINIUM · Sistema de gestion v2.0
         </div>
       </div>
     </div>
   );
 }
 
-/* ─── PANTALLA BLOQUEADA POR TURNO ──────────────────────── */
+/* ─── PANTALLA BLOQUEADA ────────────────────────────── */
 function Bloqueado({ usuario, onSalir }) {
   const wa = "https://wa.me/59168167264?text=" + encodeURIComponent(
     `Hola Wilfredo, soy ${usuario.nombre}. Necesito acceso de emergencia al sistema.`
@@ -296,11 +284,11 @@ function Bloqueado({ usuario, onSalir }) {
         <div style={{fontSize:64,marginBottom:16}}>🔒</div>
         <div style={{color:"#f1f5f9",fontWeight:900,fontSize:20,marginBottom:8}}>Turno terminado</div>
         <div style={{color:"#64748b",fontSize:13,marginBottom:24,lineHeight:1.5}}>
-          Marcaste tu salida. Para acceder de nuevo necesitás marcar entrada en tu próximo turno,<br/>
-          o pedirle autorización de emergencia a <strong style={{color:"#fbbf24"}}>Wilfredo</strong>.
+          Marcaste tu salida. Para acceder de nuevo necesitas marcar entrada en tu proximo turno,
+          o pedirle autorizacion de emergencia a <strong style={{color:"#fbbf24"}}>Wilfredo</strong>.
         </div>
         <div style={{background:"#1e293b",border:"1px solid #334155",borderRadius:14,padding:20,marginBottom:16}}>
-          <div style={{color:"#94a3b8",fontSize:11,marginBottom:4}}>Sesión activa</div>
+          <div style={{color:"#94a3b8",fontSize:11,marginBottom:4}}>Sesion activa</div>
           <div style={{color:"#f1f5f9",fontWeight:700,fontSize:16}}>{usuario.nombre}</div>
           <div style={{color:"#475569",fontSize:11,marginTop:2}}>{usuario.rol}</div>
         </div>
@@ -311,31 +299,31 @@ function Bloqueado({ usuario, onSalir }) {
         </a>
         <a href="/asistencia.html"
           style={{display:"block",padding:12,background:"#1d4ed820",color:"#60a5fa",
-            border:"1px solid #1d4ed840",borderRadius:12,fontWeight:700,fontSize:13,textDecoration:"none",marginBottom:10}}>
+            border:"1px solid #1d4ed840",borderRadius:12,fontWeight:700,fontSize:13,
+            textDecoration:"none",marginBottom:10}}>
           ⏰ Marcar entrada (inicio de turno)
         </a>
         <button onClick={onSalir}
           style={{width:"100%",padding:11,background:"none",border:"1px solid #334155",
             borderRadius:10,color:"#475569",fontWeight:700,fontSize:12,cursor:"pointer"}}>
-          Cerrar sesión
+          Cerrar sesion
         </button>
       </div>
     </div>
   );
 }
 
-/* ─── APP ────────────────────────────────────────────────── */
+/* ─── APP ───────────────────────────────────────────── */
 function App() {
   const [usuario, setUsuario] = React.useState(() => {
     try { return JSON.parse(localStorage.getItem(SESSION_KEY)) || null; }
     catch { return null; }
   });
-  const [bloqueado, setBloqueado] = React.useState(false);
+  const [bloqueado, setBloqueado]   = React.useState(false);
   const [verificando, setVerificando] = React.useState(false);
 
   React.useEffect(() => {
     if (!usuario) { setBloqueado(false); return; }
-    // Admins y encargados nunca quedan bloqueados
     if (["admin","encargado"].includes(usuario.rol)) { setBloqueado(false); return; }
     verificarTurno(usuario);
   }, [usuario]);
@@ -343,14 +331,12 @@ function App() {
   const verificarTurno = async (u) => {
     setVerificando(true);
     try {
-      // Verificar acceso especial primero (auxilio de Wilfredo)
       const { data: esp } = await sb.from("acceso_especial")
         .select("activo,expires_at").eq("user_name", u.user_name).eq("activo", true).single();
       if (esp?.activo) {
         const exp = esp.expires_at ? new Date(esp.expires_at) : null;
         if (!exp || exp > new Date()) { setBloqueado(false); setVerificando(false); return; }
       }
-      // Verificar último registro de asistencia
       const { data: asist } = await sb.from("asistencia")
         .select("tipo").eq("user_name", u.user_name)
         .order("id", { ascending: false }).limit(1).single();
@@ -370,8 +356,8 @@ function App() {
     </div>
   );
 
-  if (!usuario) return <Login onLogin={setUsuario}/>;
-  if (bloqueado) return <Bloqueado usuario={usuario} onSalir={salir}/>;
+  if (!usuario)   return <Login onLogin={setUsuario}/>;
+  if (bloqueado)  return <Bloqueado usuario={usuario} onSalir={salir}/>;
   return <Inicio usuario={usuario} onSalir={salir}/>;
 }
 
