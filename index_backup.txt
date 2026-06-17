@@ -1,0 +1,381 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Servi Car Platinium</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.js"></script>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:Arial,sans-serif;background:#0f172a;min-height:100vh}
+    #root{min-height:100vh}
+    input{outline:none}
+    input:focus{border-color:#f59e0b !important}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+    .fi{animation:fadeIn .3s ease both}
+    </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+
+const SUPA_URL = "https://epirsbudngwbxgcsryvv.supabase.co";
+const SUPA_KEY = "sb_publishable_zsqvMzJMc80Ypf3UQqs-SA_IrV-XIGc";
+const sb = window.supabase.createClient(SUPA_URL, SUPA_KEY);
+
+const EMPRESA = { nombre:"SERVI CAR PLATINIUM", ciudad:"Viacha - La Paz", tel1:"68167264", tel2:"60574920" };
+const SESSION_KEY = "scp_user";
+
+// MÃ³dulos filtrados por ROL segÃºn plan maestro
+// Roles: admin=Wilfredo | encargado=William/Selena | vendedor=Diego/Evo/Joel/Adolfo
+const MODULOS = [
+  { k:"ventas",     icon:"ðŸª", label:"Ventas",          desc:"Venta de productos de tienda",              url:"/ventas.html",            color:"#1d4ed8", roles:["admin","encargado","vendedor","mecanico"] },
+  { k:"servicios",  icon:"ðŸ”§", label:"Servicios",       desc:"Aceite Â· Lavado Â· Alineado Â· GrÃºa",         url:"/servicios.html",         color:"#16a34a", roles:["admin","encargado","vendedor","mecanico"] },
+  { k:"ot",         icon:"ðŸ“‹", label:"Mis OTs",         desc:"Ver Ã³rdenes de trabajo asignadas",          url:"/ot.html",                color:"#0891b2", roles:["admin","encargado","vendedor","mecanico"] },
+  { k:"caja",       icon:"ðŸ’µ", label:"Caja",            desc:"Apertura Â· Cierre Â· Informes",              url:"/caja.html",              color:"#f59e0b", roles:["admin","encargado"] },
+  { k:"compras",    icon:"ðŸ›’", label:"Compras",         desc:"Registrar compras e insumos",               url:"/compras.html",           color:"#8b5cf6", roles:["admin"] },
+  { k:"produccion", icon:"ðŸ­", label:"ProducciÃ³n",      desc:"Envasado y fabricaciÃ³n de aceites",         url:"/produccion.html",        color:"#f97316", roles:["admin","encargado"] },
+  { k:"creditos",   icon:"ðŸ’³", label:"CrÃ©ditos",        desc:"Control de deudas con proveedores",         url:"/creditos.html",          color:"#ec4899", roles:["admin"] },
+  { k:"admin",      icon:"âš™ï¸", label:"AdministraciÃ³n",  desc:"Inventario Â· CRM Â· Personal Â· Vacaciones",  url:"/admin.html",             color:"#7c3aed", roles:["admin","encargado"] },
+  { k:"equilibrio", icon:"ðŸŽ¯", label:"Metas y Equilibrio", desc:"Punto de equilibrio Â· SemÃ¡foro Â· Bonos",  url:"/equilibrio.html",        color:"#16a34a", roles:["admin"] },
+  { k:"gastos",     icon:"ðŸ’¸", label:"Gastos y Proyectos", desc:"Operativos Â· Inversiones Â· Balance semanal", url:"/gastos.html",           color:"#ef4444", roles:["admin","finanzas"] },
+  { k:"dashboard",  icon:"ðŸ“Š", label:"Dashboard",       desc:"KPIs en tiempo real Â· Punto de equilibrio", url:"/dashboard.html",         color:"#a21caf", roles:["admin"] },
+  { k:"usuarios",   icon:"ðŸ‘¥", label:"Usuarios",        desc:"Gestionar accesos y contraseÃ±as",           url:"/usuarios.html",          color:"#be185d", roles:["admin"] },
+  { k:"claude",    icon:"ðŸ¤–", label:"Consultar a Claude", desc:"Abrir Claude AI en nueva pestaÃ±a",      url:"https://claude.ai",        color:"#f59e0b", roles:["admin","encargado"], target:"_blank" },
+  { k:"wa-help",   icon:"ðŸ’¬", label:"Asistente TÃ©cnico", desc:"Contactar a Wilfredo por WhatsApp",     url:"https://wa.me/59168167264", color:"#16a34a", roles:["vendedor","mecanico"],  target:"_blank" },
+  { k:"asistencia", icon:"â°", label:"Mi Asistencia",   desc:"Marcar entrada y salida del turno",         url:"/asistencia.html",        color:"#0891b2", roles:["admin","encargado","vendedor","mecanico"] },
+];
+
+const ROL = {
+  admin:     { label:"ðŸ‘‘ Administrador", color:"#f59e0b" },
+  encargado: { label:"ðŸ”§ Encargado",     color:"#3b82f6" },
+  vendedor:  { label:"ðŸ›’ Vendedor",      color:"#16a34a" },
+  mecanico:  { label:"âš™ï¸ MecÃ¡nico",      color:"#a16207" },
+};
+
+const TALLER_COLOR = {
+  "ambos":               "#f59e0b",
+  "Taller 1 Â· Montes":   "#3b82f6",
+  "Taller 2 Â· Bella Vista":"#10b981",
+};
+
+/* â”€â”€â”€ LOGIN â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+function Login({ onLogin }) {
+  const [u, setU]           = React.useState("");
+  const [p, setP]           = React.useState("");
+  const [err, setErr]       = React.useState("");
+  const [loading, setLoad]  = React.useState(false);
+  const [showP, setShowP]   = React.useState(false);
+
+  const entrar = async () => {
+    if (!u || !p) { setErr("Ingresa usuario y contraseÃ±a"); return; }
+    setLoad(true); setErr("");
+    const { data } = await sb.from("usuarios").select("*")
+      .eq("user_name", u.toLowerCase().trim()).eq("pass", p).single();
+    setLoad(false);
+    if (data) { localStorage.setItem(SESSION_KEY, JSON.stringify(data)); onLogin(data); }
+    else setErr("Usuario o contraseÃ±a incorrectos");
+  };
+
+  const inp = { background:"#0f172a", border:"1px solid #334155", borderRadius:10,
+    color:"#fff", fontSize:14, width:"100%", padding:"11px 14px" };
+
+  return (
+    <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#0f172a,#1e293b)",
+      display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+      <div className="fi" style={{width:"100%",maxWidth:340}}>
+
+        {/* Logo */}
+        <div style={{textAlign:"center",marginBottom:28}}>
+          <div style={{fontSize:54,marginBottom:10}}>ðŸ”§</div>
+          <div style={{color:"#fbbf24",fontWeight:900,fontSize:22,letterSpacing:1}}>{EMPRESA.nombre}</div>
+          <div style={{color:"#475569",fontSize:12,marginTop:4}}>{EMPRESA.ciudad}</div>
+          <div style={{color:"#334155",fontSize:11,marginTop:2}}>ðŸ“ž {EMPRESA.tel1} Â· {EMPRESA.tel2}</div>
+        </div>
+
+        {/* Card */}
+        <div style={{background:"#1e293b",borderRadius:18,padding:26,boxShadow:"0 20px 50px rgba(0,0,0,.6)"}}>
+          <div style={{color:"#475569",fontSize:11,fontWeight:700,letterSpacing:1,textAlign:"center",marginBottom:20}}>
+            INICIAR SESIÃ“N
+          </div>
+
+          {/* Usuario */}
+          <div style={{marginBottom:14}}>
+            <div style={{color:"#64748b",fontSize:11,fontWeight:700,marginBottom:5}}>ðŸ‘¤ Usuario</div>
+            <input style={inp} type="text" value={u} placeholder="tu usuario"
+              onChange={e=>setU(e.target.value)} onKeyDown={e=>e.key==="Enter"&&entrar()}/>
+          </div>
+
+          {/* ContraseÃ±a */}
+          <div style={{marginBottom:6}}>
+            <div style={{color:"#64748b",fontSize:11,fontWeight:700,marginBottom:5}}>ðŸ”‘ ContraseÃ±a</div>
+            <div style={{position:"relative"}}>
+              <input style={{...inp,paddingRight:40}} type={showP?"text":"password"}
+                value={p} placeholder="tu contraseÃ±a"
+                onChange={e=>setP(e.target.value)} onKeyDown={e=>e.key==="Enter"&&entrar()}/>
+              <button onClick={()=>setShowP(!showP)}
+                style={{position:"absolute",right:11,top:"50%",transform:"translateY(-50%)",
+                  background:"none",border:"none",cursor:"pointer",fontSize:15,color:"#475569"}}>
+                {showP ? "ðŸ™ˆ" : "ðŸ‘"}
+              </button>
+            </div>
+          </div>
+
+          {/* Error */}
+          {err && <div style={{background:"#fef2f2",border:"1px solid #fca5a5",color:"#dc2626",
+            fontSize:11,padding:"8px 12px",borderRadius:8,margin:"12px 0",textAlign:"center",fontWeight:700}}>
+            {err}
+          </div>}
+
+          {/* BotÃ³n */}
+          <button onClick={entrar} disabled={loading}
+            style={{width:"100%",padding:13,marginTop:10,border:"none",borderRadius:10,
+              fontWeight:900,fontSize:15,cursor:loading?"not-allowed":"pointer",
+              background:loading?"#334155":"#f59e0b",color:loading?"#64748b":"#1e293b",transition:"background .2s"}}>
+            {loading ? "â³ Verificando..." : "Ingresar â†’"}
+          </button>
+        </div>
+
+        <div style={{textAlign:"center",marginTop:18,color:"#1e3a5f",fontSize:9,letterSpacing:1}}>
+          SISTEMA DE GESTIÃ“N v2.0
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* â”€â”€â”€ INICIO / MENÃš â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+function Inicio({ usuario, onSalir }) {
+  const [hora, setHora] = React.useState(
+    new Date().toLocaleTimeString("es-BO",{hour:"2-digit",minute:"2-digit"})
+  );
+  React.useEffect(() => {
+    const t = setInterval(() => setHora(
+      new Date().toLocaleTimeString("es-BO",{hour:"2-digit",minute:"2-digit"})
+    ), 30000);
+    return () => clearInterval(t);
+  }, []);
+
+  // Normaliza variantes de tÃ©cnico ("tecnico", "tÃ©cnico montes", "tÃ©cnico bv", etc.) â†’ "mecanico"
+  const rolEfectivo = r => /t[eÃ©]cnico/i.test(r) ? "mecanico" : r;
+
+  // Filtrar por rol del plan maestro y adaptar labels segÃºn rol
+  const esEnc = ["admin","encargado"].includes(usuario.rol);
+  const mods = MODULOS
+    .filter(m => m.roles.includes(rolEfectivo(usuario.rol)))
+    .map(m => m.k === "ot" ? {
+      ...m,
+      label: esEnc ? "Ã“rdenes (OT)" : "Mis OTs",
+      desc:  esEnc ? "Crear y gestionar Ã³rdenes de trabajo" : "Ver Ã³rdenes asignadas a mÃ­",
+    } : m);
+
+  const h     = new Date().getHours();
+  const sal   = h < 12 ? "Â¡Buen dÃ­a" : h < 19 ? "Â¡Buenas tardes" : "Â¡Buenas noches";
+  const rol   = ROL[rolEfectivo(usuario.rol)] || { label: usuario.rol, color:"#64748b" };
+  const cTall = TALLER_COLOR[usuario.taller] || "#64748b";
+
+  const compartir = () => {
+    const url = "https://servicar-sistema.vercel.app";
+    if (navigator.share) navigator.share({ title: EMPRESA.nombre, url });
+    else navigator.clipboard?.writeText(url)
+      .then(() => alert("âœ… Link copiado"))
+      .catch(() => alert("Link: " + url));
+  };
+
+  return (
+    <div style={{minHeight:"100vh",background:"linear-gradient(160deg,#0f172a 0%,#1e293b 55%,#0f172a 100%)"}}>
+
+      {/* Header */}
+      <div style={{background:"rgba(255,255,255,.02)",borderBottom:"1px solid rgba(255,255,255,.05)",padding:"12px 16px"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",maxWidth:520,margin:"0 auto"}}>
+          <div>
+            <div style={{color:"#fbbf24",fontWeight:900,fontSize:14}}>ðŸ”§ {EMPRESA.nombre}</div>
+            <div style={{color:"#475569",fontSize:10,marginTop:1}}>{EMPRESA.ciudad} Â· {hora}</div>
+          </div>
+          <button onClick={onSalir}
+            style={{padding:"5px 14px",background:"#ef444412",color:"#ef4444",
+              border:"1px solid #ef444430",borderRadius:8,fontWeight:700,fontSize:11,cursor:"pointer"}}>
+            Salir
+          </button>
+        </div>
+      </div>
+
+      <div className="fi" style={{padding:"18px 14px",maxWidth:520,margin:"0 auto"}}>
+
+        {/* Bienvenida */}
+        <div style={{background:"linear-gradient(135deg,#1e293b,#0f172a)",
+          border:"1px solid #1e3a5f",borderRadius:14,padding:"16px 18px",marginBottom:20}}>
+          <div style={{color:"#475569",fontSize:11,marginBottom:2}}>{sal},</div>
+          <div style={{color:"#fff",fontWeight:900,fontSize:21,marginBottom:10}}>{usuario.nombre}</div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            <span style={{padding:"3px 10px",borderRadius:20,fontSize:10,fontWeight:700,
+              background:`${rol.color}20`,border:`1px solid ${rol.color}40`,color:rol.color}}>
+              {rol.label}
+            </span>
+            <span style={{padding:"3px 10px",borderRadius:20,fontSize:10,fontWeight:700,
+              background:`${cTall}20`,border:`1px solid ${cTall}40`,color:cTall}}>
+              ðŸ¢ {usuario.taller==="ambos"?"Ambos talleres":usuario.taller}
+            </span>
+          </div>
+        </div>
+
+        {/* MÃ³dulos */}
+        <div style={{color:"#334155",fontSize:10,fontWeight:700,textTransform:"uppercase",
+          letterSpacing:1,marginBottom:10}}>
+          Mis mÃ³dulos ({mods.length})
+        </div>
+
+        {mods.length === 0
+          ? <div style={{textAlign:"center",padding:36,color:"#475569",fontSize:12}}>
+              Sin mÃ³dulos asignados. ContactÃ¡ al administrador.
+            </div>
+          : <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:20}}>
+              {mods.map(m => (
+                <a key={m.k} href={m.url} target={m.target||"_self"} rel={m.target==="_blank"?"noopener noreferrer":undefined}
+                  style={{textDecoration:"none",background:"#1e293b",border:`1px solid ${m.color}22`,
+                    borderRadius:14,padding:"16px 14px",display:"block",transition:"all .18s"}}
+                  onMouseEnter={e=>{
+                    e.currentTarget.style.background=`${m.color}10`;
+                    e.currentTarget.style.borderColor=`${m.color}55`;
+                    e.currentTarget.style.transform="translateY(-2px)";
+                  }}
+                  onMouseLeave={e=>{
+                    e.currentTarget.style.background="#1e293b";
+                    e.currentTarget.style.borderColor=`${m.color}22`;
+                    e.currentTarget.style.transform="translateY(0)";
+                  }}>
+                  <div style={{fontSize:26,marginBottom:8}}>{m.icon}</div>
+                  <div style={{color:"#f1f5f9",fontWeight:800,fontSize:13,marginBottom:3}}>{m.label}</div>
+                  <div style={{color:"#475569",fontSize:10,lineHeight:1.4,marginBottom:9}}>{m.desc}</div>
+                  <div style={{display:"inline-block",padding:"2px 8px",borderRadius:6,fontSize:9,fontWeight:700,
+                    background:`${m.color}20`,color:m.color}}>
+                    Abrir â†’
+                  </div>
+                </a>
+              ))}
+            </div>}
+
+        {/* Compartir */}
+        <div style={{background:"#1e293b",border:"1px solid #1e3a5f",borderRadius:12,
+          padding:"11px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div>
+            <div style={{color:"#334155",fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:.5}}>
+              Link del sistema
+            </div>
+            <div style={{color:"#475569",fontSize:11,marginTop:2,fontWeight:700}}>
+              servicar-sistema.vercel.app
+            </div>
+          </div>
+          <button onClick={compartir}
+            style={{padding:"6px 12px",background:"#25d366",color:"#fff",border:"none",
+              borderRadius:8,fontWeight:700,fontSize:10,cursor:"pointer"}}>
+            ðŸ“¤ Compartir
+          </button>
+        </div>
+
+        <div style={{textAlign:"center",marginTop:14,color:"#1e3a5f",fontSize:9,letterSpacing:.5}}>
+          SERVI CAR PLATINIUM Â· Sistema de gestiÃ³n v2.0
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* â”€â”€â”€ PANTALLA BLOQUEADA POR TURNO â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+function Bloqueado({ usuario, onSalir }) {
+  const wa = "https://wa.me/59168167264?text=" + encodeURIComponent(
+    `Hola Wilfredo, soy ${usuario.nombre}. Necesito acceso de emergencia al sistema.`
+  );
+  return (
+    <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#0f172a,#1e293b)",
+      display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+      <div className="fi" style={{width:"100%",maxWidth:340,textAlign:"center"}}>
+        <div style={{fontSize:64,marginBottom:16}}>ðŸ”’</div>
+        <div style={{color:"#f1f5f9",fontWeight:900,fontSize:20,marginBottom:8}}>Turno terminado</div>
+        <div style={{color:"#64748b",fontSize:13,marginBottom:24,lineHeight:1.5}}>
+          Marcaste tu salida. Para acceder de nuevo necesitÃ¡s marcar entrada en tu prÃ³ximo turno,<br/>
+          o pedirle autorizaciÃ³n de emergencia a <strong style={{color:"#fbbf24"}}>Wilfredo</strong>.
+        </div>
+        <div style={{background:"#1e293b",border:"1px solid #334155",borderRadius:14,padding:20,marginBottom:16}}>
+          <div style={{color:"#94a3b8",fontSize:11,marginBottom:4}}>SesiÃ³n activa</div>
+          <div style={{color:"#f1f5f9",fontWeight:700,fontSize:16}}>{usuario.nombre}</div>
+          <div style={{color:"#475569",fontSize:11,marginTop:2}}>{usuario.rol}</div>
+        </div>
+        <a href={wa} target="_blank" rel="noopener noreferrer"
+          style={{display:"block",padding:14,background:"#25d366",color:"#fff",borderRadius:12,
+            fontWeight:900,fontSize:14,textDecoration:"none",marginBottom:10}}>
+          ðŸ“² Pedir acceso de emergencia (WhatsApp)
+        </a>
+        <a href="/asistencia.html"
+          style={{display:"block",padding:12,background:"#1d4ed820",color:"#60a5fa",
+            border:"1px solid #1d4ed840",borderRadius:12,fontWeight:700,fontSize:13,textDecoration:"none",marginBottom:10}}>
+          â° Marcar entrada (inicio de turno)
+        </a>
+        <button onClick={onSalir}
+          style={{width:"100%",padding:11,background:"none",border:"1px solid #334155",
+            borderRadius:10,color:"#475569",fontWeight:700,fontSize:12,cursor:"pointer"}}>
+          Cerrar sesiÃ³n
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* â”€â”€â”€ APP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+function App() {
+  const [usuario, setUsuario] = React.useState(() => {
+    try { return JSON.parse(localStorage.getItem(SESSION_KEY)) || null; }
+    catch { return null; }
+  });
+  const [bloqueado, setBloqueado] = React.useState(false);
+  const [verificando, setVerificando] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!usuario) { setBloqueado(false); return; }
+    // Admins y encargados nunca quedan bloqueados
+    if (["admin","encargado"].includes(usuario.rol)) { setBloqueado(false); return; }
+    verificarTurno(usuario);
+  }, [usuario]);
+
+  const verificarTurno = async (u) => {
+    setVerificando(true);
+    try {
+      // Verificar acceso especial primero (auxilio de Wilfredo)
+      const { data: esp } = await sb.from("acceso_especial")
+        .select("activo,expires_at").eq("user_name", u.user_name).eq("activo", true).single();
+      if (esp?.activo) {
+        const exp = esp.expires_at ? new Date(esp.expires_at) : null;
+        if (!exp || exp > new Date()) { setBloqueado(false); setVerificando(false); return; }
+      }
+      // Verificar Ãºltimo registro de asistencia
+      const { data: asist } = await sb.from("asistencia")
+        .select("tipo").eq("user_name", u.user_name)
+        .order("id", { ascending: false }).limit(1).single();
+      setBloqueado(asist?.tipo === "salida");
+    } catch { setBloqueado(false); }
+    setVerificando(false);
+  };
+
+  const salir = () => { localStorage.removeItem(SESSION_KEY); setUsuario(null); setBloqueado(false); };
+
+  if (verificando) return (
+    <div style={{minHeight:"100vh",background:"#0f172a",display:"flex",alignItems:"center",justifyContent:"center"}}>
+      <div style={{textAlign:"center",color:"#475569"}}>
+        <div style={{fontSize:32,marginBottom:8}}>â³</div>
+        <div>Verificando acceso...</div>
+      </div>
+    </div>
+  );
+
+  if (!usuario) return <Login onLogin={setUsuario}/>;
+  if (bloqueado) return <Bloqueado usuario={usuario} onSalir={salir}/>;
+  return <Inicio usuario={usuario} onSalir={salir}/>;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
