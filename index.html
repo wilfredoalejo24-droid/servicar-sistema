@@ -7,7 +7,7 @@
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.js"></script>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:Arial,sans-serif;background:#0f172a;min-height:100vh}
@@ -20,7 +20,7 @@
 </head>
 <body>
 <div id="root"></div>
-<script type="text/babel">
+<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script><script type="text/babel"></script>
 
 const SUPA_URL = "https://epirsbudngwbxgcsryvv.supabase.co";
 const SUPA_KEY = "sb_publishable_zsqvMzJMc80Ypf3UQqs-SA_IrV-XIGc";
@@ -358,6 +358,7 @@ function App() {
 
   if (!usuario)   return <Login onLogin={setUsuario}/>;
   if (bloqueado)  return <Bloqueado usuario={usuario} onSalir={salir}/>;
+
   return <Inicio usuario={usuario} onSalir={salir}/>;
 }
 
