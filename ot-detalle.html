@@ -870,6 +870,17 @@ async function confirmarCobro(){
   const btn=document.getElementById("btn_cobro");
   if(btn){btn.disabled=true;btn.textContent="⏳ Procesando...";}
 
+  if(venta_rep>0&&capital<=0){
+    alert("No se puede cobrar: hay repuestos sin costo registrado en inventario.");
+    if(btn){btn.disabled=false;btn.textContent="✅ Confirmar cobro y entregar";}
+    return;
+  }
+  if(venta_rep>0&&venta_rep<capital){
+    alert("No se puede cobrar: el precio de venta de repuestos es menor al costo.");
+    if(btn){btn.disabled=false;btn.textContent="✅ Confirmar cobro y entregar";}
+    return;
+  }
+
   try{
     /* CRM */
     await SB.from("crm").insert({
@@ -882,17 +893,17 @@ async function confirmarCobro(){
       fecha:new Date().toLocaleDateString("es-BO"),
       taller:ot.taller,tecnico:ot.tecnico,metodo_pago:metodo
     });
-    /* Caja — mano de obra */
-    if(mo>0) await SB.from("caja").insert({
-      concepto:`OT #${otId} · ${ot.placa} · ${ot.cliente} — Mano de obra`,
-      monto:mo,tipo:"ingreso",subtipo:"ganancia_neta",
+    /* Caja — ganancia neta (MO + margen repuestos) */
+    if(ganancia_neta>0) await SB.from("caja").insert({
+      concepto:`OT ${ot.num||otId} — Ganancia/MO`,
+      monto:ganancia_neta,tipo:"ingreso",subtipo:"ganancia_neta",
       taller:ot.taller,fecha:new Date().toLocaleDateString("es-BO"),
       registrado_por:usuario.user_name,metodo_pago:metodo
     });
-    /* Caja — repuestos (precio cobrado al cliente) */
-    if(venta_rep>0) await SB.from("caja").insert({
-      concepto:`OT #${otId} · ${ot.placa} · ${ot.cliente} — Repuestos`,
-      monto:venta_rep,tipo:"ingreso",subtipo:"capital_tienda",
+    /* Caja — capital tienda (costo real de repuestos) */
+    if(capital>0) await SB.from("caja").insert({
+      concepto:`OT ${ot.num||otId} — Capital repuestos`,
+      monto:capital,tipo:"ingreso",subtipo:"capital_tienda",
       taller:ot.taller,fecha:new Date().toLocaleDateString("es-BO"),
       registrado_por:usuario.user_name,metodo_pago:metodo
     });

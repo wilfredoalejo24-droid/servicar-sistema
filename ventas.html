@@ -145,8 +145,12 @@ function Ventas({usuario}){
     const venta={num,fecha:hoy(),hora:hora(),taller:tallerSel,cliente,pago,items:carrito,subtotal:sub,descuento:parseFloat(descuento)||0,total,vendedor:usuario.nombre};
     const{error:ventaError}=await supabase.from("ventas").insert(venta);
     if(ventaError){console.error("Error al guardar venta:",ventaError);alert("Error al guardar la venta: "+ventaError.message);setLoading(false);return;}
-    const{error:cajaError}=await supabase.from("caja").insert({fecha:hoy(),taller:tallerSel,concepto:`Venta ${num}`,tipo:"ingreso",subtipo:"capital_tienda",monto:total,metodo_pago:pago,registrado_por:usuario.user_name||usuario.nombre,user_name:usuario.nombre});
-    if(cajaError){console.error("Error al registrar venta en caja:",cajaError);alert("La venta se guardó, pero NO se registró en caja: "+cajaError.message);setLoading(false);return;}
+    const costoTotal=carrito.reduce((s,i)=>s+(parseFloat(i.costo||0)*i.qty),0);
+    const margenVenta=total-costoTotal;
+    if(costoTotal<=0){alert("No se puede vender: hay productos sin costo registrado en inventario.");setLoading(false);return;}
+    if(margenVenta<0){alert("No se puede vender: el precio final es menor al costo de los productos.");setLoading(false);return;}
+    if(costoTotal>0){const{error:cajaCostoError}=await supabase.from("caja").insert({fecha:hoy(),taller:tallerSel,concepto:`Venta ${num} — Capital repuestos`,tipo:"ingreso",subtipo:"capital_tienda",monto:costoTotal,metodo_pago:pago,registrado_por:usuario.user_name||usuario.nombre,user_name:usuario.nombre});if(cajaCostoError){console.error("Error capital en caja:",cajaCostoError);alert("La venta se guardó, pero NO se registró el capital en caja: "+cajaCostoError.message);setLoading(false);return;}}
+    if(margenVenta>0){const{error:cajaMargenError}=await supabase.from("caja").insert({fecha:hoy(),taller:tallerSel,concepto:`Venta ${num} — Ganancia repuestos`,tipo:"ingreso",subtipo:"ganancia_neta",monto:margenVenta,metodo_pago:pago,registrado_por:usuario.user_name||usuario.nombre,user_name:usuario.nombre});if(cajaMargenError){console.error("Error ganancia en caja:",cajaMargenError);alert("La venta se guardó, pero NO se registró la ganancia en caja: "+cajaMargenError.message);setLoading(false);return;}}
     for(const i of carrito){const{error:invError}=await supabase.from("inventario").update({stock:i.stock-i.qty}).eq("id",i.id);if(invError)console.error("Error actualizando stock de",i.nom,":",invError);}
     setVentaOk({...venta});
     setCarrito([]); setCliente(""); setDescuento(0); setBusq("");
