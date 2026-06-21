@@ -208,7 +208,9 @@ function kpis(movs){
   const efectivo=movs.filter(m=>m.tipo==="ingreso"&&(m.metodo_pago==="Efectivo"||!m.metodo_pago)).reduce((s,m)=>s+parseFloat(m.monto||0),0);
   const qr=movs.filter(m=>m.tipo==="ingreso"&&m.metodo_pago==="QR").reduce((s,m)=>s+parseFloat(m.monto||0),0);
   const cobrado=ganancia+capital;
-  return{ganancia,capital,gastos,cobrado,neto:cobrado-gastos,efectivo,qr};
+  const gananciaLimpia=ganancia-gastos;
+  const dineroEsperado=capital+gananciaLimpia;
+  return{ganancia,capital,gastos,cobrado,neto:cobrado-gastos,efectivo,qr,gananciaLimpia,dineroEsperado};
 }
 function kTaller(movs,t){return kpis(movs.filter(m=>m.taller===t));}
 function getPeriodMovs(){return periodo==="hoy"?datos.cajaHoy:periodo==="semana"?datos.cajaSem:datos.cajaMes;}
@@ -313,9 +315,9 @@ function renderKPIs(kP,kPrev){
   const periodoLbl=periodo==="hoy"?"vs ayer":periodo==="semana"?"vs sem. ant.":"vs mes ant.";
   const cards=[
     {lbl:"💪 Ganancia neta",val:kP.ganancia,prev:kPrev.ganancia,color:"#16a34a",sub:`Efectivo: ${fmtK(kP.efectivo)} · QR: ${fmtK(kP.qr)}`},
-    {lbl:"🔧 Capital repuestos",val:kP.capital,prev:kPrev.capital,color:"#60a5fa",sub:`${pct(kP.capital,kP.cobrado||1)}% del total cobrado`},
-    {lbl:"💸 Egresos / Gastos",val:kP.gastos,prev:kPrev.gastos,color:"#ef4444",inv:true,sub:`Neto tras gastos: ${fmtK(kP.neto)}`},
-    {lbl:"📊 Total cobrado",val:kP.cobrado,prev:kPrev.cobrado,color:kP.neto>=0?"#fbbf24":"#ef4444",sub:`Neto: ${fmtK(kP.neto)}`},
+    {lbl:"📦 Capital tienda",val:kP.capital,prev:kPrev.capital,color:"#60a5fa",sub:`Vuelve a tienda · No es ganancia`},
+    {lbl:"💸 Egresos / Gastos",val:kP.gastos,prev:kPrev.gastos,color:"#ef4444",inv:true,sub:`Ganancia limpia: ${fmtK(kP.gananciaLimpia)}`},
+    {lbl:"📊 Total cobrado",val:kP.cobrado,prev:kPrev.cobrado,color:kP.dineroEsperado>=0?"#fbbf24":"#ef4444",sub:`Dinero esperado: ${fmtK(kP.dineroEsperado)}`},
   ];
   return`<div class="g4" style="margin-bottom:12px">
     ${cards.map(c=>{
@@ -624,9 +626,9 @@ function renderResumen(kP,kPrev,kMes){
   const puntos=[
     `<strong>${mesNom}</strong>: <strong style="color:#fbbf24">${fmt(kMes.cobrado)}</strong> cobrado · ${pct(kMes.cobrado,cfg.meta_mensual)}% de la meta (${fmtK(cfg.meta_mensual)})`,
     `Proyección fin de mes: <strong style="color:${superaMeta?"#16a34a":"#f97316"}">${fmt(proyeccion)}</strong> — ${superaMeta?"✅ superará la meta":"⚠️ por debajo de la meta"}`,
-    `Esta semana vs anterior: <span style="color:${semColor}">${semSign} ${fmtK(Math.abs(semDelta))}</span> en ingresos`,
+    `Esta semana vs anterior: <span style="color:${semColor}">${semSign} ${fmtK(Math.abs(semDelta))}</span> en cobrado`,
     `Taller líder: <strong>${lider.split("·")[0].trim()}</strong> con <strong style="color:#fbbf24">${fmtK(liderK)}</strong> este mes`,
-    `Neto del mes: <strong style="color:${kMes.neto>=0?"#16a34a":"#ef4444"}">${fmt(kMes.neto)}</strong> (ingresos <strong>${fmt(kMes.cobrado)}</strong> − gastos <strong style="color:#ef4444">${fmt(kMes.gastos)}</strong>)`,
+    `Ganancia limpia del mes: <strong style="color:${kMes.gananciaLimpia>=0?"#16a34a":"#ef4444"}">${fmt(kMes.gananciaLimpia)}</strong> (ganancia neta <strong>${fmt(kMes.ganancia)}</strong> − gastos <strong style="color:#ef4444">${fmt(kMes.gastos)}</strong>)`,
     enc.length?`Satisfacción: <strong style="color:#fbbf24">${avgStr}/5</strong> ⭐ · NPS promedio: <strong>${(enc.reduce((s,e)=>s+(e.nps||0),0)/enc.length).toFixed(1)}</strong>/10 (${enc.length} respuesta${enc.length!==1?"s":""})`:null,
     datos.inv.filter(i=>parseFloat(i.stock||0)<=0).length?`<span style="color:#ef4444">⚠️ ${datos.inv.filter(i=>parseFloat(i.stock||0)<=0).length} producto${datos.inv.filter(i=>parseFloat(i.stock||0)<=0).length!==1?"s":""} agotado${datos.inv.filter(i=>parseFloat(i.stock||0)<=0).length!==1?"s":""}. Revisar inventario.</span>`:null,
   ].filter(Boolean);
