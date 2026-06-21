@@ -260,7 +260,7 @@ function panelCajaAbierta(){
 function tarjetaResumen(tot){
   const items=[
     {l:"GANANCIA NETA",sub:"Mano de obra",   v:tot.ganancia, c:"#16a34a"},
-    {l:"CAPITAL",      sub:"Repuestos",       v:tot.capital,  c:"#60a5fa"},
+    {l:"CAPITAL TIENDA",sub:"No es ganancia · vuelve a tienda",v:tot.capital,c:"#60a5fa"},
     {l:"GASTOS",       sub:"Egresos del día", v:tot.gastos,   c:"#ef4444"},
     {l:"NETO",         sub:"Cobrado − Gastos",v:tot.neto,     c:"#f59e0b"},
   ];
@@ -524,7 +524,8 @@ async function cerrarCaja(){
   const esSinMovimiento=apertura===0&&tot.ganancia===0&&tot.capital===0&&tot.gastos===0&&ef===0&&qr===0;
   const sinMovLabel=esSinMovimiento?"\n\n📋 Día sin movimiento":"";
   const responsable=usuario.nombre||usuario.user_name;
-  const capitalLabel=tot.capital>0?`\n⚠️ CAPITAL A GUARDAR: ${fmt(tot.capital)}`:"";
+  const capitalLabel=tot.capital>0?`\n⚠️ CAPITAL A DEVOLVER A TIENDA: ${fmt(tot.capital)}\n   (No es ganancia. Separar para reponer inventario.)`:"";
+
 
   if(!confirm(`¿Cerrar caja de ${sesion.taller}?\n\n📊 Sistema: ${fmt(tot.cobrado)} cobrado · Gastos: ${fmt(tot.gastos)}\n💵 Efectivo real: ${fmt(ef)} · QR: ${fmt(qr)}\n\n${difLabel}${capitalLabel}${sinMovLabel}`))return;
 

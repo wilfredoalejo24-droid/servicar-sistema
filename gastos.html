@@ -186,10 +186,12 @@ async function fetchBalance(offset){
     SB.from("gastos").select("monto").eq("tipo_gasto","operativo").in("fecha",fechas),
     SB.from("gastos").select("monto").eq("tipo_gasto","proyecto").in("fecha",fechas),
   ]);
-  const ingresos=(r1.data||[]).reduce((s,x)=>s+parseFloat(x.ganancia_neta||0)+parseFloat(x.capital_tienda||0),0);
+  const ganancia=(r1.data||[]).reduce((s,x)=>s+parseFloat(x.ganancia_neta||0),0);
+  const capital=(r1.data||[]).reduce((s,x)=>s+parseFloat(x.capital_tienda||0),0);
   const gastosOp=(r2.data||[]).reduce((s,x)=>s+parseFloat(x.monto||0),0);
   const gastosInv=(r3.data||[]).reduce((s,x)=>s+parseFloat(x.monto||0),0);
-  return{ingresos,gastosOp,gastosInv,gananciaReal:ingresos-gastosOp};
+  const gananciaReal=ganancia-gastosOp;
+  return{ganancia,capital,gastosOp,gastosInv,gananciaReal,dineroEsperado:capital+gananciaReal};
 }
 
 /* ══════════════════════════════════════════════════════
@@ -458,14 +460,15 @@ async function cargarBalanceRender(){
   const el=$$("balance-body");
   if(!el)return;
   el.innerHTML=`<div style="text-align:center;padding:24px;color:#475569">Calculando...</div>`;
-  const{ingresos,gastosOp,gastosInv,gananciaReal}=await fetchBalance(balOffset);
+  const{ganancia,capital,gastosOp,gastosInv,gananciaReal,dineroEsperado}=await fetchBalance(balOffset);
   const{label}=getSemana(balOffset);
-  const margen=ingresos>0?(gananciaReal/ingresos*100):gananciaReal>0?100:-100;
+  const margen=ganancia>0?(gananciaReal/ganancia*100):gananciaReal>0?100:-100;
   const sem=gananciaReal<0
     ?{c:"#ef4444",bg:"#ef444415",borde:"#ef444430",icono:"🔴",label:"Pérdida neta"}
     :margen<10
     ?{c:"#f59e0b",bg:"#f59e0b15",borde:"#f59e0b30",icono:"🟡",label:"Margen bajo (< 10%)"}
     :{c:"#16a34a",bg:"#16a34a15",borde:"#16a34a30",icono:"🟢",label:"Semana saludable"};
+  const cDE=dineroEsperado>=0?"#fbbf24":"#ef4444";
 
   el.innerHTML=`
   <!-- Semáforo -->
@@ -474,15 +477,16 @@ async function cargarBalanceRender(){
     <div style="color:${sem.c};font-weight:900;font-size:16px;margin-bottom:4px">${sem.label}</div>
     <div style="color:#475569;font-size:11px;margin-bottom:12px">${label}</div>
     <div style="font-size:32px;font-weight:900;color:${sem.c}">${fmt(gananciaReal)}</div>
-    <div style="color:#475569;font-size:10px;margin-top:4px">Ganancia real = Ingresos − Gastos operativos</div>
-    ${ingresos>0?`<div style="color:${sem.c};font-size:12px;font-weight:700;margin-top:6px">Margen: ${margen.toFixed(1)}%</div>`:""}
+    <div style="color:#475569;font-size:10px;margin-top:4px">Ganancia limpia = Ganancia neta − Gastos operativos</div>
+    ${ganancia>0?`<div style="color:${sem.c};font-size:12px;font-weight:700;margin-top:6px">Margen s/ganancia: ${margen.toFixed(1)}%</div>`:""}
   </div>
 
   <!-- Desglose -->
   <div class="card fi">
     <div style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:12px">Desglose de la semana</div>
     ${[
-      {icon:"💰",label:"Ingresos de caja",sub:"Ganancia neta + Capital (sesiones cerradas)",val:ingresos,color:"#16a34a",sign:"+"},
+      {icon:"💪",label:"Ganancia neta de caja",sub:"Mano de obra + margen repuestos (sesiones cerradas)",val:ganancia,color:"#16a34a",sign:"+"},
+      {icon:"📦",label:"Capital a devolver a tienda",sub:"Costo real de repuestos — no es ganancia",val:capital,color:"#60a5fa",sign:"="},
       {icon:"📋",label:"Gastos operativos",sub:"Registrados en esta sección",val:gastosOp,color:"#ef4444",sign:"−"},
       {icon:"🏗️",label:"Inversiones en proyectos",sub:"Pagos de proyectos registrados",val:gastosInv,color:"#a78bfa",sign:"−"},
     ].map(({icon,label,sub,val,color,sign})=>`
@@ -495,13 +499,19 @@ async function cargarBalanceRender(){
         ${sign} ${fmt(val)}
       </div>
     </div>`).join("")}
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0 0">
-      <div style="font-size:13px;font-weight:700">= GANANCIA REAL</div>
-      <div style="font-weight:900;font-size:20px;color:${sem.c}">${fmt(gananciaReal)}</div>
+    <div style="border-top:2px solid #334155;margin-top:4px;padding-top:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0">
+        <div style="font-size:12px;font-weight:700">= GANANCIA LIMPIA <span style="color:#475569;font-size:10px;font-weight:400">(ganancia neta − gastos)</span></div>
+        <div style="font-weight:900;font-size:18px;color:${sem.c}">${fmt(gananciaReal)}</div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0 0">
+        <div style="font-size:12px;font-weight:700;color:${cDE}">💰 DINERO ESPERADO <span style="color:#475569;font-size:10px;font-weight:400">(capital + ganancia limpia)</span></div>
+        <div style="font-weight:900;font-size:20px;color:${cDE}">${fmt(dineroEsperado)}</div>
+      </div>
     </div>
   </div>
 
-  ${ingresos===0&&gastosOp===0?`
+  ${ganancia===0&&capital===0&&gastosOp===0?`
   <div class="card" style="text-align:center;color:#475569;font-size:12px;padding:20px">
     No hay datos de caja ni gastos para esta semana.
   </div>`:""}`;

@@ -108,7 +108,7 @@ function calcTotales(movs){
   const efectivo =movs.filter(m=>m.tipo==="ingreso"&&(m.metodo_pago==="Efectivo"||!m.metodo_pago)).reduce((s,m)=>s+parseFloat(m.monto||0),0);
   const qr       =movs.filter(m=>m.tipo==="ingreso"&&m.metodo_pago==="QR").reduce((s,m)=>s+parseFloat(m.monto||0),0);
   const trans    =movs.filter(m=>m.tipo==="ingreso"&&m.metodo_pago==="Transferencia").reduce((s,m)=>s+parseFloat(m.monto||0),0);
-  return{ganancia,capital,gastos,efectivo,qr,trans,cobrado:ganancia+capital,neto:ganancia+capital-gastos};
+  return{ganancia,capital,gastos,efectivo,qr,trans,cobrado:ganancia+capital,neto:ganancia+capital-gastos,ganancia_limpia:ganancia-gastos,dinero_esperado:capital+(ganancia-gastos)};
 }
 
 /* ── Init ───────────────────────────────────────────── */
@@ -290,7 +290,7 @@ function renderDiario(){
         const tt=calcTotales(tm);
         return `<div style="background:#0f172a;border-radius:10px;padding:12px">
           <div style="font-weight:700;font-size:12px;color:#94a3b8;margin-bottom:8px">${t}</div>
-          ${[["Ganancia",tt.ganancia,"#16a34a"],["Capital",tt.capital,"#60a5fa"],["Gastos",tt.gastos,"#ef4444"],["Neto",tt.neto,"#fbbf24"]].map(([l,v,c])=>`
+          ${[["Ganancia",tt.ganancia,"#16a34a"],["Capital tienda",tt.capital,"#60a5fa"],["Gastos",tt.gastos,"#ef4444"],["G. Limpia",tt.ganancia_limpia,tt.ganancia_limpia>=0?"#16a34a":"#ef4444"],["Din. esperado",tt.dinero_esperado,tt.dinero_esperado>=0?"#fbbf24":"#ef4444"]].map(([l,v,c])=>`
           <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px">
             <span style="color:#64748b">${l}</span><span style="color:${c};font-weight:700">${fmt(v)}</span>
           </div>`).join("")}
@@ -423,6 +423,21 @@ function renderRango(){
   <!-- Cards de resumen del período -->
   ${cardsTotales(tot)}
 
+  <!-- Resumen para Vanesa -->
+  ${renderResumenVanesa(movs)}
+
+  <!-- Métodos de cobro del período -->
+  <div class="card" style="padding:12px 16px">
+    <div style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:10px">💳 Por método de cobro</div>
+    <div style="display:flex;gap:0">
+      ${[["💵 Efectivo",tot.efectivo,"#4ade80"],["📱 QR",tot.qr,"#60a5fa"],["🔄 Transf.",tot.trans,"#a78bfa"],["📦 Total cobrado",tot.cobrado,"#fbbf24"]].map((x,i,a)=>`
+      <div style="flex:1;text-align:center${i<a.length-1?";border-right:1px solid #334155":""}">
+        <div style="color:#475569;font-size:9px;margin-bottom:3px">${x[0]}</div>
+        <div style="color:${x[2]};font-weight:700;font-size:13px">${fmt(x[1])}</div>
+      </div>`).join("")}
+    </div>
+  </div>
+
   <!-- Tabla por día -->
   <div class="card">
     <div style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:10px">📅 Resumen por día</div>
@@ -433,9 +448,9 @@ function renderRango(){
           <th>Fecha</th>
           ${!filtroT?`<th>Taller</th>`:""}
           <th style="color:#4ade80">Ganancia</th>
-          <th style="color:#60a5fa">Capital</th>
+          <th style="color:#60a5fa">Capital tienda</th>
           <th style="color:#ef4444">Gastos</th>
-          <th style="color:#fbbf24">Neto</th>
+          <th style="color:#fbbf24">G. Limpia</th>
           <th>Cobrado</th>
         </tr></thead>
         <tbody>
@@ -447,7 +462,7 @@ function renderRango(){
                 <td style="color:#16a34a;font-weight:700">${fmt(d.ganancia)}</td>
                 <td style="color:#60a5fa;font-weight:700">${fmt(d.capital)}</td>
                 <td style="color:#ef4444">${fmt(d.gastos)}</td>
-                <td style="color:${d.neto>=0?"#fbbf24":"#ef4444"};font-weight:700">${fmt(d.neto)}</td>
+                <td style="color:${d.ganancia_limpia>=0?"#fbbf24":"#ef4444"};font-weight:700">${fmt(d.ganancia_limpia)}</td>
                 <td style="color:#94a3b8">${fmt(d.cobrado)}</td>
               </tr>`;
             }).join("")
@@ -466,11 +481,11 @@ function renderRango(){
                     <td style="color:#16a34a;font-weight:700">${fmt(d.ganancia)}</td>
                     <td style="color:#60a5fa;font-weight:700">${fmt(d.capital)}</td>
                     <td style="color:#ef4444">${fmt(d.gastos)}</td>
-                    <td style="color:${d.neto>=0?"#fbbf24":"#ef4444"};font-weight:700">${fmt(d.neto)}</td>
+                    <td style="color:${d.ganancia_limpia>=0?"#fbbf24":"#ef4444"};font-weight:700">${fmt(d.ganancia_limpia)}</td>
                     <td style="color:#94a3b8">${fmt(d.cobrado)}</td>
                   </tr>`;
                 }),
-                entries.length>1?`<tr style="background:#0f172a80"><td style="font-size:10px;color:#475569"><em>Total ${f}</em></td><td></td><td style="color:#16a34a;font-weight:700">${fmt(fTot.ganancia)}</td><td style="color:#60a5fa;font-weight:700">${fmt(fTot.capital)}</td><td style="color:#ef4444">${fmt(fTot.gastos)}</td><td style="color:${fTot.neto>=0?"#fbbf24":"#ef4444"};font-weight:700">${fmt(fTot.neto)}</td><td></td></tr>`:""
+                entries.length>1?`<tr style="background:#0f172a80"><td style="font-size:10px;color:#475569"><em>Total ${f}</em></td><td></td><td style="color:#16a34a;font-weight:700">${fmt(fTot.ganancia)}</td><td style="color:#60a5fa;font-weight:700">${fmt(fTot.capital)}</td><td style="color:#ef4444">${fmt(fTot.gastos)}</td><td style="color:${fTot.ganancia_limpia>=0?"#fbbf24":"#ef4444"};font-weight:700">${fmt(fTot.ganancia_limpia)}</td><td></td></tr>`:""
               ].filter(Boolean);
             }).join("")}
         </tbody>
@@ -479,7 +494,7 @@ function renderRango(){
           <td style="color:#16a34a;font-size:13px">${fmt(tot.ganancia)}</td>
           <td style="color:#60a5fa;font-size:13px">${fmt(tot.capital)}</td>
           <td style="color:#ef4444;font-size:13px">${fmt(tot.gastos)}</td>
-          <td style="color:#fbbf24;font-size:13px">${fmt(tot.neto)}</td>
+          <td style="color:${tot.ganancia_limpia>=0?"#fbbf24":"#ef4444"};font-size:13px">${fmt(tot.ganancia_limpia)}</td>
           <td style="color:#94a3b8;font-size:13px">${fmt(tot.cobrado)}</td>
         </tr></tfoot>
       </table>
@@ -491,20 +506,77 @@ async function setRango(d,h){rDesde=d;rHasta=h;rData=null;await cargarRango();}
 
 /* ── Cards compartidos ──────────────────────────────── */
 function cardsTotales(tot){
+  const cGL=tot.ganancia_limpia>=0?"#16a34a":"#ef4444";
+  const cDE=tot.dinero_esperado>=0?"#fbbf24":"#ef4444";
   const items=[
-    {l:"GANANCIA NETA",sub:"Mano de obra",   v:tot.ganancia,c:"#16a34a"},
-    {l:"CAPITAL",      sub:"Repuestos",       v:tot.capital, c:"#60a5fa"},
-    {l:"GASTOS",       sub:"Egresos",         v:tot.gastos,  c:"#ef4444"},
-    {l:"NETO",         sub:"Cobrado − Gastos",v:tot.neto,    c:tot.neto>=0?"#fbbf24":"#ef4444"},
+    {l:"GANANCIA NETA",  sub:"Mano de obra + margen repuestos",  v:tot.ganancia,        c:"#16a34a"},
+    {l:"CAPITAL TIENDA", sub:"No es ganancia · vuelve a tienda", v:tot.capital,         c:"#60a5fa"},
+    {l:"GASTOS",         sub:"Egresos del período",              v:tot.gastos,          c:"#ef4444"},
+    {l:"GANANCIA LIMPIA",sub:"Ganancia neta − Gastos",           v:tot.ganancia_limpia, c:cGL},
   ];
   return `
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
     ${items.map(x=>`
     <div style="background:${x.c}12;border:1px solid ${x.c}25;border-radius:12px;padding:14px;text-align:center">
       <div style="color:#475569;font-size:9px;font-weight:700;margin-bottom:4px">${x.l}</div>
       <div style="color:${x.c};font-weight:900;font-size:20px">${fmt(x.v)}</div>
       <div style="color:#334155;font-size:9px;margin-top:2px">${x.sub}</div>
     </div>`).join("")}
+  </div>
+  <div style="background:${cDE}12;border:1px solid ${cDE}25;border-radius:12px;padding:12px;text-align:center;margin-bottom:12px">
+    <div style="color:#475569;font-size:9px;font-weight:700;margin-bottom:4px">DINERO ESPERADO DESPUÉS DE GASTOS</div>
+    <div style="color:${cDE};font-weight:900;font-size:22px">${fmt(tot.dinero_esperado)}</div>
+    <div style="color:#334155;font-size:9px;margin-top:2px">Capital tienda (${fmt(tot.capital)}) + Ganancia limpia (${fmt(tot.ganancia_limpia)})</div>
+  </div>`;
+}
+
+function renderResumenVanesa(movs){
+  const filaV=(label,val,c)=>`
+    <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #0f172a;font-size:12px">
+      <span style="color:#64748b">${label}</span>
+      <span style="font-weight:700;color:${c}">${fmt(val)}</span>
+    </div>`;
+  const mostrarXTaller=!filtroT&&(usuario.rol==="admin"||usuario.taller==="ambos");
+  const bloquesTaller=mostrarXTaller
+    ? TALLERES.map(t=>{
+        const d=calcTotales(movs.filter(m=>m.taller===t));
+        const cGL=d.ganancia_limpia>=0?"#16a34a":"#ef4444";
+        const cDE=d.dinero_esperado>=0?"#fbbf24":"#ef4444";
+        return `
+        <div style="background:#0f172a;border-radius:10px;padding:12px;margin-bottom:8px">
+          <div style="font-size:12px;font-weight:700;color:#fbbf24;margin-bottom:8px;padding-bottom:5px;border-bottom:1px solid #334155">🏢 ${t}</div>
+          ${filaV("Total cobrado",d.cobrado,"#94a3b8")}
+          ${filaV("Capital a devolver a tienda",d.capital,"#60a5fa")}
+          ${filaV("Ganancia neta",d.ganancia,"#16a34a")}
+          ${filaV("Gastos",d.gastos,"#ef4444")}
+          ${filaV("Ganancia limpia",d.ganancia_limpia,cGL)}
+          <div style="display:flex;justify-content:space-between;padding:7px 0 0;font-size:12px;border-top:1px solid #334155;margin-top:3px">
+            <span style="font-weight:700;color:#fbbf24">💰 Dinero esperado</span>
+            <span style="font-weight:900;color:${cDE};font-size:13px">${fmt(d.dinero_esperado)}</span>
+          </div>
+        </div>`;
+      }).join("")
+    : "";
+  const tot=calcTotales(movs);
+  const cGL=tot.ganancia_limpia>=0?"#16a34a":"#ef4444";
+  const cDE=tot.dinero_esperado>=0?"#fbbf24":"#ef4444";
+  return `
+  <div class="card" style="border-color:#fbbf2440">
+    <div style="color:#fbbf24;font-size:11px;font-weight:700;text-transform:uppercase;margin-bottom:12px">📋 Resumen para Vanesa</div>
+    ${bloquesTaller}
+    <div style="background:#0f172a;border-radius:10px;padding:12px;border:1px solid #334155">
+      <div style="font-size:10px;font-weight:700;color:#64748b;margin-bottom:8px;text-transform:uppercase">Total general</div>
+      ${filaV("Capital a devolver a tienda",tot.capital,"#60a5fa")}
+      ${filaV("Ganancia limpia total",tot.ganancia_limpia,cGL)}
+      ${filaV("Gastos totales",tot.gastos,"#ef4444")}
+      <div style="display:flex;justify-content:space-between;padding:7px 0 0;border-top:1px solid #334155;margin-top:3px">
+        <span style="font-size:12px;font-weight:700;color:#fbbf24">💰 Dinero total esperado</span>
+        <span style="font-weight:900;color:${cDE};font-size:15px">${fmt(tot.dinero_esperado)}</span>
+      </div>
+    </div>
+    <div style="color:#475569;font-size:10px;margin-top:8px;line-height:1.5">
+      ℹ️ <strong style="color:#60a5fa">Capital tienda</strong>: no es ganancia, vuelve a tienda para reponer inventario. <strong style="color:#16a34a">Ganancia limpia</strong> = ganancia neta − gastos. <strong style="color:#fbbf24">Dinero esperado</strong> = capital + ganancia limpia.
+    </div>
   </div>`;
 }
 
@@ -580,12 +652,12 @@ function exportarRangoExcel(){
     if(!byF[key])byF[key]={fecha:m.fecha,taller:m.taller||"—",movs:[]};
     byF[key].movs.push(m);
   });
-  const cols=["Fecha",...(!filtroT?["Taller"]:[]),"Ganancia neta","Capital","Gastos","Neto","Total cobrado"];
+  const cols=["Fecha",...(!filtroT?["Taller"]:[]),"Ganancia neta","Capital tienda","Gastos","Ganancia limpia","Total cobrado"];
   const rows=Object.values(byF).map(g=>{
     const d=calcTotales(g.movs);
-    return [g.fecha,...(!filtroT?[g.taller]:[]),fmtN(d.ganancia),fmtN(d.capital),fmtN(d.gastos),fmtN(d.neto),fmtN(d.cobrado)];
+    return [g.fecha,...(!filtroT?[g.taller]:[]),fmtN(d.ganancia),fmtN(d.capital),fmtN(d.gastos),fmtN(d.ganancia_limpia),fmtN(d.cobrado)];
   });
-  const totalRow=["TOTAL",...(!filtroT?[""]:[]),fmtN(tot.ganancia),fmtN(tot.capital),fmtN(tot.gastos),fmtN(tot.neto),fmtN(tot.cobrado)];
+  const totalRow=["TOTAL",...(!filtroT?[""]:[]),fmtN(tot.ganancia),fmtN(tot.capital),fmtN(tot.gastos),fmtN(tot.ganancia_limpia),fmtN(tot.cobrado)];
   const wsRes=XLSX.utils.aoa_to_sheet([
     [EMPRESA.nombre],
     [`Período: ${isoToFecha(rDesde)} al ${isoToFecha(rHasta)}`],
