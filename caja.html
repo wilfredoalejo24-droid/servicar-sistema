@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Caja — Servi Car Platinium</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:Arial,sans-serif;background:#0f172a;color:#fff;min-height:100vh}
@@ -292,7 +292,7 @@ function tarjetaResumen(tot){
 /* ── Formulario de gasto ────────────────────────────── */
 function formGasto(){
   return `
-  <div class="card" style="border-color:#ef444430" class="noprint">
+  <div class="card noprint" style="border-color:#ef444430">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
       <div style="color:#ef4444;font-size:11px;font-weight:700;text-transform:uppercase">📉 Registrar gasto</div>
       <button onclick="toggleForm()"
