@@ -624,6 +624,11 @@ function Otros({usuario,inv,esEnc}){
     if(!tallerSel){alert("Selecciona el taller.");return;}
     setLoading(true);
     try{
+      const costoProds=productos.reduce((s,p)=>s+(parseFloat(p.costo||0)*p.qty),0);
+      const margenProds=totalProds-costoProds;
+      const productoSinCosto=productos.find(p=>parseFloat(p.costo||0)<=0);
+      if(productos.length>0&&productoSinCosto) throw new Error("El producto "+(productoSinCosto.nom||productoSinCosto.nombre||"seleccionado")+" no tiene costo registrado en inventario.");
+      if(margenProds<0) throw new Error("El precio de productos es menor al costo.");
       const{error:errSR}=await sb.from("servicios_rapidos").insert({
         tipo:"otro",descripcion:desc.trim(),
         cliente:cliente||null,placa:placa||null,tel:tel||null,
@@ -634,10 +639,6 @@ function Otros({usuario,inv,esEnc}){
       });
       if(errSR)throw new Error("servicios_rapidos: "+errSR.message);
       if(moVal>0) await sb.from("caja").insert({fecha:hoy(),taller:tallerSel,concepto:`Serv. Otro MO: ${desc.trim()}${placa?` — ${placa}`:""}`,tipo:"ingreso",subtipo:"ganancia_neta",monto:moVal,metodo_pago:"Efectivo",registrado_por:usuario.user_name||usuario.nombre,user_name:usuario.nombre});
-      const costoProds=productos.reduce((s,p)=>s+(parseFloat(p.costo||0)*p.qty),0);
-      const margenProds=totalProds-costoProds;
-      if(productos.length>0&&costoProds<=0) throw new Error("Hay productos sin costo registrado en inventario.");
-      if(margenProds<0) throw new Error("El precio de productos es menor al costo.");
       if(costoProds>0) await sb.from("caja").insert({fecha:hoy(),taller:tallerSel,concepto:`Serv. Otro Capital: ${desc.trim()}${placa?` — ${placa}`:""}`,tipo:"ingreso",subtipo:"capital_tienda",monto:costoProds,metodo_pago:"Efectivo",registrado_por:usuario.user_name||usuario.nombre,user_name:usuario.nombre});
       if(margenProds>0) await sb.from("caja").insert({fecha:hoy(),taller:tallerSel,concepto:`Serv. Otro Ganancia Prod: ${desc.trim()}${placa?` — ${placa}`:""}`,tipo:"ingreso",subtipo:"ganancia_neta",monto:margenProds,metodo_pago:"Efectivo",registrado_por:usuario.user_name||usuario.nombre,user_name:usuario.nombre});
       for(const p of productos) await sb.from("inventario").update({stock:Math.max(0,p.stock-p.qty)}).eq("id",p.id);
