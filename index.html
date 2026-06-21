@@ -140,6 +140,133 @@ function Login({ onLogin }) {
   );
 }
 
+/* ─── SEMÁFORO TRABAJADOR ──────────────────────────── */
+function obtenerTallerUsuario(u) {
+  const t = (u.taller || "").trim();
+  if (t === "Taller 1 · Montes" || t === "Taller 2 · Bella Vista") return [t];
+  if (t === "ambos") return ["Taller 1 · Montes", "Taller 2 · Bella Vista"];
+  // Fallback por nombre si taller no está definido
+  const n = (u.nombre || u.user_name || "").toLowerCase();
+  if (["wilfredo","adolfo","joel"].some(x => n.includes(x))) return ["Taller 2 · Bella Vista"];
+  if (["william","evo","diego"].some(x => n.includes(x)))    return ["Taller 1 · Montes"];
+  return null;
+}
+
+function calcSemaforoTrabajador(pct) {
+  if (pct >= 120) return { color:"#a78bfa", bg:"#a78bfa15", borde:"#a78bfa40", icono:"⭐", zona:"ZONA BONO", msg:"Zona bono referencial. Se confirma si caja cuadra y no hay reclamos." };
+  if (pct >= 100) return { color:"#16a34a", bg:"#16a34a15", borde:"#16a34a40", icono:"🟢", zona:"VERDE",    msg:"Ya cubrimos gastos fijos. Mantener calidad y caja ordenada." };
+  if (pct >= 70)  return { color:"#f59e0b", bg:"#f59e0b15", borde:"#f59e0b40", icono:"🟠", zona:"NARANJA",  msg:"Estamos cerca. Falta poco para cubrir gastos fijos." };
+  return           { color:"#ef4444", bg:"#ef444415", borde:"#ef444440", icono:"🔴", zona:"ROJO",    msg:"Estamos bajos. Hay que empujar más trabajos y cerrar OTs." };
+}
+
+async function cargarSemaforoTrabajador(usuario) {
+  const talleres = obtenerTallerUsuario(usuario);
+  if (!talleres) return { error:"sin_taller" };
+  try {
+    const hoy = new Date();
+    const mes = String(hoy.getMonth() + 1).padStart(2, "0");
+    const año = String(hoy.getFullYear());
+
+    const [{ data: gastosDat }, { data: sesionesAll }] = await Promise.all([
+      sb.from("gastos_fijos_taller").select("taller, monto").eq("activo", true),
+      sb.from("caja_sesiones").select("taller, ganancia_neta, fecha").eq("estado", "Cerrada"),
+    ]);
+
+    const delMes = (sesionesAll || []).filter(s => {
+      if (!s.fecha) return false;
+      const p = s.fecha.split("/");
+      if (p.length === 3) return p[1] === mes && p[2] === año;
+      const d = new Date(s.fecha);
+      return d.getMonth() + 1 === parseInt(mes) && d.getFullYear() === parseInt(año);
+    });
+
+    return {
+      talleres: talleres.map(nombre => {
+        const totalGastos = (gastosDat || [])
+          .filter(g => g.taller === nombre)
+          .reduce((s, g) => s + parseFloat(g.monto || 0), 0);
+        const ganancia = delMes
+          .filter(s => s.taller === nombre)
+          .reduce((s, x) => s + parseFloat(x.ganancia_neta || 0), 0);
+        const avancePct = totalGastos > 0 ? (ganancia / totalGastos) * 100 : 0;
+        return { nombre, totalGastos, avancePct, sinGastos: totalGastos === 0,
+          sem: calcSemaforoTrabajador(avancePct) };
+      }),
+    };
+  } catch { return { error:"carga_fallida" }; }
+}
+
+const LABEL_TALLER = {
+  "Taller 2 · Bella Vista": "🌟 Bella Vista",
+  "Taller 1 · Montes":      "⛰️ Montes",
+};
+
+function SemaforoBloque({ semData }) {
+  if (!semData) return (
+    <div style={{background:"#1e293b",border:"1px solid #334155",borderRadius:12,
+      padding:"11px 14px",marginBottom:16,fontSize:11,color:"#475569",textAlign:"center"}}>
+      ⏳ Calculando estado del taller...
+    </div>
+  );
+  if (semData.error === "sin_taller") return (
+    <div style={{background:"#1e293b",border:"1px solid #334155",borderRadius:12,
+      padding:"11px 14px",marginBottom:16,fontSize:11,color:"#475569"}}>
+      ℹ️ No se pudo identificar tu taller para calcular el semáforo.
+    </div>
+  );
+  if (semData.error === "carga_fallida") return null;
+
+  return (
+    <div style={{marginBottom:16}}>
+      <div style={{color:"#334155",fontSize:10,fontWeight:700,textTransform:"uppercase",
+        letterSpacing:1,marginBottom:8}}>
+        Estado del taller — mes actual
+      </div>
+      {semData.talleres.map(t => (
+        <div key={t.nombre} style={{background:t.sem.bg, border:`1px solid ${t.sem.borde}`,
+          borderRadius:14, padding:"14px 16px", marginBottom:8}}>
+
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+            <div style={{fontSize:28}}>{t.sem.icono}</div>
+            <div style={{flex:1}}>
+              <div style={{color:t.sem.color,fontWeight:900,fontSize:13}}>{t.sem.zona}</div>
+              <div style={{color:"#64748b",fontSize:10,marginTop:2}}>
+                {LABEL_TALLER[t.nombre] || t.nombre}
+              </div>
+            </div>
+            <div style={{fontSize:19,fontWeight:900,color:t.sem.color}}>
+              {t.avancePct.toFixed(1)}%
+            </div>
+          </div>
+
+          <div style={{background:"#0f172a",borderRadius:99,height:7,overflow:"hidden",marginBottom:5}}>
+            <div style={{height:"100%",borderRadius:99,background:t.sem.color,
+              width:`${Math.min(100, t.avancePct)}%`}}/>
+          </div>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:9,
+            color:"#475569",marginBottom:10}}>
+            <span>0%</span><span>100% gastos fijos</span>
+          </div>
+
+          <div style={{background:"rgba(0,0,0,.2)",borderRadius:8,padding:"7px 11px",
+            fontSize:11,color:"#94a3b8",lineHeight:1.5}}>
+            {t.sinGastos
+              ? "Gastos fijos no configurados para este taller."
+              : t.sem.msg}
+          </div>
+
+          {t.avancePct >= 120 && (
+            <div style={{marginTop:7,padding:"5px 10px",background:"rgba(167,139,250,.08)",
+              borderRadius:7,fontSize:10,color:"#a78bfa"}}>
+              ⭐ Bono referencial — se confirma si caja cuadra y no hay reclamos.
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /* ─── MENU PRINCIPAL ────────────────────────────────── */
 function Inicio({ usuario, onSalir }) {
   const [hora, setHora] = React.useState(
@@ -151,6 +278,9 @@ function Inicio({ usuario, onSalir }) {
     ), 30000);
     return () => clearInterval(t);
   }, []);
+
+  const [semData, setSemData] = React.useState(null);
+  React.useEffect(() => { cargarSemaforoTrabajador(usuario).then(setSemData); }, []);
 
   const rolEfectivo = r => /t[eé]cnico/i.test(r) ? "mecanico" : r;
 
@@ -210,6 +340,8 @@ function Inicio({ usuario, onSalir }) {
             </span>
           </div>
         </div>
+
+        <SemaforoBloque semData={semData}/>
 
         <div style={{color:"#334155",fontSize:10,fontWeight:700,textTransform:"uppercase",
           letterSpacing:1,marginBottom:10}}>
