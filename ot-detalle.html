@@ -870,8 +870,12 @@ async function confirmarCobro(){
   const btn=document.getElementById("btn_cobro");
   if(btn){btn.disabled=true;btn.textContent="⏳ Procesando...";}
 
-  if(venta_rep>0&&capital<=0){
-    alert("No se puede cobrar: hay repuestos sin costo registrado en inventario.");
+  const repuestoSinCosto=repArr.find(x=>{
+    const inv_item=inventario.find(i=>i.id===x.inv_id);
+    return !inv_item||parseFloat(inv_item?.costo||0)<=0;
+  });
+  if(repuestoSinCosto){
+    alert("No se puede cobrar: el repuesto "+(repuestoSinCosto.nom||repuestoSinCosto.nombre||repuestoSinCosto.descripcion||"seleccionado")+" no tiene costo registrado en inventario.");
     if(btn){btn.disabled=false;btn.textContent="✅ Confirmar cobro y entregar";}
     return;
   }
