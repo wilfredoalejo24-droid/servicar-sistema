@@ -462,19 +462,27 @@ async function cerrarCaja(){
   const real=ef+qr, dif=real-esperado;
   const obs=v("ci_obs");
   const difLabel=Math.abs(dif)<1?"✅ Cuadra":dif>0?`⚠️ Sobra ${fmt(dif)}`:`❌ Falta ${fmt(Math.abs(dif))}`;
+  const apertura=parseFloat(sesion?.apertura_monto||0);
+  const esSinMovimiento=apertura===0&&tot.ganancia===0&&tot.capital===0&&tot.gastos===0&&ef===0&&qr===0;
+  const sinMovLabel=esSinMovimiento?"\n\n📋 Día sin movimiento":"";
+  const responsable=usuario.nombre||usuario.user_name;
 
-  if(!confirm(`¿Cerrar caja de ${sesion.taller}?\n\n📊 Sistema: ${fmt(tot.cobrado)} cobrado · Gastos: ${fmt(tot.gastos)}\n💵 Efectivo real: ${fmt(ef)} · QR: ${fmt(qr)}\n\n${difLabel}`))return;
+  if(!confirm(`¿Cerrar caja de ${sesion.taller}?\n\n📊 Sistema: ${fmt(tot.cobrado)} cobrado · Gastos: ${fmt(tot.gastos)}\n💵 Efectivo real: ${fmt(ef)} · QR: ${fmt(qr)}\n\n${difLabel}${sinMovLabel}`))return;
 
   await SB.from("caja_sesiones").update({
     cierre_hora:hora(),
     cierre_efectivo:ef,cierre_qr:qr,cierre_total:real,
     ganancia_neta:tot.ganancia,capital_tienda:tot.capital,
     gastos:tot.gastos,diferencia:dif,
-    obs_cierre:obs,estado:"Cerrada"
+    obs_cierre:obs,estado:"Cerrada",
+    sin_movimiento:esSinMovimiento,
+    observacion_sistema:esSinMovimiento?"Día sin movimiento":null,
+    responsable_cierre:responsable
   }).eq("id",sesion.id);
 
   sesion={...sesion,estado:"Cerrada",cierre_hora:hora(),
-    cierre_efectivo:ef,cierre_qr:qr,cierre_total:real,diferencia:dif};
+    cierre_efectivo:ef,cierre_qr:qr,cierre_total:real,diferencia:dif,
+    sin_movimiento:esSinMovimiento};
   notionGuardarCaja(tot,ef,qr).then(ok=>notionToast(ok));
   render();
 }
@@ -483,9 +491,11 @@ async function cerrarCaja(){
 function resumenCierre(tot){
   const dif=sesion.diferencia||0;
   const ok=Math.abs(dif)<1;
+  const sinMov=sesion.sin_movimiento===true;
   return `
   <div class="card" style="border-color:#16a34a30">
     <div style="color:#16a34a;font-size:11px;font-weight:700;text-transform:uppercase;margin-bottom:12px">✅ Resumen de cierre · ${sesion.cierre_hora||""}</div>
+    ${sinMov?`<div style="background:#64748b20;border:1px solid #64748b40;border-radius:8px;padding:8px 12px;text-align:center;margin-bottom:10px;font-size:11px;font-weight:700;color:#94a3b8">📋 Día sin movimiento</div>`:""}
     <div style="background:#0f172a;border-radius:10px;padding:12px;margin-bottom:10px">
       ${[
         ["Ganancia neta (MO)","ganancia","#16a34a"],
