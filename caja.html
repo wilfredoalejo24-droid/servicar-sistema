@@ -379,6 +379,62 @@ function listaMovimientos(){
   </div>`;
 }
 
+/* ── Detalle antes de cerrar ─────────────────────────── */
+function detalleAntesDeCerrar(tot){
+  const STAG={ganancia_neta:{l:"Mano de obra",c:"#16a34a"},capital_tienda:{l:"Repuesto",c:"#60a5fa"}};
+  const filas=movimientos.length===0
+    ?`<div style="text-align:center;padding:12px;color:#475569;font-size:11px">Sin movimientos registrados en el día</div>`
+    :movimientos.map(m=>{
+      const ing=m.tipo==="ingreso";
+      const esCapital=m.subtipo==="capital_tienda";
+      const st=STAG[m.subtipo]||{l:ing?"Ingreso":"Gasto",c:ing?"#94a3b8":"#ef4444"};
+      const c=ing?st.c:"#ef4444";
+      const quien=m.registrado_por||"Sin responsable";
+      const que=m.concepto||"Sin concepto";
+      const metodo=m.metodo_pago||"Sin método";
+      return `
+      <div style="padding:8px 0;border-bottom:1px solid #0f172a">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:11px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${que}</div>
+            <div style="display:flex;gap:4px;margin-top:2px;flex-wrap:wrap;align-items:center">
+              <span style="font-size:9px;color:#475569">${quien}</span>
+              <span style="font-size:9px;color:#334155">·</span>
+              <span style="font-size:9px;padding:1px 5px;background:${c}20;color:${c};border-radius:4px;font-weight:700">${st.l}</span>
+              <span style="font-size:9px;color:#475569">${metodo}</span>
+              ${esCapital?`<span style="font-size:9px;padding:1px 6px;background:#f59e0b20;color:#f59e0b;border-radius:4px;font-weight:900">⚠️ GUARDAR</span>`:""}
+            </div>
+          </div>
+          <div style="font-weight:700;font-size:12px;color:${c};flex-shrink:0">${ing?"+":"-"}${fmt(m.monto)}</div>
+        </div>
+      </div>`;
+    }).join("");
+
+  return `
+  <div class="card noprint" style="border-color:#334155;margin-bottom:12px">
+    <div style="color:#64748b;font-size:11px;font-weight:700;text-transform:uppercase;margin-bottom:10px">📋 Detalle antes de cerrar</div>
+    <div style="max-height:200px;overflow-y:auto;margin-bottom:10px">${filas}</div>
+    <div style="background:#0f172a;border-radius:8px;padding:10px">
+      <div style="color:#334155;font-size:9px;font-weight:700;margin-bottom:6px;text-transform:uppercase">Resumen</div>
+      ${[
+        ["Ganancia neta (MO)",fmt(tot.ganancia),"#16a34a",false],
+        ["Capital / Repuestos",fmt(tot.capital),"#60a5fa",tot.capital>0],
+        ["Gastos","-"+fmt(tot.gastos),"#ef4444",false],
+        ["Neto del día",fmt(tot.neto),"#fbbf24",false],
+      ].map(([k,v,c,warn])=>`
+      <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;margin-bottom:4px">
+        <span style="color:#64748b">${k}${warn?' <span style="font-size:9px;color:#f59e0b;font-weight:900">⚠️ GUARDAR</span>':""}</span>
+        <span style="color:${c};font-weight:700">${v}</span>
+      </div>`).join("")}
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:#475569;border-top:1px solid #334155;padding-top:6px;margin-top:4px">
+        <span>💵 Efectivo: ${fmt(tot.efectivo)}</span>
+        <span>📱 QR: ${fmt(tot.qr)}</span>
+        <span>📦 Cobrado: ${fmt(tot.cobrado)}</span>
+      </div>
+    </div>
+  </div>`;
+}
+
 /* ── Panel cierre ───────────────────────────────────── */
 function panelCierre(tot){
   const esperado=parseFloat(sesion.apertura_monto||0)+tot.neto;
@@ -431,6 +487,8 @@ function panelCierre(tot){
       <input id="ci_obs" class="input" placeholder="Explica la diferencia..."/>
     </div>
 
+    ${detalleAntesDeCerrar(tot)}
+
     <button onclick="cerrarCaja()"
       style="width:100%;padding:13px;background:#f59e0b;color:#1e293b;border:none;border-radius:10px;font-weight:900;font-size:14px;cursor:pointer">
       🌆 Cerrar caja ahora
@@ -466,8 +524,9 @@ async function cerrarCaja(){
   const esSinMovimiento=apertura===0&&tot.ganancia===0&&tot.capital===0&&tot.gastos===0&&ef===0&&qr===0;
   const sinMovLabel=esSinMovimiento?"\n\n📋 Día sin movimiento":"";
   const responsable=usuario.nombre||usuario.user_name;
+  const capitalLabel=tot.capital>0?`\n⚠️ CAPITAL A GUARDAR: ${fmt(tot.capital)}`:"";
 
-  if(!confirm(`¿Cerrar caja de ${sesion.taller}?\n\n📊 Sistema: ${fmt(tot.cobrado)} cobrado · Gastos: ${fmt(tot.gastos)}\n💵 Efectivo real: ${fmt(ef)} · QR: ${fmt(qr)}\n\n${difLabel}${sinMovLabel}`))return;
+  if(!confirm(`¿Cerrar caja de ${sesion.taller}?\n\n📊 Sistema: ${fmt(tot.cobrado)} cobrado · Gastos: ${fmt(tot.gastos)}\n💵 Efectivo real: ${fmt(ef)} · QR: ${fmt(qr)}\n\n${difLabel}${capitalLabel}${sinMovLabel}`))return;
 
   await SB.from("caja_sesiones").update({
     cierre_hora:hora(),
