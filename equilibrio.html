@@ -102,7 +102,8 @@ const fmt = n => `Bs. ${parseFloat(n || 0).toLocaleString("es-BO", { minimumFrac
 const pct = (v, max) => Math.min(100, Math.max(0, (v / max) * 100)).toFixed(1);
 
 let usuario = null;
-let ingresosMes = {}; // { bv: 0, mo: 0 }
+let ingresosMes = {}; // { bv: 0, mo: 0 } — solo ganancia_neta
+let capitalMes  = {}; // { bv: 0, mo: 0 } — capital tienda (solo informativo)
 let tab = "bv";
 let verGastos = { bv: false, mo: false };
 
@@ -147,20 +148,20 @@ async function cargarIngresosMes() {
   });
 
   ingresosMes = { bv: 0, mo: 0 };
+  capitalMes  = { bv: 0, mo: 0 };
   TALLERES.forEach(t => {
-    const suma = delMes
-      .filter(s => s.taller === t.tallerDB)
-      .reduce((acc, s) => acc + parseFloat(s.ganancia_neta || 0) + parseFloat(s.capital_tienda || 0), 0);
-    ingresosMes[t.key] = suma;
+    const sesT = delMes.filter(s => s.taller === t.tallerDB);
+    ingresosMes[t.key] = sesT.reduce((acc, s) => acc + parseFloat(s.ganancia_neta  || 0), 0);
+    capitalMes[t.key]  = sesT.reduce((acc, s) => acc + parseFloat(s.capital_tienda || 0), 0);
   });
 }
 
 /* ── Semáforo ────────────────────────────────────────── */
-function calcSemaforo(taller, ingreso) {
-  const { amarilloDesde, verdeDesde } = taller.semaforo;
-  if (ingreso >= verdeDesde)  return { color: "#16a34a", bg: "#16a34a15", borde: "#16a34a40", icono: "🟢", label: "Verde · Meta alcanzada", bonos: true };
-  if (ingreso >= amarilloDesde) return { color: "#f59e0b", bg: "#f59e0b15", borde: "#f59e0b40", icono: "🟡", label: "Amarillo · Sobre el equilibrio", bonos: false };
-  return { color: "#ef4444", bg: "#ef444415", borde: "#ef444440", icono: "🔴", label: "Rojo · Bajo el punto de equilibrio", bonos: false };
+function calcSemaforo(avancePct) {
+  if (avancePct >= 120) return { color:"#a78bfa", bg:"#a78bfa15", borde:"#a78bfa40", icono:"⭐", zona:"ZONA BONO", label:"Zona bono · Superamos el equilibrio",   msg:"Superamos el equilibrio. Posible bono si caja cuadra y no hay reclamos.", bonos:true  };
+  if (avancePct >= 100) return { color:"#16a34a", bg:"#16a34a15", borde:"#16a34a40", icono:"🟢", zona:"VERDE",    label:"Verde · Ya cubrimos los gastos fijos",   msg:"Ya cubrimos los gastos fijos.",                                           bonos:false };
+  if (avancePct >= 70)  return { color:"#f59e0b", bg:"#f59e0b15", borde:"#f59e0b40", icono:"🟠", zona:"NARANJA",  label:"Naranja · Estamos cerca",               msg:"Estamos cerca. Hay que empujar más trabajos.",                            bonos:false };
+  return                       { color:"#ef4444", bg:"#ef444415", borde:"#ef444440", icono:"🔴", zona:"ROJO",     label:"Rojo · Estamos bajos",                  msg:"Estamos bajos. Falta cubrir gastos fijos.",                               bonos:false };
 }
 
 /* ── Render ──────────────────────────────────────────── */
@@ -208,85 +209,119 @@ function render() {
 }
 
 function renderTaller(t) {
-  const ingreso = ingresosMes[t.key] || 0;
-  const sem = calcSemaforo(t, ingreso);
-  const pctEq = pct(ingreso, t.metaConBonos);
-  const faltaEq = Math.max(0, t.puntoEquilibrio - ingreso);
-  const faltaMeta = Math.max(0, t.metaConBonos - ingreso);
-  const sobraEq = Math.max(0, ingreso - t.puntoEquilibrio);
+  const ganancia   = ingresosMes[t.key] || 0;
+  const capital    = capitalMes[t.key]  || 0;
+  const avancePct  = t.totalGastos > 0 ? (ganancia / t.totalGastos) * 100 : 0;
+  const sem        = calcSemaforo(avancePct);
+  const faltaEq    = Math.max(0, t.totalGastos - ganancia);
+  const excedente  = Math.max(0, ganancia - t.totalGastos);
+  const faltaMeta  = Math.max(0, t.metaConBonos - ganancia);
   const totalBonos = t.bonos.reduce((s, b) => s + b.monto, 0);
 
   return `
   <!-- SEMÁFORO -->
   <div class="card" style="border-color:${sem.borde};background:${sem.bg}">
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
       <div style="font-size:36px">${sem.icono}</div>
       <div style="flex:1">
         <div style="color:${sem.color};font-weight:900;font-size:14px">${sem.label}</div>
         <div style="color:#64748b;font-size:11px;margin-top:2px">${t.icono} Taller ${t.nombre} · Equipo: ${t.equipo.join(", ")}</div>
       </div>
+      <div style="font-size:22px;font-weight:900;color:${sem.color}">${avancePct.toFixed(1)}%</div>
     </div>
 
-    <!-- Ingreso del mes -->
-    <div style="background:#0f172a;border-radius:10px;padding:12px;margin-bottom:12px;text-align:center">
-      <div class="label" style="margin-bottom:4px">Ingresos del mes (caja cerrada)</div>
-      <div style="font-size:30px;font-weight:900;color:${sem.color}">${fmt(ingreso)}</div>
-      <div style="color:#475569;font-size:10px;margin-top:3px">Ganancia neta + Capital</div>
+    <!-- Mensaje del semáforo -->
+    <div style="background:#0f172a;border-radius:8px;padding:9px 12px;margin-bottom:12px;font-size:12px;color:#94a3b8;line-height:1.5">
+      ${sem.msg}
     </div>
 
-    <!-- Barra de progreso -->
-    <div class="label" style="margin-bottom:2px">Progreso hacia la meta</div>
+    <!-- Ganancia neta del mes -->
+    <div style="background:#0f172a;border-radius:10px;padding:12px;margin-bottom:8px;text-align:center">
+      <div class="label" style="margin-bottom:4px">Ganancia neta del mes (caja cerrada)</div>
+      <div style="font-size:30px;font-weight:900;color:${sem.color}">${fmt(ganancia)}</div>
+      <div style="color:#475569;font-size:10px;margin-top:3px">Mano de obra + margen repuestos · Cubre los gastos fijos</div>
+    </div>
+
+    <!-- Capital tienda (solo informativo) -->
+    <div style="background:#0f172a;border:1px solid #60a5fa20;border-radius:8px;padding:9px 12px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div style="font-size:10px;color:#60a5fa;font-weight:700">📦 CAPITAL TIENDA DEL MES</div>
+        <div style="font-size:10px;color:#475569;margin-top:2px">No cuenta para equilibrio · Vuelve al inventario</div>
+      </div>
+      <div style="font-weight:900;color:#60a5fa;font-size:14px">${fmt(capital)}</div>
+    </div>
+
+    <!-- Barra de progreso hacia equilibrio -->
+    <div class="label" style="margin-bottom:2px">Avance hacia punto de equilibrio (ganancia neta / gastos fijos)</div>
     <div class="prog-track">
-      <div class="prog-fill" style="width:${Math.min(100, pct(ingreso, t.metaConBonos))}%;background:${sem.color}"></div>
+      <div class="prog-fill" style="width:${Math.min(100, avancePct)}%;background:${sem.color}"></div>
     </div>
     <div style="display:flex;justify-content:space-between;font-size:10px;color:#475569;margin-bottom:14px">
-      <span>Bs. 0</span>
-      <span style="color:${sem.color};font-weight:700">${pctEq}%</span>
-      <span>${fmt(t.metaConBonos)}</span>
+      <span>0%</span>
+      <span style="color:${sem.color};font-weight:700">${avancePct.toFixed(1)}%</span>
+      <span>100% = ${fmt(t.totalGastos)}</span>
     </div>
 
-    <!-- Líneas de referencia -->
+    <!-- Gastos fijos / Falta o excedente -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
       <div style="background:#0f172a;border:1px solid #334155;border-radius:10px;padding:10px;text-align:center">
-        <div class="label" style="margin-bottom:4px">Punto equilibrio</div>
-        <div style="font-size:13px;font-weight:900;color:#64748b">${fmt(t.puntoEquilibrio)}</div>
-        ${faltaEq > 0
-          ? `<div style="font-size:10px;color:#ef4444;margin-top:3px">Faltan ${fmt(faltaEq)}</div>`
-          : `<div style="font-size:10px;color:#16a34a;margin-top:3px">✅ Superado +${fmt(sobraEq)}</div>`}
+        <div class="label" style="margin-bottom:4px">Gastos fijos del mes</div>
+        <div style="font-size:13px;font-weight:900;color:#64748b">${fmt(t.totalGastos)}</div>
+        <div style="font-size:10px;color:#475569;margin-top:2px">Punto de equilibrio (100%)</div>
       </div>
-      <div style="background:#0f172a;border:1px solid #334155;border-radius:10px;padding:10px;text-align:center">
-        <div class="label" style="margin-bottom:4px">Meta con bonos</div>
-        <div style="font-size:13px;font-weight:900;color:${t.color}">${fmt(t.metaConBonos)}</div>
+      <div style="background:#0f172a;border:1px solid ${excedente > 0 ? "#16a34a30" : "#ef444430"};border-radius:10px;padding:10px;text-align:center">
+        <div class="label" style="margin-bottom:4px">${excedente > 0 ? "Excedente sobre equilibrio" : "Falta para equilibrio"}</div>
+        <div style="font-size:13px;font-weight:900;color:${excedente > 0 ? "#16a34a" : "#ef4444"}">${fmt(excedente > 0 ? excedente : faltaEq)}</div>
+        ${excedente > 0
+          ? `<div style="font-size:10px;color:#16a34a;margin-top:2px">✅ Gastos cubiertos</div>`
+          : `<div style="font-size:10px;color:#ef4444;margin-top:2px">❌ Aún no cubre</div>`}
+      </div>
+    </div>
+
+    <!-- Meta con bonos (referencia secundaria) -->
+    <div style="margin-top:8px;padding:8px 12px;background:#0f172a;border-radius:8px;display:flex;justify-content:space-between;align-items:center">
+      <div style="font-size:10px;color:#475569">Meta con bonos (referencia)</div>
+      <div>
+        <span style="font-size:12px;font-weight:700;color:${faltaMeta <= 0 ? "#16a34a" : "#64748b"}">${fmt(t.metaConBonos)}</span>
         ${faltaMeta > 0
-          ? `<div style="font-size:10px;color:#f59e0b;margin-top:3px">Faltan ${fmt(faltaMeta)}</div>`
-          : `<div style="font-size:10px;color:#16a34a;margin-top:3px">✅ Meta alcanzada!</div>`}
+          ? `<span style="font-size:10px;color:#475569"> · faltan ${fmt(faltaMeta)}</span>`
+          : `<span style="font-size:10px;color:#16a34a"> · ✅ alcanzada</span>`}
       </div>
     </div>
   </div>
 
+  <!-- ZONA BONO AVISO (Cambio 5) -->
+  ${avancePct >= 120 ? `
+  <div class="card" style="border-color:#a78bfa40;background:#a78bfa08">
+    <div style="color:#a78bfa;font-size:11px;font-weight:700;text-transform:uppercase;margin-bottom:8px">⭐ Zona bono referencial</div>
+    <div style="color:#94a3b8;font-size:12px;line-height:1.6">
+      El bono se confirma solo si caja cuadra, capital tienda fue separado y no hay reclamos graves.
+    </div>
+  </div>` : ""}
+
   <!-- BONOS -->
-  <div class="card" style="border-color:${sem.bonos ? "#16a34a40" : "#33415580"}">
+  <div class="card" style="border-color:${sem.bonos ? "#a78bfa40" : "#33415580"}">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-      <div style="color:${sem.bonos ? "#16a34a" : "#64748b"};font-size:11px;font-weight:700;text-transform:uppercase">
+      <div style="color:${sem.bonos ? "#a78bfa" : "#64748b"};font-size:11px;font-weight:700;text-transform:uppercase">
         🎁 Bonos del mes
       </div>
       <span style="padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;
-        background:${sem.bonos ? "#16a34a20" : "#ef444420"};
-        color:${sem.bonos ? "#16a34a" : "#ef4444"};
-        border:1px solid ${sem.bonos ? "#16a34a40" : "#ef444440"}">
-        ${sem.bonos ? "✅ Aplican" : "❌ No aplican"}
+        background:${sem.bonos ? "#a78bfa20" : "#ef444420"};
+        color:${sem.bonos ? "#a78bfa" : "#ef4444"};
+        border:1px solid ${sem.bonos ? "#a78bfa40" : "#ef444440"}">
+        ${sem.bonos ? "✅ Aplican (zona bono)" : "❌ No aplican aún"}
       </span>
     </div>
-    ${!sem.bonos ? `<div style="color:#475569;font-size:12px;text-align:center;padding:8px">Se activan solo cuando el taller llega a zona verde (≥ ${fmt(t.semaforo.verdeDesde)})</div>` : ""}
+    ${!sem.bonos ? `<div style="color:#475569;font-size:12px;text-align:center;padding:8px">Se activan solo cuando el taller alcanza zona bono (≥ 120% de gastos fijos = ${fmt(t.totalGastos * 1.2)})</div>` : ""}
     <div style="${!sem.bonos ? "opacity:0.4" : ""}">
       ${t.bonos.map(b => `
       <div class="gasto-row">
         <span style="color:#94a3b8">${b.nombre}</span>
-        <span style="font-weight:700;color:${sem.bonos && b.monto > 0 ? "#16a34a" : "#64748b"}">${b.monto > 0 ? fmt(b.monto) : "Sin bono"}</span>
+        <span style="font-weight:700;color:${sem.bonos && b.monto > 0 ? "#a78bfa" : "#64748b"}">${b.monto > 0 ? fmt(b.monto) : "Sin bono"}</span>
       </div>`).join("")}
       <div style="display:flex;justify-content:space-between;padding:8px 0 0;border-top:1px solid #334155;margin-top:4px">
         <span style="color:#64748b;font-size:11px;font-weight:700">TOTAL BONOS</span>
-        <span style="font-weight:900;color:${sem.bonos ? "#16a34a" : "#64748b"}">${fmt(totalBonos)}</span>
+        <span style="font-weight:900;color:${sem.bonos ? "#a78bfa" : "#64748b"}">${fmt(totalBonos)}</span>
       </div>
     </div>
   </div>
@@ -316,22 +351,23 @@ function renderTaller(t) {
     </div>` : ""}
   </div>
 
-  <!-- SEMÁFORO REFERENCIA -->
+  <!-- SEMÁFORO REFERENCIA (4 zonas por %) -->
   <div class="card">
-    <div class="label" style="margin-bottom:10px">📍 Escala del semáforo</div>
+    <div class="label" style="margin-bottom:10px">📍 Escala del semáforo (% ganancia neta / gastos fijos)</div>
     ${[
-      { desde: 0, hasta: t.puntoEquilibrio - 0.01, color: "#ef4444", bg: "#ef444415", icono: "🔴", label: "Rojo", desc: `Menos de ${fmt(t.puntoEquilibrio)} — Sin renta ni bonos` },
-      { desde: t.puntoEquilibrio, hasta: t.semaforo.verdeDesde - 0.01, color: "#f59e0b", bg: "#f59e0b15", icono: "🟡", label: "Amarillo", desc: `${fmt(t.puntoEquilibrio)} a ${fmt(t.semaforo.verdeDesde)} — Solo salarios` },
-      { desde: t.semaforo.verdeDesde, hasta: null, color: "#16a34a", bg: "#16a34a15", icono: "🟢", label: "Verde", desc: `Más de ${fmt(t.semaforo.verdeDesde)} — Bonos + renta + fondo emergencia` },
+      { desde:   0, hasta:  69.99, color:"#ef4444", bg:"#ef444415", icono:"🔴", zona:"Rojo",      desc:`0% a 69% — Menos de ${fmt(t.totalGastos*0.7)} — Sin renta ni bonos` },
+      { desde:  70, hasta:  99.99, color:"#f59e0b", bg:"#f59e0b15", icono:"🟠", zona:"Naranja",   desc:`70% a 99% — ${fmt(t.totalGastos*0.7)} a ${fmt(t.totalGastos)} — Solo salarios` },
+      { desde: 100, hasta: 119.99, color:"#16a34a", bg:"#16a34a15", icono:"🟢", zona:"Verde",     desc:`100% a 119% — ${fmt(t.totalGastos)} a ${fmt(t.totalGastos*1.2)} — Gastos cubiertos` },
+      { desde: 120, hasta:   null, color:"#a78bfa", bg:"#a78bfa15", icono:"⭐", zona:"Zona bono", desc:`≥ 120% — Más de ${fmt(t.totalGastos*1.2)} — Posible bono si caja cuadra` },
     ].map(z => {
-      const activo = ingreso >= z.desde && (z.hasta === null || ingreso < z.hasta);
+      const activo = avancePct >= z.desde && (z.hasta === null || avancePct <= z.hasta);
       return `
       <div style="display:flex;align-items:center;gap:10px;padding:10px;border-radius:10px;margin-bottom:6px;
         background:${activo ? z.bg : "transparent"};
         border:1px solid ${activo ? z.color + "40" : "#334155"}">
         <span style="font-size:18px">${z.icono}</span>
         <div style="flex:1">
-          <div style="font-size:11px;font-weight:700;color:${activo ? z.color : "#64748b"}">${z.label}${activo ? " ← Estás aquí" : ""}</div>
+          <div style="font-size:11px;font-weight:700;color:${activo ? z.color : "#64748b"}">${z.zona}${activo ? " ← Estás aquí" : ""}</div>
           <div style="font-size:10px;color:#475569;margin-top:2px">${z.desc}</div>
         </div>
       </div>`;
@@ -339,11 +375,11 @@ function renderTaller(t) {
   </div>
 
   <!-- FONDO EMERGENCIA -->
-  ${sem.bonos ? `
+  ${avancePct >= 100 ? `
   <div class="card" style="border-color:#a78bfa40">
     <div style="color:#a78bfa;font-size:11px;font-weight:700;text-transform:uppercase;margin-bottom:8px">🏦 Fondo de emergencia</div>
     <div style="color:#94a3b8;font-size:12px;line-height:1.6">
-      ✅ Mes verde. Recordá separar mínimo <strong style="color:#a78bfa">Bs. 5.000</strong> para el fondo de emergencia antes de distribuir los bonos.
+      ✅ Gastos fijos cubiertos. Recordá separar mínimo <strong style="color:#a78bfa">Bs. 5.000</strong> para el fondo de emergencia antes de distribuir bonos.
     </div>
   </div>` : ""}
   `;
@@ -354,57 +390,68 @@ function renderReglas() {
   <div class="card" style="border-color:#a78bfa40">
     <div style="color:#a78bfa;font-size:13px;font-weight:900;margin-bottom:16px">📜 Reglas generales</div>
 
+    <div style="background:#60a5fa10;border:1px solid #60a5fa30;border-radius:10px;padding:10px;margin-bottom:12px">
+      <div style="color:#60a5fa;font-size:10px;font-weight:700;margin-bottom:4px">📦 CAPITAL TIENDA — NO cuenta para equilibrio</div>
+      <div style="color:#94a3b8;font-size:11px;line-height:1.5">El capital tienda (costo de repuestos vendidos) vuelve al inventario. El avance se calcula solo con <strong style="color:#60a5fa">ganancia neta</strong> (mano de obra + margen).</div>
+    </div>
+
     <div style="display:flex;flex-direction:column;gap:12px">
       <div style="background:#ef444415;border:1px solid #ef444440;border-radius:10px;padding:12px">
-        <div style="color:#ef4444;font-size:11px;font-weight:700;margin-bottom:6px">🔴 ZONA ROJA — Sin distribuir</div>
+        <div style="color:#ef4444;font-size:11px;font-weight:700;margin-bottom:6px">🔴 ZONA ROJA — 0% a 69%</div>
         <div style="color:#94a3b8;font-size:12px;line-height:1.6">
-          Si el taller está en rojo, <strong style="color:#ef4444">no hay renta para el propietario ni bonos para nadie</strong>. Solo se pagan los salarios fijos comprometidos.
+          La ganancia neta del taller está bajo el 70% de los gastos fijos. <strong style="color:#ef4444">No hay renta para el propietario ni bonos.</strong> Solo se pagan los salarios fijos comprometidos.
         </div>
       </div>
 
       <div style="background:#f59e0b15;border:1px solid #f59e0b40;border-radius:10px;padding:12px">
-        <div style="color:#f59e0b;font-size:11px;font-weight:700;margin-bottom:6px">🟡 ZONA AMARILLA — Solo salarios</div>
+        <div style="color:#f59e0b;font-size:11px;font-weight:700;margin-bottom:6px">🟠 ZONA NARANJA — 70% a 99%</div>
         <div style="color:#94a3b8;font-size:12px;line-height:1.6">
-          El taller cubre sus gastos. Se pagan todos los salarios normalmente. <strong style="color:#f59e0b">No hay bonos ni renta adicional</strong>.
+          Estamos cerca pero no alcanza para cubrir todos los gastos fijos. <strong style="color:#f59e0b">Hay que empujar más trabajos.</strong> Sin bonos ni renta adicional.
         </div>
       </div>
 
       <div style="background:#16a34a15;border:1px solid #16a34a40;border-radius:10px;padding:12px">
-        <div style="color:#16a34a;font-size:11px;font-weight:700;margin-bottom:6px">🟢 ZONA VERDE — Distribución completa</div>
+        <div style="color:#16a34a;font-size:11px;font-weight:700;margin-bottom:6px">🟢 ZONA VERDE — 100% a 119%</div>
         <div style="color:#94a3b8;font-size:12px;line-height:1.6">
-          Se pagan todos los salarios + bonos individuales + renta Vanesa & Selena.<br/>
-          <strong style="color:#16a34a">Separar mínimo Bs. 5.000 para el fondo de emergencia</strong> antes de distribuir.
+          Los gastos fijos están cubiertos. Se pagan todos los salarios normalmente. <strong style="color:#16a34a">Aún no hay bonos, pero el taller está sano.</strong><br/>
+          Separar mínimo Bs. 5.000 para el fondo de emergencia.
         </div>
       </div>
 
       <div style="background:#a78bfa15;border:1px solid #a78bfa40;border-radius:10px;padding:12px">
-        <div style="color:#a78bfa;font-size:11px;font-weight:700;margin-bottom:6px">🏦 FONDO DE EMERGENCIA</div>
+        <div style="color:#a78bfa;font-size:11px;font-weight:700;margin-bottom:6px">⭐ ZONA BONO — 120% o más</div>
         <div style="color:#94a3b8;font-size:12px;line-height:1.6">
-          Mínimo <strong style="color:#a78bfa">Bs. 5.000 por taller</strong> cada mes que llegue a zona verde. Este fondo cubre imprevistos: reparaciones, equipos, deudas urgentes.
+          Superamos el equilibrio con margen. <strong style="color:#a78bfa">El bono se confirma solo si caja cuadra, capital tienda fue separado y no hay reclamos graves.</strong><br/>
+          Separar mínimo Bs. 5.000 para fondo de emergencia antes de distribuir bonos.
         </div>
       </div>
 
       <div style="background:#334155;border-radius:10px;padding:12px">
-        <div style="color:#94a3b8;font-size:11px;font-weight:700;margin-bottom:8px">📊 RESUMEN DE REFERENCIAS</div>
+        <div style="color:#94a3b8;font-size:11px;font-weight:700;margin-bottom:6px">📊 RESUMEN DE REFERENCIAS</div>
+        <div style="color:#475569;font-size:10px;margin-bottom:10px">Avance = ganancia neta / gastos fijos. Capital tienda no cuenta.</div>
         ${TALLERES.map(t => `
         <div style="margin-bottom:10px">
           <div style="color:${t.color};font-size:11px;font-weight:700;margin-bottom:5px">${t.icono} ${t.nombre}</div>
           <div style="display:flex;flex-direction:column;gap:3px">
             <div style="display:flex;justify-content:space-between;font-size:11px">
-              <span style="color:#64748b">Gastos fijos</span>
+              <span style="color:#64748b">Gastos fijos (100%)</span>
               <span style="color:#94a3b8;font-weight:700">${fmt(t.totalGastos)}</span>
             </div>
             <div style="display:flex;justify-content:space-between;font-size:11px">
-              <span style="color:#64748b">Punto equilibrio</span>
-              <span style="color:#f59e0b;font-weight:700">${fmt(t.puntoEquilibrio)}</span>
+              <span style="color:#f59e0b">Naranja desde (70%)</span>
+              <span style="color:#f59e0b;font-weight:700">${fmt(t.totalGastos * 0.7)}</span>
             </div>
             <div style="display:flex;justify-content:space-between;font-size:11px">
-              <span style="color:#64748b">Meta con bonos</span>
-              <span style="color:#16a34a;font-weight:700">${fmt(t.metaConBonos)}</span>
+              <span style="color:#16a34a">Verde desde (100%)</span>
+              <span style="color:#16a34a;font-weight:700">${fmt(t.totalGastos)}</span>
             </div>
             <div style="display:flex;justify-content:space-between;font-size:11px">
-              <span style="color:#64748b">Verde desde</span>
-              <span style="color:${t.color};font-weight:700">${fmt(t.semaforo.verdeDesde)}</span>
+              <span style="color:#a78bfa">Zona bono desde (120%)</span>
+              <span style="color:#a78bfa;font-weight:700">${fmt(t.totalGastos * 1.2)}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:11px">
+              <span style="color:#64748b">Meta con bonos (ref.)</span>
+              <span style="color:#64748b;font-weight:700">${fmt(t.metaConBonos)}</span>
             </div>
           </div>
         </div>`).join(`<div style="border-bottom:1px solid #475569;margin:8px 0"></div>`)}
