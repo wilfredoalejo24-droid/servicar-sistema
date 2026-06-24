@@ -435,21 +435,23 @@ async function buscarCliente(){
   if(otSg)otSg.style.display="none";
 
   // Sin OT abierta — buscar historial en CRM
-  const{data:crmData}=await SB.from("crm")
-    .select("id,placa,nombre,cliente,tel,marca,modelo,fecha,taller")
+  const{data:crmData,error:crmErr}=await SB.from("crm")
+    .select("id,placa,cliente,nombre,vehiculo,tel,marca,modelo,fecha,taller")
     .ilike("placa",`%${ancla}%`)
     .order("id",{ascending:false})
     .limit(20);
+  if(crmErr) console.warn("CRM búsqueda placa error",crmErr);
   const historial=(crmData||[]).filter(r=>normalizarPlaca(r.placa)===placaNorm);
   const data=historial[0]||null;
 
   if(data){
     const nombre=data.cliente||data.nombre||"";
+    const vehStr=(data.marca||data.modelo)?`${data.marca||""} ${data.modelo||""}`.trim():(data.vehiculo||"");
     sg.style.display="block";
     sg.innerHTML=`<div style="font-weight:700;margin-bottom:5px">✅ Vehículo conocido</div>
       <div style="font-size:11px;color:#86efac;line-height:1.8">
         <div>Cliente: <strong>${nombre}</strong></div>
-        ${data.marca||data.modelo?`<div>${data.marca||""} ${data.modelo||""}</div>`:""}
+        ${vehStr?`<div>${vehStr}</div>`:""}
         <div>Última visita: ${data.fecha||"—"} · ${data.taller||"—"}</div>
       </div>
       <div style="color:#64748b;font-size:10px;margin-top:6px">🔵 Toca para autocompletar</div>`;
@@ -457,12 +459,41 @@ async function buscarCliente(){
       document.getElementById("n_cliente").value=nombre;
       document.getElementById("n_tel").value=data.tel||"";
       document.getElementById("n_marca").value=data.marca||"";
-      document.getElementById("n_modelo").value=data.modelo||"";
+      document.getElementById("n_modelo").value=data.modelo||(data.vehiculo||"");
       if(data.anio) document.getElementById("n_anio").value=data.anio;
       sg.style.display="none";
     };
   } else {
-    sg.style.display="none";
+    // Respaldo: buscar en ots entregadas si CRM no tiene registro
+    const{data:otsHistData}=await SB.from("ots")
+      .select("id,num,placa,cliente,tel,marca,modelo,anio,fecha,taller")
+      .ilike("placa",`%${ancla}%`)
+      .eq("estado","Entregado")
+      .order("id",{ascending:false})
+      .limit(20);
+    const otHist=(otsHistData||[]).filter(o=>normalizarPlaca(o.placa)===placaNorm);
+    const dataOT=otHist[0]||null;
+    if(dataOT){
+      const nombre=dataOT.cliente||"";
+      sg.style.display="block";
+      sg.innerHTML=`<div style="font-weight:700;margin-bottom:5px">✅ Vehículo conocido</div>
+        <div style="font-size:11px;color:#86efac;line-height:1.8">
+          <div>Cliente: <strong>${nombre}</strong></div>
+          ${dataOT.marca||dataOT.modelo?`<div>${dataOT.marca||""} ${dataOT.modelo||""}</div>`:""}
+          <div>Última visita: ${dataOT.fecha||"—"} · ${dataOT.taller||"—"}</div>
+        </div>
+        <div style="color:#64748b;font-size:10px;margin-top:6px">🔵 Toca para autocompletar</div>`;
+      sg.onclick=()=>{
+        document.getElementById("n_cliente").value=nombre;
+        document.getElementById("n_tel").value=dataOT.tel||"";
+        document.getElementById("n_marca").value=dataOT.marca||"";
+        document.getElementById("n_modelo").value=dataOT.modelo||"";
+        if(dataOT.anio) document.getElementById("n_anio").value=dataOT.anio;
+        sg.style.display="none";
+      };
+    } else {
+      sg.style.display="none";
+    }
   }
 }
 
