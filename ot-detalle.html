@@ -114,7 +114,8 @@ async function cargarOT(){
 }
 
 async function cargarInventario(){
-  const{data}=await SB.from("inventario").select("*").order("nom");
+  const campos=esEncargado()?"*":"id,nom,marca,cat,stock,precio,foto_url,foto_caja_url,cod";
+  const{data}=await SB.from("inventario").select(campos).order("nom");
   inventario=data||[];
 }
 
@@ -749,7 +750,7 @@ async function marcarTerminado(){
   await guardar({paso:6,estado:"Listo para entregar",total});
   const encUN=ot.taller?.includes("Montes")?"william":"wilfredo";
   const numEnc=waNum(encUN);
-  const msg=`🔧 *SERVI CAR PLATINIUM*\n✅ *Trabajo terminado — OT #${otId}*\n\n🚗 *${ot.placa} · ${ot.marca||""} ${ot.modelo||""}*\n👤 Cliente: ${ot.cliente||"-"}\n🔧 Técnico: ${usuario.nombre}\n\n💰 Total: Bs. ${total}\n\n_El vehículo está listo para entregar al cliente._`;
+  const msg=`🔧 *SERVI CAR PLATINIUM*\n✅ *Trabajo terminado — OT #${otId}*\n\n🚗 *${ot.placa} · ${ot.marca||""} ${ot.modelo||""}*\n👤 Cliente: ${ot.cliente||"-"}\n🔧 Técnico: ${usuario.nombre}\n\n✅ El trabajo está terminado y listo para revisión/entrega. El encargado debe realizar el cobro.\n\n_Listo para entregar._`;
   if(numEnc) window.open(`https://wa.me/${numEnc}?text=${encodeURIComponent(msg)}`,"_blank");
 }
 
@@ -849,6 +850,7 @@ function actualizarSaldo(){
 }
 
 async function confirmarCobro(){
+  if(!esEncargado()){alert("Sin permiso.");return;}
   const mo=(ot.procedimientos||[]).reduce((s,x)=>s+(x.precio||0),0);
   const repArr=[...(ot.repuestos||[]),...(ot.repuestos_usados||[])];
   /* venta_rep = lo que pagó el cliente por repuestos (precio_venta × cant) */
@@ -1114,7 +1116,7 @@ function render(){
         </div>
       </div>
       <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
-        <button onclick="generarPDF()" style="padding:6px 10px;background:#1d4ed820;color:#60a5fa;border:1px solid #1d4ed840;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer">📄 PDF</button>
+        ${enc?`<button onclick="generarPDF()" style="padding:6px 10px;background:#1d4ed820;color:#60a5fa;border:1px solid #1d4ed840;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer">📄 PDF</button>`:""}
         <span style="padding:3px 9px;border-radius:20px;font-size:10px;font-weight:700;white-space:nowrap;background:${ecol(ot.estado)}20;color:${ecol(ot.estado)};border:1px solid ${ecol(ot.estado)}40">
           ${ot.estado||"Pendiente cotización"}
         </span>
