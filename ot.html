@@ -466,9 +466,9 @@ async function buscarCliente(){
   } else {
     // Respaldo: buscar en ots entregadas si CRM no tiene registro
     const{data:otsHistData}=await SB.from("ots")
-      .select("id,num,placa,cliente,tel,marca,modelo,anio,fecha,taller")
+      .select("id,num,placa,cliente,tel,marca,modelo,anio,fecha,taller,entregado,estado")
       .ilike("placa",`%${ancla}%`)
-      .eq("estado","Entregado")
+      .or("entregado.is.true,estado.eq.Entregado")
       .order("id",{ascending:false})
       .limit(20);
     const otHist=(otsHistData||[]).filter(o=>normalizarPlaca(o.placa)===placaNorm);
