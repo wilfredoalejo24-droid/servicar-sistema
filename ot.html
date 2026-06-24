@@ -317,7 +317,8 @@ function mostrarCrear(){
 
     <div class="label">Placa *</div>
     <input id="n_placa" class="input" placeholder="Ej: 1234ABC" style="margin-bottom:6px;text-transform:uppercase"
-      oninput="this.value=this.value.toUpperCase();buscarCliente()"/>
+      oninput="this.value=normalizarPlaca(this.value);buscarCliente()"/>
+    <div id="ot_sg" style="display:none;background:#0f172a;border:1px solid #ef4444;border-radius:8px;padding:10px;margin-bottom:8px;color:#f87171;font-size:12px"></div>
     <div id="crm_sg" style="display:none;background:#0f172a;border:1px solid #16a34a;border-radius:8px;padding:10px;margin-bottom:10px;cursor:pointer;color:#4ade80;font-size:12px"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
       <div><div class="label">Marca</div><input id="n_marca" class="input" placeholder="Toyota"/></div>
@@ -385,21 +386,79 @@ function mostrarCrear(){
   </div></div>`;
 }
 
+function normalizarPlaca(p){
+  return (p||"").toUpperCase().replace(/[\s\-.]/g,"").replace(/[^A-Z0-9]/g,"");
+}
+
 async function buscarCliente(){
-  const placa=(document.getElementById("n_placa")?.value||"").trim();
+  const rawPlaca=document.getElementById("n_placa")?.value||"";
+  const placaNorm=normalizarPlaca(rawPlaca);
   const sg=document.getElementById("crm_sg");
-  if(!sg||placa.length<3){if(sg)sg.style.display="none";return;}
-  const{data}=await SB.from("crm").select("*").ilike("placa",`%${placa}%`).limit(1).single();
+  const otSg=document.getElementById("ot_sg");
+  if(placaNorm.length<3){
+    if(sg)sg.style.display="none";
+    if(otSg)otSg.style.display="none";
+    return;
+  }
+
+  // Buscar OT abierta — usa dígitos como ancla para ilike, filtra exacto en JS
+  const digitos=placaNorm.replace(/\D/g,"");
+  const ancla=digitos.length>=3?digitos:placaNorm.slice(0,3);
+
+  // Buscar OT abierta con esa placa (cualquier técnico, cualquier taller)
+  const{data:otsData}=await SB.from("ots")
+    .select("id,num,estado,taller,tecnico,placa")
+    .ilike("placa",`%${ancla}%`)
+    .neq("estado","Entregado")
+    .limit(20);
+  const otAbierta=(otsData||[]).find(o=>normalizarPlaca(o.placa)===placaNorm);
+
+  if(otAbierta){
+    if(otSg){
+      otSg.style.display="block";
+      otSg.innerHTML=`<div style="font-weight:700;margin-bottom:6px">⚠️ Este vehículo ya tiene una OT abierta</div>
+        <div style="font-size:11px;color:#fca5a5;line-height:1.8">
+          <div>OT: <strong>${otAbierta.num||"#"+otAbierta.id}</strong></div>
+          <div>Estado: <strong>${otAbierta.estado||"—"}</strong></div>
+          <div>Taller: ${otAbierta.taller||"—"}</div>
+          <div>Técnico: ${otAbierta.tecnico||"—"}</div>
+        </div>
+        <div style="color:#94a3b8;font-size:10px;margin-top:6px;margin-bottom:8px">Recomendado: abrí esa OT antes de crear otra.</div>
+        <a href="/ot-detalle.html?id=${otAbierta.id}"
+          style="display:block;text-align:center;padding:8px;background:#ef444420;color:#ef4444;border:1px solid #ef444440;border-radius:8px;font-weight:700;font-size:12px;text-decoration:none">
+          🔗 Abrir esa OT
+        </a>`;
+    }
+    if(sg)sg.style.display="none";
+    return;
+  }
+  if(otSg)otSg.style.display="none";
+
+  // Sin OT abierta — buscar historial en CRM
+  const{data:crmData}=await SB.from("crm")
+    .select("id,placa,nombre,cliente,tel,marca,modelo,fecha,taller")
+    .ilike("placa",`%${ancla}%`)
+    .order("id",{ascending:false})
+    .limit(20);
+  const historial=(crmData||[]).filter(r=>normalizarPlaca(r.placa)===placaNorm);
+  const data=historial[0]||null;
+
   if(data){
-    const nombre=data.nombre||data.cliente||"";
+    const nombre=data.cliente||data.nombre||"";
     sg.style.display="block";
-    sg.innerHTML=`✅ <strong>Cliente conocido:</strong> ${nombre} · ${data.placa||""} · ${data.marca||""} ${data.modelo||""}<br>
-      <span style="color:#64748b;font-size:10px">Toca para autocompletar</span>`;
+    sg.innerHTML=`<div style="font-weight:700;margin-bottom:5px">✅ Vehículo conocido</div>
+      <div style="font-size:11px;color:#86efac;line-height:1.8">
+        <div>Cliente: <strong>${nombre}</strong></div>
+        ${data.marca||data.modelo?`<div>${data.marca||""} ${data.modelo||""}</div>`:""}
+        <div>Última visita: ${data.fecha||"—"} · ${data.taller||"—"}</div>
+      </div>
+      <div style="color:#64748b;font-size:10px;margin-top:6px">🔵 Toca para autocompletar</div>`;
     sg.onclick=()=>{
       document.getElementById("n_cliente").value=nombre;
       document.getElementById("n_tel").value=data.tel||"";
       document.getElementById("n_marca").value=data.marca||"";
       document.getElementById("n_modelo").value=data.modelo||"";
+      if(data.anio) document.getElementById("n_anio").value=data.anio;
       sg.style.display="none";
     };
   } else {
@@ -408,7 +467,7 @@ async function buscarCliente(){
 }
 
 async function crearOT(){
-  const placa=(document.getElementById("n_placa")?.value||"").trim().toUpperCase();
+  const placa=normalizarPlaca(document.getElementById("n_placa")?.value);
   const cliente=(document.getElementById("n_cliente")?.value||"").trim();
   if(!placa||!cliente){alert("Completa: placa y cliente");return;}
 
@@ -481,6 +540,7 @@ window.mostrarCrear=mostrarCrear;
 window.crearOT=crearOT;
 window.cerrarModal=cerrarModal;
 window.buscarCliente=buscarCliente;
+window.normalizarPlaca=normalizarPlaca;
 window.abrirDetalle=abrirDetalle;
 window.confirmarBorrar=confirmarBorrar;
 window.setFluido=setFluido;
