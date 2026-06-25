@@ -36,6 +36,8 @@ let filtroEstado="abiertas", filtroTaller="todos", busqueda="";
 // Estado del modal de creación
 let checklistFluidos={}, nivelGasolina="", fotosEntradaMdl=[];
 let tecTallerMap={};
+let otPadreId=null;
+let otBloqueadoMismoTaller=false;
 
 /* ── Session ──────────────────────────────────────────── */
 function getSession(){
@@ -370,7 +372,7 @@ function mostrarCrear(){
     <div class="label">Técnico asignado</div>
     <select id="n_tecnico" class="input" style="margin-bottom:8px" onchange="autoSugerirTaller(this)">${tecOpts}</select>
     <div class="label">Taller <span style="color:#475569;font-weight:400">(se sugiere según técnico, editable)</span></div>
-    <select id="n_taller" class="input" style="margin-bottom:12px">${tallerOpts}</select>
+    <select id="n_taller" class="input" style="margin-bottom:12px" onchange="buscarCliente()">${tallerOpts}</select>
 
     <!-- Fotos de entrada -->
     <div class="label">📷 Fotos del vehículo al ingreso <span style="color:#ef4444">*</span> <span style="color:#64748b;font-weight:400">(mín. 1, máx. 4)</span></div>
@@ -407,27 +409,57 @@ async function buscarCliente(){
 
   // Buscar OT abierta con esa placa (cualquier técnico, cualquier taller)
   const{data:otsData}=await SB.from("ots")
-    .select("id,num,estado,taller,tecnico,placa")
+    .select("id,num,estado,taller,tecnico,placa,cliente,tel,marca,modelo,anio,km")
     .ilike("placa",`%${ancla}%`)
     .neq("estado","Entregado")
     .limit(20);
   const otAbierta=(otsData||[]).find(o=>normalizarPlaca(o.placa)===placaNorm);
+  otPadreId=null;
+  otBloqueadoMismoTaller=false;
 
   if(otAbierta){
     if(otSg){
+      const tallerActual=document.getElementById("n_taller")?.value||usuario.taller||"";
+      const mismoTaller=otAbierta.taller===tallerActual;
+      otPadreId=mismoTaller?null:otAbierta.id;
+      otBloqueadoMismoTaller=mismoTaller;
       otSg.style.display="block";
-      otSg.innerHTML=`<div style="font-weight:700;margin-bottom:6px">⚠️ Este vehículo ya tiene una OT abierta</div>
-        <div style="font-size:11px;color:#fca5a5;line-height:1.8">
-          <div>OT: <strong>${otAbierta.num||"#"+otAbierta.id}</strong></div>
-          <div>Estado: <strong>${otAbierta.estado||"—"}</strong></div>
-          <div>Taller: ${otAbierta.taller||"—"}</div>
-          <div>Técnico: ${otAbierta.tecnico||"—"}</div>
-        </div>
-        <div style="color:#94a3b8;font-size:10px;margin-top:6px;margin-bottom:8px">Recomendado: abrí esa OT antes de crear otra.</div>
-        <a href="/ot-detalle.html?id=${otAbierta.id}"
-          style="display:block;text-align:center;padding:8px;background:#ef444420;color:#ef4444;border:1px solid #ef444440;border-radius:8px;font-weight:700;font-size:12px;text-decoration:none">
-          🔗 Abrir esa OT
-        </a>`;
+      if(mismoTaller){
+        otSg.innerHTML=`<div style="font-weight:700;margin-bottom:6px">⚠️ Ya existe una OT en este taller</div>
+          <div style="font-size:11px;color:#fca5a5;line-height:1.8">
+            <div>OT: <strong>${otAbierta.num||"#"+otAbierta.id}</strong> · ${otAbierta.estado||"—"}</div>
+            <div>Técnico: ${otAbierta.tecnico||"—"}</div>
+          </div>
+          <div style="color:#94a3b8;font-size:10px;margin-top:6px;margin-bottom:8px">Abrí esa OT para agregar trabajo adicional.</div>
+          <a href="/ot-detalle.html?id=${otAbierta.id}"
+            style="display:block;text-align:center;padding:8px;background:#ef444420;color:#ef4444;border:1px solid #ef444440;border-radius:8px;font-weight:700;font-size:12px;text-decoration:none">
+            🔗 Abrir OT existente
+          </a>`;
+      } else {
+        // Autocompletar datos del vehículo/cliente desde la OT padre
+        if(otAbierta.cliente) document.getElementById("n_cliente").value=otAbierta.cliente;
+        if(otAbierta.tel)     document.getElementById("n_tel").value=otAbierta.tel;
+        if(otAbierta.marca)   document.getElementById("n_marca").value=otAbierta.marca;
+        if(otAbierta.modelo)  document.getElementById("n_modelo").value=otAbierta.modelo;
+        if(otAbierta.anio)    document.getElementById("n_anio").value=otAbierta.anio;
+        if(otAbierta.km)      document.getElementById("n_km").value=otAbierta.km;
+        otSg.innerHTML=`<div style="font-weight:700;margin-bottom:6px">⚠️ OT abierta en ${otAbierta.taller||"otro taller"}</div>
+          <div style="font-size:11px;color:#fca5a5;line-height:1.8">
+            <div>OT: <strong>${otAbierta.num||"#"+otAbierta.id}</strong> · ${otAbierta.estado||"—"}</div>
+            <div>Técnico: ${otAbierta.tecnico||"—"}</div>
+          </div>
+          <div style="color:#fde68a;font-size:10px;margin-top:6px;margin-bottom:8px">Datos del vehículo autocompletados. Agregá el problema y las fotos para este taller.</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+            <a href="/ot-detalle.html?id=${otAbierta.id}"
+              style="display:block;text-align:center;padding:8px;background:#ef444420;color:#ef4444;border:1px solid #ef444440;border-radius:8px;font-weight:700;font-size:11px;text-decoration:none">
+              🔗 Ver OT original
+            </a>
+            <button onclick="activarVinculada()"
+              style="padding:8px;background:#f59e0b20;color:#fbbf24;border:1px solid #f59e0b40;border-radius:8px;font-weight:700;font-size:11px;cursor:pointer">
+              ✚ Crear OT vinculada
+            </button>
+          </div>`;
+      }
     }
     if(sg)sg.style.display="none";
     return;
@@ -498,6 +530,7 @@ async function buscarCliente(){
 }
 
 async function crearOT(){
+  if(otBloqueadoMismoTaller){alert("Ya existe una OT abierta en este taller.\nAbrí esa OT para agregar trabajo.");return;}
   const placa=normalizarPlaca(document.getElementById("n_placa")?.value);
   const cliente=(document.getElementById("n_cliente")?.value||"").trim();
   if(!placa||!cliente){alert("Completa: placa y cliente");return;}
@@ -530,7 +563,9 @@ async function crearOT(){
     creado_por:usuario.user_name,
     fecha:new Date().toLocaleDateString("es-BO"),
     repuestos:[],servicios:[],fotos_recepcion:[],fotos_trabajo:[],
-    fotos_entrada:[],fotos_salida:[],total:0
+    fotos_entrada:[],fotos_salida:[],total:0,
+    ot_padre_id:otPadreId||null,
+    tipo_ot:otPadreId?"vinculada":"principal"
   };
 
   const{data,error}=await SB.from("ots").insert(nueva).select().single();
@@ -539,6 +574,10 @@ async function crearOT(){
     if(btn){btn.disabled=false;btn.textContent="✅ Crear OT";}
     return;
   }
+
+  // Insert exitoso — limpiar estado de vinculación
+  otPadreId=null;
+  otBloqueadoMismoTaller=false;
 
   // Subir fotos (intenta Storage, fallback base64)
   if(btn) btn.textContent="⏳ Subiendo fotos...";
@@ -557,12 +596,22 @@ async function crearOT(){
   location.href="/ot-detalle.html?id="+data.id;
 }
 
-function cerrarModal(){document.getElementById("modal-area").innerHTML="";}
+function cerrarModal(){document.getElementById("modal-area").innerHTML="";otPadreId=null;otBloqueadoMismoTaller=false;}
 
 function autoSugerirTaller(sel){
   const taller=tecTallerMap[sel.value];
   const n_taller=document.getElementById("n_taller");
   if(n_taller&&taller&&taller!=="ambos") n_taller.value=taller;
+  buscarCliente();
+}
+
+function activarVinculada(){
+  const el=document.getElementById("ot_sg");
+  if(el){
+    el.style.borderColor="#f59e0b";
+    el.innerHTML=`<div style="font-weight:700;color:#fbbf24">🔗 Se creará como OT vinculada</div>
+      <div style="font-size:11px;color:#fde68a;margin-top:4px">Completá el formulario y tocá "Crear OT".</div>`;
+  }
 }
 
 /* ── Globals ──────────────────────────────────────────── */
@@ -579,6 +628,7 @@ window.setGasolina=setGasolina;
 window.agregarFotoEntradaMdl=agregarFotoEntradaMdl;
 window.quitarFotoMdl=quitarFotoMdl;
 window.autoSugerirTaller=autoSugerirTaller;
+window.activarVinculada=activarVinculada;
 
 init();
 </script>
