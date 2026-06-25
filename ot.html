@@ -437,8 +437,17 @@ async function buscarCliente(){
           </a>`;
       } else {
         // Autocompletar datos del vehículo/cliente desde la OT padre
+        let telefonoPadre=otAbierta.tel||"";
+        if(!telefonoPadre){
+          const{data:crmTelData}=await SB.from("crm")
+            .select("placa,tel")
+            .ilike("placa",`%${ancla}%`)
+            .limit(10);
+          const crmMatch=(crmTelData||[]).find(r=>normalizarPlaca(r.placa||"")===placaNorm);
+          telefonoPadre=crmMatch?.tel||"";
+        }
         if(otAbierta.cliente) document.getElementById("n_cliente").value=otAbierta.cliente;
-        if(otAbierta.tel)     document.getElementById("n_tel").value=otAbierta.tel;
+        if(telefonoPadre)     document.getElementById("n_tel").value=telefonoPadre;
         if(otAbierta.marca)   document.getElementById("n_marca").value=otAbierta.marca;
         if(otAbierta.modelo)  document.getElementById("n_modelo").value=otAbierta.modelo;
         if(otAbierta.anio)    document.getElementById("n_anio").value=otAbierta.anio;
