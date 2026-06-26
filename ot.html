@@ -268,18 +268,22 @@ function setGasolina(val,color,pct,btn){
   Object.assign(btn.style,{background:color+"20",color,borderColor:color,fontWeight:"700"});
   const f=document.getElementById("fuel_fill");if(f){f.style.width=pct+"%";f.style.background=color;}
 }
-function agregarFotoEntradaMdl(){
+function agregarFotoEntradaMdl(camera){
   if(fotosEntradaMdl.length>=4){alert("Máximo 4 fotos");return;}
-  const inp=document.createElement("input");inp.type="file";inp.accept="image/*";inp.capture="environment";
+  const inp=document.createElement("input");inp.type="file";inp.accept="image/*";
+  if(camera) inp.capture="environment"; else inp.multiple=true;
   inp.onchange=()=>{
-    const f=inp.files[0];if(!f)return;
-    const r=new FileReader();r.onload=e=>{
-      const img=new Image();img.onload=()=>{
-        const c=document.createElement("canvas");const MAX=800;let w=img.width,h=img.height;
-        if(w>MAX){h=h*MAX/w;w=MAX;}c.width=w;c.height=h;c.getContext("2d").drawImage(img,0,0,w,h);
-        fotosEntradaMdl.push(c.toDataURL("image/jpeg",.75));actualizarPreviaMdl();
-      };img.src=e.target.result;
-    };r.readAsDataURL(f);
+    const files=Array.from(inp.files).slice(0,4-fotosEntradaMdl.length);
+    if(!files.length)return;
+    files.forEach(f=>{
+      const r=new FileReader();r.onload=e=>{
+        const img=new Image();img.onload=()=>{
+          const c=document.createElement("canvas");const MAX=800;let w=img.width,h=img.height;
+          if(w>MAX){h=h*MAX/w;w=MAX;}c.width=w;c.height=h;c.getContext("2d").drawImage(img,0,0,w,h);
+          fotosEntradaMdl.push(c.toDataURL("image/jpeg",.75));actualizarPreviaMdl();
+        };img.src=e.target.result;
+      };r.readAsDataURL(f);
+    });
   };inp.click();
 }
 function actualizarPreviaMdl(){
@@ -289,7 +293,7 @@ function actualizarPreviaMdl(){
       <img src="${b}" style="width:100%;height:100%;object-fit:cover"/>
       <button onclick="quitarFotoMdl(${i})" style="position:absolute;top:2px;right:2px;background:rgba(239,68,68,.9);border:none;border-radius:50%;width:18px;height:18px;color:#fff;font-size:10px;cursor:pointer;line-height:18px;padding:0">✕</button>
     </div>`).join("");
-  const btn=document.getElementById("btn_foto_mdl");if(btn)btn.style.display=fotosEntradaMdl.length>=4?"none":"block";
+  const btn=document.getElementById("btn_foto_mdl");if(btn)btn.style.display=fotosEntradaMdl.length>=4?"none":"grid";
 }
 function quitarFotoMdl(idx){fotosEntradaMdl.splice(idx,1);actualizarPreviaMdl();}
 
@@ -377,10 +381,16 @@ function mostrarCrear(){
     <!-- Fotos de entrada -->
     <div class="label">📷 Fotos del vehículo al ingreso <span style="color:#ef4444">*</span> <span style="color:#64748b;font-weight:400">(mín. 1, máx. 4)</span></div>
     <div id="fotos_mdl_preview" style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:6px"></div>
-    <button type="button" id="btn_foto_mdl" onclick="agregarFotoEntradaMdl()"
-      style="width:100%;padding:9px;background:#1d4ed820;color:#60a5fa;border:1px solid #1d4ed840;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;margin-bottom:14px">
-      📷 Tomar foto / subir de galería
-    </button>
+    <div id="btn_foto_mdl" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:14px">
+      <button type="button" onclick="agregarFotoEntradaMdl(true)"
+        style="padding:9px;background:#1d4ed820;color:#60a5fa;border:1px solid #1d4ed840;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">
+        📸 Tomar foto
+      </button>
+      <button type="button" onclick="agregarFotoEntradaMdl(false)"
+        style="padding:9px;background:#1d4ed820;color:#60a5fa;border:1px solid #1d4ed840;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">
+        🖼️ Galería
+      </button>
+    </div>
 
     <button id="btn_crear" onclick="crearOT()" style="width:100%;padding:13px;background:#f59e0b;color:#1e293b;border:none;border-radius:10px;font-weight:900;font-size:14px;cursor:pointer">
       ✅ Crear OT
