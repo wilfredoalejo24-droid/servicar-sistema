@@ -1145,6 +1145,19 @@ function render(){
     </div>
   </div>
 
+  <!-- TARJETA OT VINCULADA -->
+  ${(ot.ot_padre_id||ot.tipo_ot==="vinculada")?`
+  <div style="background:#1e293b;border:1px solid #7c3aed40;border-radius:14px;padding:14px 16px;margin-bottom:12px">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+      <span style="font-size:14px">🔗</span>
+      <span style="color:#a78bfa;font-size:11px;font-weight:700;text-transform:uppercase">OT Vinculada</span>
+    </div>
+    <div style="background:#0f172a;border-radius:8px;padding:10px">
+      <div style="color:#64748b;font-size:9px;font-weight:700;margin-bottom:4px">OT ORIGINAL ID</div>
+      <div style="color:#fbbf24;font-weight:700;font-size:13px">${ot.ot_padre_id||"—"}</div>
+    </div>
+  </div>`:""}
+
   <!-- ════════════════════════════════════════════
        PASO 1: RECEPCIÓN
   ════════════════════════════════════════════ -->
