@@ -128,7 +128,7 @@ async function buscar(){
 
   const[r1,r2,r3,r4]=await Promise.all([
     SB.from("crm").select("*").ilike("placa",placa).order("created_at",{ascending:false}),
-    SB.from("ots").select("id,num,placa,cliente,vehiculo,taller,tecnico,paso,fecha,created_at,fotos_recepcion").ilike("placa",placa).order("created_at",{ascending:false}),
+    SB.from("ots").select("id,num,placa,cliente,vehiculo,taller,tecnico,paso,fecha,created_at").ilike("placa",placa).order("created_at",{ascending:false}),
     SB.from("aceite_km").select("*").ilike("placa",placa).order("created_at",{ascending:false}).limit(10),
     SB.from("encuestas").select("*").ilike("placa",placa).order("created_at",{ascending:false}),
   ]);
