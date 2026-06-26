@@ -146,17 +146,16 @@ async function buscar(){
     SB.from("encuestas").select("*").ilike("placa",placa).order("created_at",{ascending:false}),
   ]);
 
-  if(r1.error||r2.error){
-    console.error("Error crm:",r1.error,"ots:",r2.error);
-    estado="error";renderApp();return;
-  }
+  if(r1.error) console.warn("CRM falló",r1.error);
+  if(r2.error) console.warn("OTS falló",r2.error);
+  if(r1.error&&r2.error){estado="error";renderApp();return;}
   const ref=r1.data?.[0]||r2.data?.[0];
   datos={
     placa,
     cliente:ref?.cliente||"—",
     vehiculo:ref?.vehiculo||"—",
-    crm:r1.data||[],
-    ots:r2.data||[],
+    crm:r1.error?[]:(r1.data||[]),
+    ots:r2.error?[]:(r2.data||[]),
     aceite:r3.data||[],
     encuestas:r4.data||[],
   };
