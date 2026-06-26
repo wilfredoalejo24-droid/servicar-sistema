@@ -106,6 +106,19 @@ function setProg(id,pct,color){
   const el=$$(id);if(el)el.style.width=Math.min(100,pct)+"%;background:"+color;
 }
 
+function normalizarPlaca(v){
+  return (v||"").toUpperCase().replace(/[\s\-\.\_]+/g,"");
+}
+
+async function buscarFlexible(tabla,campos){
+  const norm=normalizarPlaca(placa);
+  const nums=(norm.match(/\d+/)||[""])[0];
+  const termino=nums.length>=3?`%${nums}%`:`%${norm.slice(0,4)||norm}%`;
+  const{data,error}=await SB.from(tabla).select(campos).ilike("placa",termino).order("created_at",{ascending:false});
+  if(error)return{data:null,error};
+  return{data:(data||[]).filter(r=>normalizarPlaca(r.placa)===norm),error:null};
+}
+
 /* ── Init ───────────────────────────────────────────── */
 async function init(){
   const p=new URLSearchParams(location.search);
@@ -122,17 +135,21 @@ async function init(){
 
 /* ── Buscar vehículo ────────────────────────────────── */
 async function buscar(){
-  placa=($$(  "inp_placa")?.value||placa).toUpperCase().trim().replace(/\s+/g,"");
+  placa=normalizarPlaca($$("inp_placa")?.value||placa);
   if(!placa){alert("Ingresa la placa de tu vehículo");return;}
   estado="cargando";renderApp();
 
   const[r1,r2,r3,r4]=await Promise.all([
-    SB.from("crm").select("*").ilike("placa",placa).order("created_at",{ascending:false}),
-    SB.from("ots").select("id,num,placa,cliente,vehiculo,taller,tecnico,paso,fecha,created_at").ilike("placa",placa).order("created_at",{ascending:false}),
+    buscarFlexible("crm","*"),
+    buscarFlexible("ots","id,num,placa,cliente,vehiculo,taller,tecnico,paso,fecha,created_at"),
     SB.from("aceite_km").select("*").ilike("placa",placa).order("created_at",{ascending:false}).limit(10),
     SB.from("encuestas").select("*").ilike("placa",placa).order("created_at",{ascending:false}),
   ]);
 
+  if(r1.error||r2.error){
+    console.error("Error crm:",r1.error,"ots:",r2.error);
+    estado="error";renderApp();return;
+  }
   const ref=r1.data?.[0]||r2.data?.[0];
   datos={
     placa,
@@ -163,6 +180,7 @@ function renderApp(){
   const app=document.getElementById("app");
   if(estado==="landing")    {app.innerHTML=renderLanding();return;}
   if(estado==="cargando")   {app.innerHTML=renderCargando();return;}
+  if(estado==="error")      {app.innerHTML=renderError();return;}
   if(estado==="ok"&&datos)  {app.innerHTML=renderPortal();}
 }
 
@@ -202,6 +220,17 @@ function renderCargando(){
     <div style="text-align:center">
       <div class="pulse" style="font-size:44px;margin-bottom:12px">🔍</div>
       <div style="color:#64748b">Buscando tu vehículo...</div>
+    </div>
+  </div>`;
+}
+
+function renderError(){
+  return `<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px">
+    <div class="card fi" style="text-align:center;max-width:380px;width:100%">
+      <div style="font-size:40px;margin-bottom:12px">⚠️</div>
+      <div style="font-weight:700;font-size:15px;margin-bottom:8px">Error consultando registros</div>
+      <div style="color:#64748b;font-size:13px;margin-bottom:16px">Avise al taller.</div>
+      <button onclick="estado='landing';renderApp()" style="padding:10px 20px;background:#334155;color:#94a3b8;border:none;border-radius:10px;font-weight:700;cursor:pointer">← Volver</button>
     </div>
   </div>`;
 }
