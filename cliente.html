@@ -309,30 +309,39 @@ function renderNoEncontrado(){
 
 /* ── HISTORIAL ──────────────────────────────────────── */
 function renderHistorial(){
-  const completados=datos.crm;
-  const enProceso=datos.ots.filter(o=>o.paso<6);
   const PASOS=["","Recepción","Diagnóstico","Cotización","Aprobación","Ejecución","Entrega"];
+  const enProceso=datos.ots.filter(o=>!isNaN(Number(o.paso))&&Number(o.paso)<6);
+  const sinPaso=datos.ots.filter(o=>o.paso===null||o.paso===undefined||isNaN(Number(o.paso)));
+  const otsDone=datos.ots.filter(o=>!isNaN(Number(o.paso))&&Number(o.paso)>=6);
+  const crmNums=new Set(datos.crm.map(c=>String(c.num)).filter(Boolean));
+  const completados=[
+    ...datos.crm.map(c=>({...c,_src:"crm"})),
+    ...otsDone.filter(o=>!crmNums.has(String(o.num))).map(o=>({...o,_src:"ot"})),
+  ];
+  const todoEnProceso=[...enProceso,...sinPaso];
 
   return `
-  ${enProceso.length?`
+  ${todoEnProceso.length?`
   <div style="background:#f59e0b15;border:1px solid #f59e0b30;border-radius:14px;padding:14px;margin-bottom:12px">
-    <div style="color:#fbbf24;font-size:11px;font-weight:700;margin-bottom:10px">🔧 EN PROCESO AHORA (${enProceso.length})</div>
-    ${enProceso.map(o=>{
-      const pct=Math.round((o.paso/6)*100);
+    <div style="color:#fbbf24;font-size:11px;font-weight:700;margin-bottom:10px">🔧 EN PROCESO AHORA (${todoEnProceso.length})</div>
+    ${todoEnProceso.map(o=>{
+      const sin=o.paso===null||o.paso===undefined||isNaN(Number(o.paso));
+      const pct=sin?0:Math.round((Number(o.paso)/6)*100);
       return `<div style="background:#0f172a;border-radius:10px;padding:12px;margin-bottom:8px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
           <div style="font-weight:700;font-size:13px">OT ${o.num||o.id}</div>
-          <span class="badge" style="background:#f59e0b20;color:#f59e0b">Paso ${o.paso}/6</span>
+          ${sin
+            ?`<span class="badge" style="background:#47556920;color:#64748b">Por confirmar</span>`
+            :`<span class="badge" style="background:#f59e0b20;color:#f59e0b">Paso ${o.paso}/6</span>`}
         </div>
-        <div style="color:#64748b;font-size:11px;margin-bottom:6px">${PASOS[o.paso]||"En proceso"} · ${o.taller||"—"}</div>
-        <div class="prog-track"><div class="prog-fill" style="width:${pct}%;background:#f59e0b"></div></div>
+        <div style="color:#64748b;font-size:11px;margin-bottom:6px">${sin?"Estado por confirmar":(PASOS[Number(o.paso)]||"En proceso")} · ${o.taller||"—"}</div>
+        ${sin?"":`<div class="prog-track"><div class="prog-fill" style="width:${pct}%;background:#f59e0b"></div></div>`}
         <div style="color:#475569;font-size:10px;margin-top:3px">Técnico: ${o.tecnico||"—"}</div>
-        ${(()=>{const fs=Array.isArray(o.fotos_recepcion)?o.fotos_recepcion:[];if(!fs.length)return"";return`<div style="display:flex;gap:6px;overflow-x:auto;margin-top:8px;padding-bottom:2px">${fs.slice(0,5).map(f=>{const u=typeof f==="string"?f:(f?.url||"");return u?`<img src="${u}" style="width:56px;height:56px;object-fit:cover;border-radius:8px;flex-shrink:0;border:1px solid #334155" loading="lazy"/>`:"";}).join("")}</div>`;})()}
       </div>`;
     }).join("")}
   </div>`:""}
 
-  ${completados.length===0&&!enProceso.length?`
+  ${completados.length===0&&!todoEnProceso.length?`
   <div class="card" style="text-align:center;padding:28px;color:#334155">
     <div style="font-size:36px;margin-bottom:8px">📋</div>Sin servicios completados aún
   </div>`:
@@ -341,23 +350,22 @@ function renderHistorial(){
     ✅ Servicios completados (${completados.length})
   </div>
   ${completados.map(c=>{
-    const yaCalif=datos.encuestas.some(e=>e.ot_num===c.num);
-    const total=parseFloat(c.ganancia_neta||0)+parseFloat(c.capital||0);
+    const yaCalif=c._src==="crm"&&datos.encuestas.some(e=>e.ot_num===String(c.num));
     return `<div class="card" style="padding:14px">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
-        <div>
-          <div style="font-weight:700;font-size:13px">OT ${c.num||"—"}</div>
-          <div style="color:#64748b;font-size:11px;margin-top:2px">📅 ${c.fecha||"—"} · 🏢 ${c.taller||"—"}</div>
-        </div>
-        ${total?`<div style="color:#fbbf24;font-weight:900;font-size:15px">${fmt(total)}</div>`:""}
+      <div style="margin-bottom:8px">
+        <div style="font-weight:700;font-size:13px">OT ${c.num||"—"}</div>
+        <div style="color:#64748b;font-size:11px;margin-top:2px">📅 ${c.fecha||"—"} · 🏢 ${c.taller||"—"}</div>
       </div>
       <div style="color:#64748b;font-size:11px;margin-bottom:10px">👨‍🔧 Técnico: ${c.tecnico||"—"}</div>
-      <div style="display:flex;gap:6px;align-items:center">
-        ${yaCalif?`<span class="badge" style="background:#16a34a20;color:#16a34a">⭐ Ya calificado</span>`:
-          `<button onclick="abrirEncuesta('${c.num||""}')"
-            style="padding:6px 12px;background:#f59e0b;color:#1e293b;border:none;border-radius:8px;font-weight:700;font-size:11px;cursor:pointer">
-            ⭐ Calificar
-          </button>`}
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        ${c._src==="crm"
+          ?(yaCalif
+            ?`<span class="badge" style="background:#16a34a20;color:#16a34a">⭐ Ya calificado</span>`
+            :`<button onclick="abrirEncuesta('${c.num||""}')"
+                style="padding:6px 12px;background:#f59e0b;color:#1e293b;border:none;border-radius:8px;font-weight:700;font-size:11px;cursor:pointer">
+                ⭐ Calificar
+              </button>`)
+          :`<span class="badge" style="background:#16a34a20;color:#16a34a">✅ Entregado</span>`}
         <a href="https://wa.me/${EMPRESA.wa}?text=${encodeURIComponent(`Hola, consulto sobre mi OT ${c.num||""}, placa ${datos.placa}`)}" target="_blank"
           style="padding:6px 12px;background:#25d36620;color:#25d366;border:1px solid #25d36640;border-radius:8px;font-weight:700;font-size:11px;text-decoration:none">
           💬 Consultar
