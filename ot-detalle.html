@@ -1156,6 +1156,7 @@ function render(){
       <div style="color:#64748b;font-size:9px;font-weight:700;margin-bottom:4px">OT ORIGINAL ID</div>
       <div style="color:#fbbf24;font-weight:700;font-size:13px">${ot.ot_padre_id||"—"}</div>
     </div>
+    ${ot.ot_padre_id?`<a href="/ot-detalle.html?id=${ot.ot_padre_id}" style="display:block;text-align:center;margin-top:10px;padding:8px;background:#7c3aed20;color:#a78bfa;border:1px solid #7c3aed40;border-radius:8px;font-weight:700;font-size:12px;text-decoration:none">🔗 Ver OT original</a>`:""}
   </div>`:""}
 
   <!-- ════════════════════════════════════════════
