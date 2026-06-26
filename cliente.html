@@ -128,7 +128,7 @@ async function buscar(){
 
   const[r1,r2,r3,r4]=await Promise.all([
     SB.from("crm").select("*").ilike("placa",placa).order("created_at",{ascending:false}),
-    SB.from("ots").select("id,num,placa,cliente,vehiculo,taller,tecnico,paso,fecha,created_at").ilike("placa",placa).order("created_at",{ascending:false}),
+    SB.from("ots").select("id,num,placa,cliente,vehiculo,taller,tecnico,paso,fecha,created_at,fotos_recepcion").ilike("placa",placa).order("created_at",{ascending:false}),
     SB.from("aceite_km").select("*").ilike("placa",placa).order("created_at",{ascending:false}).limit(10),
     SB.from("encuestas").select("*").ilike("placa",placa).order("created_at",{ascending:false}),
   ]);
@@ -297,6 +297,7 @@ function renderHistorial(){
         <div style="color:#64748b;font-size:11px;margin-bottom:6px">${PASOS[o.paso]||"En proceso"} · ${o.taller||"—"}</div>
         <div class="prog-track"><div class="prog-fill" style="width:${pct}%;background:#f59e0b"></div></div>
         <div style="color:#475569;font-size:10px;margin-top:3px">Técnico: ${o.tecnico||"—"}</div>
+        ${(()=>{const fs=Array.isArray(o.fotos_recepcion)?o.fotos_recepcion:[];if(!fs.length)return"";return`<div style="display:flex;gap:6px;overflow-x:auto;margin-top:8px;padding-bottom:2px">${fs.slice(0,5).map(f=>{const u=typeof f==="string"?f:(f?.url||"");return u?`<img src="${u}" style="width:56px;height:56px;object-fit:cover;border-radius:8px;flex-shrink:0;border:1px solid #334155" loading="lazy"/>`:"";}).join("")}</div>`;})()}
       </div>`;
     }).join("")}
   </div>`:""}
