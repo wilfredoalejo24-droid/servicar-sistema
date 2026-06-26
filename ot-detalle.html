@@ -119,7 +119,7 @@ async function cargarHijas(){
 }
 
 async function cargarInventario(){
-  const campos=esEncargado()?"*":"id,nom,marca,cat,stock,precio,foto_url,foto_caja_url,cod";
+  const campos=esEncargado()?"*":"id,nom,marca,cat,stock,foto_url,foto_caja_url,cod";
   const{data}=await SB.from("inventario").select(campos).order("nom");
   inventario=data||[];
 }
