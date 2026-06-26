@@ -343,6 +343,7 @@ function renderHistorial(){
         <div style="color:#475569;font-size:10px;margin-top:3px">Técnico: ${o.tecnico||"—"}</div>
         ${o.fecha?`<div style="color:#475569;font-size:10px;margin-top:2px">📅 ${o.fecha}</div>`:""}
         ${o.estado?`<div style="color:#94a3b8;font-size:11px;margin-top:4px">📌 ${o.estado}</div>`:""}
+        <button onclick="verDetalleOT(${o.id},'ot')" style="margin-top:10px;width:100%;padding:8px;background:#334155;color:#94a3b8;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">🔍 Ver detalle</button>
       </div>`;
     }).join("")}
   </div>`:""}
@@ -376,6 +377,7 @@ function renderHistorial(){
           style="padding:6px 12px;background:#25d36620;color:#25d366;border:1px solid #25d36640;border-radius:8px;font-weight:700;font-size:11px;text-decoration:none">
           💬 Consultar
         </a>
+        <button onclick="verDetalleOT(${c.id},'${c._src}')" style="padding:6px 12px;background:#334155;color:#94a3b8;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer">🔍 Ver detalle</button>
       </div>
     </div>`;
   }).join("")}`:""}`;
@@ -385,6 +387,55 @@ function abrirEncuesta(otNum){
   encOtNum=otNum;estrellas=0;nps=-1;encEnviada=false;
   tab="encuesta";renderApp();
   setTimeout(()=>$$("enc_top")?.scrollIntoView({behavior:"smooth"}),50);
+}
+
+function verDetalleOT(id,src){
+  const lista=src==="crm"?datos.crm:datos.ots;
+  const o=lista.find(x=>x.id==id);
+  if(!o)return;
+  const PASOS=["","Recepción","Diagnóstico","Cotización","Aprobación","Ejecución","Entrega"];
+  const paso=Number(o.paso);
+  const pasoLabel=!isNaN(paso)&&paso>0?`Paso ${paso}/6 — ${PASOS[paso]||""}`:"";
+  const waText=encodeURIComponent(`Hola, consulto sobre mi OT ${o.num||id}, placa ${o.placa||datos.placa}`);
+  const fd=(lbl,val)=>val?`<div style="background:#0f172a;border-radius:10px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;gap:8px"><div style="color:#64748b;font-size:11px;font-weight:700;white-space:nowrap">${lbl}</div><div style="color:#e2e8f0;font-size:13px;text-align:right">${val}</div></div>`:"";
+  const el=document.createElement("div");
+  el.id="mdl-det-ot";
+  el.style.cssText="position:fixed;inset:0;background:#0f172acc;z-index:9999;display:flex;align-items:flex-end;justify-content:center";
+  el.innerHTML=`
+  <div style="background:#1e293b;border-radius:20px 20px 0 0;width:100%;max-width:480px;max-height:88vh;overflow-y:auto;padding:20px 18px 32px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div style="color:#fbbf24;font-weight:900;font-size:16px">📋 OT ${o.num||("#"+id)}</div>
+      <button onclick="cerrarDetalleOT()" style="padding:6px 12px;background:#334155;color:#94a3b8;border:none;border-radius:8px;font-weight:700;cursor:pointer">✕</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      ${fd("🚗 Placa",o.placa||datos.placa)}
+      ${fd("👤 Cliente",o.cliente)}
+      ${fd("🏢 Taller",o.taller)}
+      ${fd("👨‍🔧 Técnico",o.tecnico)}
+      ${fd("📅 Fecha",o.fecha)}
+      ${pasoLabel?fd("📊 Progreso",pasoLabel):""}
+      ${o.estado?fd("📌 Estado",o.estado):""}
+    </div>
+    <div style="margin-top:16px;padding-top:14px;border-top:1px solid #334155">
+      <div style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:8px">Diagnóstico</div>
+      <div style="color:#475569;font-size:13px;font-style:italic">Diagnóstico pendiente de registrar</div>
+    </div>
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid #334155">
+      <div style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:8px">Trabajos</div>
+      <div style="color:#475569;font-size:13px;font-style:italic">Trabajo en revisión</div>
+    </div>
+    <a href="https://wa.me/${EMPRESA.wa}?text=${waText}" target="_blank"
+      style="display:block;margin-top:16px;padding:11px;background:#25d36620;color:#25d366;border:1px solid #25d36640;border-radius:10px;font-weight:700;font-size:13px;text-align:center;text-decoration:none">
+      💬 Consultar por WhatsApp
+    </a>
+  </div>`;
+  el.addEventListener("click",e=>{if(e.target===el)cerrarDetalleOT();});
+  document.body.appendChild(el);
+}
+
+function cerrarDetalleOT(){
+  const el=document.getElementById("mdl-det-ot");
+  if(el)el.remove();
 }
 
 /* ── ACEITE ─────────────────────────────────────────── */
@@ -677,6 +728,7 @@ function cambiarTab(t){tab=t;renderApp();}
 [
   "buscar","cambiarTab","renderApp","abrirEncuesta",
   "setEstrellas","setNPS","enviarEncuesta","calcularAceite",
+  "verDetalleOT","cerrarDetalleOT",
 ].forEach(fn=>window[fn]=eval(fn));
 
 init();
