@@ -143,7 +143,7 @@ async function buscar(){
 
   const[r1,r2,r3,r4]=await Promise.all([
     buscarFlexible("crm","*","created_at"),
-    buscarFlexible("ots","id,num,placa,cliente,vehiculo,taller,tecnico,paso,fecha",null),
+    buscarFlexible("ots","id,num,placa,cliente,taller,tecnico,paso,fecha",null),
     SB.from("aceite_km").select("*").ilike("placa",placa).order("created_at",{ascending:false}).limit(10),
     SB.from("encuestas").select("*").ilike("placa",placa).order("created_at",{ascending:false}),
   ]);
