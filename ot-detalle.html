@@ -58,7 +58,7 @@ const WA_MAP={
   adolfo:"59174016189",joel:"59174840206"
 };
 
-let usuario=null,ot=null,inventario=[],usuarios_db=[];
+let usuario=null,ot=null,inventario=[],usuarios_db=[],hijas=[];
 const otId=new URLSearchParams(location.search).get("id");
 
 /* ── Sesión ──────────────────────────────────────────── */
@@ -80,7 +80,7 @@ async function init(){
   usuario=getSession();
   if(!usuario){location.href="/";return;}
   if(!otId){location.href="/ot.html";return;}
-  await Promise.all([cargarOT(),cargarInventario(),cargarUsuarios()]);
+  await Promise.all([cargarOT(),cargarInventario(),cargarUsuarios(),cargarHijas()]);
   // Técnicos y vendedores solo pueden ver OTs asignadas a ellos
   const esLimitado=["vendedor","mecanico"].includes(usuario.rol)||/t[eé]cnico/i.test(usuario.rol||"");
   if(ot && esLimitado && ot.creado_por!==usuario.user_name && ot.tecnico!==usuario.nombre){
@@ -111,6 +111,11 @@ async function cargarOT(){
   ot.adelanto =ot.adelanto ||0;
   ot.descuento=ot.descuento||0;
   if(!ot.paso||ot.paso<1)ot.paso=1;
+}
+
+async function cargarHijas(){
+  const{data}=await SB.from("ots").select("id,num,estado,taller,tecnico").eq("ot_padre_id",otId).order("id",{ascending:true});
+  hijas=data||[];
 }
 
 async function cargarInventario(){
@@ -1157,6 +1162,25 @@ function render(){
       <div style="color:#fbbf24;font-weight:700;font-size:13px">${ot.ot_padre_id||"—"}</div>
     </div>
     ${ot.ot_padre_id?`<a href="/ot-detalle.html?id=${ot.ot_padre_id}" style="display:block;text-align:center;margin-top:10px;padding:8px;background:#7c3aed20;color:#a78bfa;border:1px solid #7c3aed40;border-radius:8px;font-weight:700;font-size:12px;text-decoration:none">🔗 Ver OT original</a>`:""}
+  </div>`:""}
+
+  <!-- TARJETA OTs VINCULADAS (solo si es OT principal con hijas) -->
+  ${hijas.length>0?`
+  <div style="background:#1e293b;border:1px solid #7c3aed40;border-radius:14px;padding:14px 16px;margin-bottom:12px">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+      <span style="font-size:14px">🔗</span>
+      <span style="color:#a78bfa;font-size:11px;font-weight:700;text-transform:uppercase">OTs Vinculadas</span>
+      <span style="margin-left:auto;background:#7c3aed30;color:#a78bfa;border-radius:10px;padding:1px 8px;font-size:10px;font-weight:700">${hijas.length}</span>
+    </div>
+    ${hijas.map(h=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;background:#0f172a;border-radius:8px;padding:9px 12px;margin-bottom:6px">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:12px;color:#e2e8f0">${h.num||"OT #"+h.id}</div>
+        <div style="font-size:10px;color:#64748b;margin-top:2px">${h.estado||"—"} · ${h.taller||"—"}</div>
+        ${h.tecnico?`<div style="font-size:10px;color:#475569">🔧 ${h.tecnico}</div>`:""}
+      </div>
+      <a href="/ot-detalle.html?id=${h.id}" style="margin-left:10px;padding:5px 12px;background:#7c3aed20;color:#a78bfa;border:1px solid #7c3aed40;border-radius:6px;font-weight:700;font-size:11px;text-decoration:none;white-space:nowrap">Ver →</a>
+    </div>`).join("")}
   </div>`:""}
 
   <!-- ════════════════════════════════════════════
