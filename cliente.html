@@ -110,11 +110,13 @@ function normalizarPlaca(v){
   return (v||"").toUpperCase().replace(/[\s\-\.\_]+/g,"");
 }
 
-async function buscarFlexible(tabla,campos){
+async function buscarFlexible(tabla,campos,orden="created_at"){
   const norm=normalizarPlaca(placa);
   const nums=(norm.match(/\d+/)||[""])[0];
   const termino=nums.length>=3?`%${nums}%`:`%${norm.slice(0,4)||norm}%`;
-  const{data,error}=await SB.from(tabla).select(campos).ilike("placa",termino).order("created_at",{ascending:false});
+  let q=SB.from(tabla).select(campos).ilike("placa",termino);
+  if(orden)q=q.order(orden,{ascending:false});
+  const{data,error}=await q;
   if(error)return{data:null,error};
   return{data:(data||[]).filter(r=>normalizarPlaca(r.placa)===norm),error:null};
 }
@@ -140,8 +142,8 @@ async function buscar(){
   estado="cargando";renderApp();
 
   const[r1,r2,r3,r4]=await Promise.all([
-    buscarFlexible("crm","*"),
-    buscarFlexible("ots","id,num,placa,cliente,vehiculo,taller,tecnico,paso,fecha,created_at"),
+    buscarFlexible("crm","*","created_at"),
+    buscarFlexible("ots","id,num,placa,cliente,vehiculo,taller,tecnico,paso,fecha",null),
     SB.from("aceite_km").select("*").ilike("placa",placa).order("created_at",{ascending:false}).limit(10),
     SB.from("encuestas").select("*").ilike("placa",placa).order("created_at",{ascending:false}),
   ]);
