@@ -427,6 +427,10 @@ async function verDetalleOT(id,src){
       <div style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:8px">Trabajos</div>
       <div style="color:#475569;font-size:13px;font-style:italic">Cargando...</div>
     </div>
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid #334155">
+      <div style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:8px">Repuestos</div>
+      <div style="color:#475569;font-size:13px;font-style:italic">Detalle de repuestos pendiente de publicar</div>
+    </div>
     <a href="https://wa.me/${EMPRESA.wa}?text=${waText}" target="_blank"
       style="display:block;margin-top:16px;padding:11px;background:#25d36620;color:#25d366;border:1px solid #25d36640;border-radius:10px;font-weight:700;font-size:13px;text-align:center;text-decoration:none">
       💬 Consultar por WhatsApp
@@ -444,11 +448,11 @@ async function verDetalleOT(id,src){
     return;
   }
 
-  // Intento 1: con todos los campos seguros (incluyendo JSONB)
+  // Intento 1: diagnóstico y trabajos (sin repuestos para evitar que precios viajen al navegador)
   let det=null;
   let r=await SB.from("ots").select("diagnostico,problema,problemas,procedimientos").eq("id",id).single();
   if(r.error){
-    // Fallback: sin campos JSONB por si alguno no existe
+    // Fallback: solo campos de texto plano
     r=await SB.from("ots").select("diagnostico,problema").eq("id",id).single();
   }
   if(!r.error&&r.data) det=r.data;
@@ -458,15 +462,15 @@ async function verDetalleOT(id,src){
   if(!ds||!ts)return; // modal cerrado antes de terminar
 
   if(!det){
-    // Fetch falló completamente — placeholders
     ds.innerHTML=`<div style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:8px">Diagnóstico</div>${placeholderDiag}`;
     ts.innerHTML=`<div style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:8px">Trabajos</div>${placeholderTrab}`;
     return;
   }
 
-  // Parsear JSONB si llegaron como string
-  if(det.problemas&&!Array.isArray(det.problemas)){try{det.problemas=JSON.parse(det.problemas);}catch{det.problemas=[];}}
-  if(det.procedimientos&&!Array.isArray(det.procedimientos)){try{det.procedimientos=JSON.parse(det.procedimientos);}catch{det.procedimientos=[];}}
+  // Parsear solo los JSONB seguros
+  ["problemas","procedimientos"].forEach(k=>{
+    if(det[k]&&!Array.isArray(det[k])){try{det[k]=JSON.parse(det[k]);}catch{det[k]=[];}}
+  });
 
   // Renderizar Diagnóstico
   const probs=det.problemas||[];
