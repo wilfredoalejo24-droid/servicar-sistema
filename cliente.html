@@ -79,6 +79,7 @@ const SB=window.supabase.createClient(
   "sb_publishable_zsqvMzJMc80Ypf3UQqs-SA_IrV-XIGc"
 );
 const EMPRESA={nombre:"SERVI CAR PLATINIUM",ciudad:"Viacha - La Paz",tel:"68167264",wa:"59168167264"};
+const EQUIPO="Equipo Servi Car Platinium";
 const KM_INTERVALO=5000; // km entre cambios de aceite
 
 /* ── Estado ─────────────────────────────────────────── */
@@ -340,7 +341,7 @@ function renderHistorial(){
         </div>
         <div style="color:#64748b;font-size:11px;margin-bottom:6px">${sin?"Estado por confirmar":(PASOS[Number(o.paso)]||"En proceso")} · ${o.taller||"—"}</div>
         ${sin?"":`<div class="prog-track"><div class="prog-fill" style="width:${pct}%;background:#f59e0b"></div></div>`}
-        <div style="color:#475569;font-size:10px;margin-top:3px">Técnico: ${o.tecnico||"—"}</div>
+        <div style="color:#475569;font-size:10px;margin-top:3px">Atendido por: ${EQUIPO}</div>
         ${o.fecha?`<div style="color:#475569;font-size:10px;margin-top:2px">📅 ${o.fecha}</div>`:""}
         ${o.estado?`<div style="color:#94a3b8;font-size:11px;margin-top:4px">📌 ${o.estado}</div>`:""}
         <button onclick="verDetalleOT(${o.id},'ot')" style="margin-top:10px;width:100%;padding:8px;background:#334155;color:#94a3b8;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">🔍 Ver detalle</button>
@@ -363,7 +364,7 @@ function renderHistorial(){
         <div style="font-weight:700;font-size:13px">OT ${c.num||"—"}</div>
         <div style="color:#64748b;font-size:11px;margin-top:2px">📅 ${c.fecha||"—"} · 🏢 ${c.taller||"—"}</div>
       </div>
-      <div style="color:#64748b;font-size:11px;margin-bottom:10px">👨‍🔧 Técnico: ${c.tecnico||"—"}</div>
+      <div style="color:#64748b;font-size:11px;margin-bottom:10px">👨‍🔧 Atendido por: ${EQUIPO}</div>
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
         ${c._src==="crm"
           ?(yaCalif
@@ -413,7 +414,7 @@ async function verDetalleOT(id,src){
       ${fd("🚗 Placa",o.placa||datos.placa)}
       ${fd("👤 Cliente",o.cliente)}
       ${fd("🏢 Taller",o.taller)}
-      ${fd("👨‍🔧 Técnico",o.tecnico)}
+      ${fd("👨‍🔧 Técnico",EQUIPO)}
       ${fd("📅 Fecha",o.fecha)}
       ${pasoLabel?fd("📊 Progreso",pasoLabel):""}
       ${o.estado?fd("📌 Estado",o.estado):""}
@@ -487,7 +488,6 @@ async function verDetalleOT(id,src){
     trabHtml=procs.map(p=>`<div style="background:#0f172a;border-radius:10px;padding:10px 12px;margin-bottom:6px">
       <div style="color:#e2e8f0;font-size:13px;font-weight:700">${p.nombre||"—"}</div>
       ${p.desc?`<div style="color:#94a3b8;font-size:12px;margin-top:3px">${p.desc}</div>`:""}
-      ${p.tecnico?`<div style="color:#64748b;font-size:11px;margin-top:4px">Técnico: ${p.tecnico}</div>`:""}
       ${p.tiempo?`<div style="color:#64748b;font-size:11px">Tiempo: ${p.tiempo}</div>`:""}
     </div>`).join("");
   } else {
@@ -651,7 +651,7 @@ function renderEncuesta(){
     <div style="background:#0f172a;border-radius:10px;padding:12px;margin-bottom:16px">
       <div style="color:#64748b;font-size:10px;margin-bottom:4px">SERVICIO CALIFICADO</div>
       <div style="font-weight:700">OT ${servicioRef.num||"—"} · ${servicioRef.fecha||"—"}</div>
-      <div style="color:#64748b;font-size:11px;margin-top:2px">🏢 ${servicioRef.taller||"—"} · 👨‍🔧 ${servicioRef.tecnico||"—"}</div>
+      <div style="color:#64748b;font-size:11px;margin-top:2px">🏢 ${servicioRef.taller||"—"} · 👨‍🔧 ${EQUIPO}</div>
     </div>`:""}
 
     <!-- Estrellas -->
