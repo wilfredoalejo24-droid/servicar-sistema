@@ -142,13 +142,13 @@ async function buscar(){
   if(!placa){alert("Ingresa la placa de tu vehículo");return;}
   estado="cargando";renderApp();
 
-  let r2=await buscarFlexible("ots","id,num,placa,cliente,taller,tecnico,paso,estado,fecha",null);
+  let r2=await buscarFlexible("ots","id,num,placa,cliente,taller,paso,estado,fecha",null);
   if(r2.error){
     console.warn("OTS sin campo estado, reintentando:",r2.error);
-    r2=await buscarFlexible("ots","id,num,placa,cliente,taller,tecnico,paso,fecha",null);
+    r2=await buscarFlexible("ots","id,num,placa,cliente,taller,paso,fecha",null);
   }
   const[r1,r3,r4]=await Promise.all([
-    buscarFlexible("crm","id,num,placa,cliente,marca,modelo,taller,tecnico,fecha","fecha"),
+    buscarFlexible("crm","id,num,placa,cliente,marca,modelo,taller,fecha","fecha"),
     SB.from("aceite_km").select("*").ilike("placa",placa).order("created_at",{ascending:false}).limit(10),
     SB.from("encuestas").select("*").ilike("placa",placa).order("created_at",{ascending:false}),
   ]);
@@ -399,8 +399,10 @@ async function verDetalleOT(id,src){
   const pasoLabel=!isNaN(paso)&&paso>0?`Paso ${paso}/6 — ${PASOS[paso]||""}`:"";
   const waText=encodeURIComponent(`Hola, consulto sobre mi OT ${o.num||id}, placa ${o.placa||datos.placa}`);
   const fd=(lbl,val)=>val?`<div style="background:#0f172a;border-radius:10px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;gap:8px"><div style="color:#64748b;font-size:11px;font-weight:700;white-space:nowrap">${lbl}</div><div style="color:#e2e8f0;font-size:13px;text-align:right">${val}</div></div>`:"";
+  const sec=(titulo)=>`<div style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:8px">${titulo}</div>`;
   const placeholderDiag=`<div style="color:#475569;font-size:13px;font-style:italic">Diagnóstico pendiente de registrar</div>`;
-  const placeholderTrab=`<div style="color:#475569;font-size:13px;font-style:italic">Trabajo en revisión</div>`;
+  const placeholderTrab=`<div style="color:#475569;font-size:13px;font-style:italic">Trabajos pendiente de publicar</div>`;
+  const placeholderRep=`<div style="color:#475569;font-size:13px;font-style:italic">Detalle de repuestos pendiente de publicar</div>`;
   const el=document.createElement("div");
   el.id="mdl-det-ot";
   el.style.cssText="position:fixed;inset:0;background:#0f172acc;z-index:9999;display:flex;align-items:flex-end;justify-content:center";
@@ -420,16 +422,13 @@ async function verDetalleOT(id,src){
       ${o.estado?fd("📌 Estado",o.estado):""}
     </div>
     <div id="det-diag-sec" style="margin-top:16px;padding-top:14px;border-top:1px solid #334155">
-      <div style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:8px">Diagnóstico</div>
-      <div style="color:#475569;font-size:13px;font-style:italic">Cargando...</div>
+      ${sec("Diagnóstico")}<div style="color:#475569;font-size:13px;font-style:italic">Cargando...</div>
     </div>
     <div id="det-trab-sec" style="margin-top:14px;padding-top:12px;border-top:1px solid #334155">
-      <div style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:8px">Trabajos</div>
-      <div style="color:#475569;font-size:13px;font-style:italic">Cargando...</div>
+      ${sec("Trabajos")}<div style="color:#475569;font-size:13px;font-style:italic">Cargando...</div>
     </div>
-    <div style="margin-top:14px;padding-top:12px;border-top:1px solid #334155">
-      <div style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:8px">Repuestos</div>
-      <div style="color:#475569;font-size:13px;font-style:italic">Detalle de repuestos pendiente de publicar</div>
+    <div id="det-rep-sec" style="margin-top:14px;padding-top:12px;border-top:1px solid #334155">
+      ${sec("Repuestos")}<div style="color:#475569;font-size:13px;font-style:italic">Cargando...</div>
     </div>
     <a href="https://wa.me/${EMPRESA.wa}?text=${waText}" target="_blank"
       style="display:block;margin-top:16px;padding:11px;background:#25d36620;color:#25d366;border:1px solid #25d36640;border-radius:10px;font-weight:700;font-size:13px;text-align:center;text-decoration:none">
@@ -439,36 +438,42 @@ async function verDetalleOT(id,src){
   el.addEventListener("click",e=>{if(e.target===el)cerrarDetalleOT();});
   document.body.appendChild(el);
 
-  // Fetch lazy — solo OTs tienen diagnóstico y procedimientos
+  // CRM no tiene diagnóstico ni trabajos en la vista segura
   if(src!=="ot"){
     const ds=document.getElementById("det-diag-sec");
     const ts=document.getElementById("det-trab-sec");
-    if(ds)ds.innerHTML=`<div style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:8px">Diagnóstico</div>${placeholderDiag}`;
-    if(ts)ts.innerHTML=`<div style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:8px">Trabajos</div>${placeholderTrab}`;
+    const rs=document.getElementById("det-rep-sec");
+    if(ds)ds.innerHTML=sec("Diagnóstico")+placeholderDiag;
+    if(ts)ts.innerHTML=sec("Trabajos")+placeholderTrab;
+    if(rs)rs.innerHTML=sec("Repuestos")+placeholderRep;
     return;
   }
 
-  // Intento 1: diagnóstico y trabajos (sin repuestos para evitar que precios viajen al navegador)
+  // Fetch desde vista segura ots_cliente (sin precios, sin datos internos)
   let det=null;
-  let r=await SB.from("ots").select("diagnostico,problema,problemas,procedimientos").eq("id",id).single();
+  let r=await SB.from("ots_cliente")
+    .select("diagnostico,problema,problemas,procedimientos_publicos,repuestos_publicos")
+    .eq("id",id).single();
   if(r.error){
-    // Fallback: solo campos de texto plano
-    r=await SB.from("ots").select("diagnostico,problema").eq("id",id).single();
+    // Fallback: solo texto plano si la vista devuelve error parcial
+    r=await SB.from("ots_cliente").select("diagnostico,problema").eq("id",id).single();
   }
   if(!r.error&&r.data) det=r.data;
 
   const ds=document.getElementById("det-diag-sec");
   const ts=document.getElementById("det-trab-sec");
-  if(!ds||!ts)return; // modal cerrado antes de terminar
+  const rs=document.getElementById("det-rep-sec");
+  if(!ds||!ts||!rs)return; // modal cerrado antes de terminar
 
   if(!det){
-    ds.innerHTML=`<div style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:8px">Diagnóstico</div>${placeholderDiag}`;
-    ts.innerHTML=`<div style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:8px">Trabajos</div>${placeholderTrab}`;
+    ds.innerHTML=sec("Diagnóstico")+placeholderDiag;
+    ts.innerHTML=sec("Trabajos")+placeholderTrab;
+    rs.innerHTML=sec("Repuestos")+placeholderRep;
     return;
   }
 
-  // Parsear solo los JSONB seguros
-  ["problemas","procedimientos"].forEach(k=>{
+  // Parsear JSONB si llegan como string (la vista puede devolverlos ya como objetos)
+  ["problemas","procedimientos_publicos","repuestos_publicos"].forEach(k=>{
     if(det[k]&&!Array.isArray(det[k])){try{det[k]=JSON.parse(det[k]);}catch{det[k]=[];}}
   });
 
@@ -483,10 +488,10 @@ async function verDetalleOT(id,src){
   }
   if(diagTxt) diagHtml+=`<div style="color:#cbd5e1;font-size:13px;line-height:1.5">${diagTxt}</div>`;
   if(!diagHtml) diagHtml=placeholderDiag;
-  ds.innerHTML=`<div style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:8px">Diagnóstico</div>${diagHtml}`;
+  ds.innerHTML=sec("Diagnóstico")+diagHtml;
 
-  // Renderizar Trabajos (nunca se muestra precio)
-  const procs=det.procedimientos||[];
+  // Renderizar Trabajos desde procedimientos_publicos (sin precio, sin técnico)
+  const procs=det.procedimientos_publicos||[];
   let trabHtml="";
   if(procs.length){
     trabHtml=procs.map(p=>`<div style="background:#0f172a;border-radius:10px;padding:10px 12px;margin-bottom:6px">
@@ -497,7 +502,35 @@ async function verDetalleOT(id,src){
   } else {
     trabHtml=placeholderTrab;
   }
-  ts.innerHTML=`<div style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:8px">Trabajos</div>${trabHtml}`;
+  ts.innerHTML=sec("Trabajos")+trabHtml;
+
+  // Renderizar Repuestos desde repuestos_publicos (sin precio, sin precio_estimado, sin costo)
+  const reps=det.repuestos_publicos||[];
+  let repHtml="";
+  if(reps.length){
+    repHtml=reps.map(r=>{
+      const cant=r.cantidad||1;
+      const unidad=r.unidad?` ${r.unidad}`:"";
+      const estadoTag=r.conseguido===true
+        ?`<span style="padding:2px 8px;border-radius:20px;background:#16a34a20;color:#4ade80;border:1px solid #16a34a40;font-size:10px;font-weight:700">✓ Conseguido</span>`
+        :r.conseguido===false
+          ?`<span style="padding:2px 8px;border-radius:20px;background:#f9731620;color:#f97316;border:1px solid #f9731640;font-size:10px;font-weight:700">⏳ Pendiente</span>`
+          :"";
+      return `<div style="background:#0f172a;border-radius:10px;padding:10px 12px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <div style="min-width:0">
+          <div style="color:#e2e8f0;font-size:13px;font-weight:700">${r.nombre||"—"}</div>
+          ${r.nota?`<div style="color:#94a3b8;font-size:11px;margin-top:2px">${r.nota}</div>`:""}
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">
+          <div style="color:#64748b;font-size:11px;white-space:nowrap">×${cant}${unidad}</div>
+          ${estadoTag}
+        </div>
+      </div>`;
+    }).join("");
+  } else {
+    repHtml=placeholderRep;
+  }
+  rs.innerHTML=sec("Repuestos")+repHtml;
 }
 
 function cerrarDetalleOT(){
