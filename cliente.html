@@ -389,7 +389,7 @@ function abrirEncuesta(otNum){
   setTimeout(()=>$$("enc_top")?.scrollIntoView({behavior:"smooth"}),50);
 }
 
-function verDetalleOT(id,src){
+async function verDetalleOT(id,src){
   const lista=src==="crm"?datos.crm:datos.ots;
   const o=lista.find(x=>x.id==id);
   if(!o)return;
@@ -398,6 +398,8 @@ function verDetalleOT(id,src){
   const pasoLabel=!isNaN(paso)&&paso>0?`Paso ${paso}/6 — ${PASOS[paso]||""}`:"";
   const waText=encodeURIComponent(`Hola, consulto sobre mi OT ${o.num||id}, placa ${o.placa||datos.placa}`);
   const fd=(lbl,val)=>val?`<div style="background:#0f172a;border-radius:10px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;gap:8px"><div style="color:#64748b;font-size:11px;font-weight:700;white-space:nowrap">${lbl}</div><div style="color:#e2e8f0;font-size:13px;text-align:right">${val}</div></div>`:"";
+  const placeholderDiag=`<div style="color:#475569;font-size:13px;font-style:italic">Diagnóstico pendiente de registrar</div>`;
+  const placeholderTrab=`<div style="color:#475569;font-size:13px;font-style:italic">Trabajo en revisión</div>`;
   const el=document.createElement("div");
   el.id="mdl-det-ot";
   el.style.cssText="position:fixed;inset:0;background:#0f172acc;z-index:9999;display:flex;align-items:flex-end;justify-content:center";
@@ -416,13 +418,13 @@ function verDetalleOT(id,src){
       ${pasoLabel?fd("📊 Progreso",pasoLabel):""}
       ${o.estado?fd("📌 Estado",o.estado):""}
     </div>
-    <div style="margin-top:16px;padding-top:14px;border-top:1px solid #334155">
+    <div id="det-diag-sec" style="margin-top:16px;padding-top:14px;border-top:1px solid #334155">
       <div style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:8px">Diagnóstico</div>
-      <div style="color:#475569;font-size:13px;font-style:italic">Diagnóstico pendiente de registrar</div>
+      <div style="color:#475569;font-size:13px;font-style:italic">Cargando...</div>
     </div>
-    <div style="margin-top:14px;padding-top:12px;border-top:1px solid #334155">
+    <div id="det-trab-sec" style="margin-top:14px;padding-top:12px;border-top:1px solid #334155">
       <div style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:8px">Trabajos</div>
-      <div style="color:#475569;font-size:13px;font-style:italic">Trabajo en revisión</div>
+      <div style="color:#475569;font-size:13px;font-style:italic">Cargando...</div>
     </div>
     <a href="https://wa.me/${EMPRESA.wa}?text=${waText}" target="_blank"
       style="display:block;margin-top:16px;padding:11px;background:#25d36620;color:#25d366;border:1px solid #25d36640;border-radius:10px;font-weight:700;font-size:13px;text-align:center;text-decoration:none">
@@ -431,6 +433,67 @@ function verDetalleOT(id,src){
   </div>`;
   el.addEventListener("click",e=>{if(e.target===el)cerrarDetalleOT();});
   document.body.appendChild(el);
+
+  // Fetch lazy — solo OTs tienen diagnóstico y procedimientos
+  if(src!=="ot"){
+    const ds=document.getElementById("det-diag-sec");
+    const ts=document.getElementById("det-trab-sec");
+    if(ds)ds.innerHTML=`<div style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:8px">Diagnóstico</div>${placeholderDiag}`;
+    if(ts)ts.innerHTML=`<div style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:8px">Trabajos</div>${placeholderTrab}`;
+    return;
+  }
+
+  // Intento 1: con todos los campos seguros (incluyendo JSONB)
+  let det=null;
+  let r=await SB.from("ots").select("diagnostico,problema,problemas,procedimientos").eq("id",id).single();
+  if(r.error){
+    // Fallback: sin campos JSONB por si alguno no existe
+    r=await SB.from("ots").select("diagnostico,problema").eq("id",id).single();
+  }
+  if(!r.error&&r.data) det=r.data;
+
+  const ds=document.getElementById("det-diag-sec");
+  const ts=document.getElementById("det-trab-sec");
+  if(!ds||!ts)return; // modal cerrado antes de terminar
+
+  if(!det){
+    // Fetch falló completamente — placeholders
+    ds.innerHTML=`<div style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:8px">Diagnóstico</div>${placeholderDiag}`;
+    ts.innerHTML=`<div style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:8px">Trabajos</div>${placeholderTrab}`;
+    return;
+  }
+
+  // Parsear JSONB si llegaron como string
+  if(det.problemas&&!Array.isArray(det.problemas)){try{det.problemas=JSON.parse(det.problemas);}catch{det.problemas=[];}}
+  if(det.procedimientos&&!Array.isArray(det.procedimientos)){try{det.procedimientos=JSON.parse(det.procedimientos);}catch{det.procedimientos=[];}}
+
+  // Renderizar Diagnóstico
+  const probs=det.problemas||[];
+  const diagTxt=det.diagnostico||det.problema||"";
+  let diagHtml="";
+  if(probs.length){
+    diagHtml+=`<div style="display:flex;flex-wrap:wrap;gap:5px${diagTxt?";margin-bottom:8px":""}">`
+      +probs.map(p=>`<span style="padding:3px 10px;border-radius:20px;background:#3b82f620;color:#60a5fa;border:1px solid #3b82f640;font-size:11px;font-weight:700">${p}</span>`).join("")
+      +`</div>`;
+  }
+  if(diagTxt) diagHtml+=`<div style="color:#cbd5e1;font-size:13px;line-height:1.5">${diagTxt}</div>`;
+  if(!diagHtml) diagHtml=placeholderDiag;
+  ds.innerHTML=`<div style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:8px">Diagnóstico</div>${diagHtml}`;
+
+  // Renderizar Trabajos (nunca se muestra precio)
+  const procs=det.procedimientos||[];
+  let trabHtml="";
+  if(procs.length){
+    trabHtml=procs.map(p=>`<div style="background:#0f172a;border-radius:10px;padding:10px 12px;margin-bottom:6px">
+      <div style="color:#e2e8f0;font-size:13px;font-weight:700">${p.nombre||"—"}</div>
+      ${p.desc?`<div style="color:#94a3b8;font-size:12px;margin-top:3px">${p.desc}</div>`:""}
+      ${p.tecnico?`<div style="color:#64748b;font-size:11px;margin-top:4px">Técnico: ${p.tecnico}</div>`:""}
+      ${p.tiempo?`<div style="color:#64748b;font-size:11px">Tiempo: ${p.tiempo}</div>`:""}
+    </div>`).join("");
+  } else {
+    trabHtml=placeholderTrab;
+  }
+  ts.innerHTML=`<div style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:8px">Trabajos</div>${trabHtml}`;
 }
 
 function cerrarDetalleOT(){
