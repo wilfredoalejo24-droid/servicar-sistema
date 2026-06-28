@@ -664,103 +664,10 @@ function calcularAceite(){
 
 /* ── ENCUESTA ───────────────────────────────────────── */
 function renderEncuesta(){
-  // Check if current encOtNum already rated
-  const yaCalif=encOtNum&&datos.encuestas.some(e=>e.ot_num===encOtNum);
-  const servicioRef=datos.crm.find(c=>c.num===encOtNum)||datos.crm[0];
-
-  if(encEnviada){
-    return renderGracias();
-  }
-  if(yaCalif){
-    const enc=datos.encuestas.find(e=>e.ot_num===encOtNum);
-    return renderYaCalificado(enc);
-  }
-
-  // OT selector if there are multiple unrated
-  const completadas=datos.crm;
-  const yaCalificados=new Set(datos.encuestas.map(e=>e.ot_num));
-  const sinCalif=completadas.filter(c=>!yaCalificados.has(c.num));
-
-  return `
-  <div class="card" id="enc_top">
-    <div style="color:#fbbf24;font-size:12px;font-weight:700;text-transform:uppercase;margin-bottom:14px">⭐ Encuesta de satisfacción</div>
-
-    ${sinCalif.length===0&&completadas.length>0?`
-    <div style="text-align:center;padding:16px;color:#16a34a">
-      <div style="font-size:36px;margin-bottom:8px">✅</div>
-      <div style="font-weight:700">¡Ya calificaste todos tus servicios!</div>
-      <div style="color:#64748b;font-size:12px;margin-top:6px">Gracias por tus comentarios. Nos ayudan a mejorar.</div>
-    </div>`:`
-
-    ${!completadas.length?`
-    <div style="text-align:center;padding:20px;color:#334155">
-      <div style="font-size:36px;margin-bottom:8px">📋</div>Completa un servicio primero para poder calificarnos.
-    </div>`:`
-
-    <!-- Selector de OT -->
-    ${sinCalif.length>1?`
-    <div style="margin-bottom:14px">
-      <div style="color:#64748b;font-size:11px;font-weight:700;margin-bottom:6px">SERVICIO A CALIFICAR</div>
-      <select id="enc_ot_sel" class="input" onchange="encOtNum=this.value;estrellas=0;nps=-1;actualizarEncuesta()">
-        ${sinCalif.map(c=>`<option value="${c.num||""}" ${encOtNum===c.num?"selected":""}>OT ${c.num||"—"} · ${c.fecha||"—"}</option>`).join("")}
-      </select>
-    </div>`:""}
-
-    <!-- Info del servicio -->
-    ${servicioRef?`
-    <div style="background:#0f172a;border-radius:10px;padding:12px;margin-bottom:16px">
-      <div style="color:#64748b;font-size:10px;margin-bottom:4px">SERVICIO CALIFICADO</div>
-      <div style="font-weight:700">OT ${servicioRef.num||"—"} · ${servicioRef.fecha||"—"}</div>
-      <div style="color:#64748b;font-size:11px;margin-top:2px">🏢 ${servicioRef.taller||"—"} · 👨‍🔧 ${EQUIPO}</div>
-    </div>`:""}
-
-    <!-- Estrellas -->
-    <div style="margin-bottom:20px">
-      <div style="color:#64748b;font-size:11px;font-weight:700;margin-bottom:10px;text-align:center">
-        ¿CÓMO CALIFICARÍAS EL SERVICIO EN GENERAL?
-      </div>
-      <div style="display:flex;justify-content:center;gap:10px" id="stars_container">
-        ${[1,2,3,4,5].map(i=>`<span class="star ${estrellas>=i?"on":""}" onclick="setEstrellas(${i})">★</span>`).join("")}
-      </div>
-      <div id="stars_label" style="text-align:center;font-size:12px;color:#64748b;margin-top:8px;min-height:18px">
-        ${estrellas?["","Muy malo 😞","Malo 😕","Regular 😐","Bueno 😊","Excelente 🤩"][estrellas]:"Toca para calificar"}
-      </div>
-    </div>
-
-    <!-- NPS -->
-    <div style="margin-bottom:20px">
-      <div style="color:#64748b;font-size:11px;font-weight:700;margin-bottom:10px;text-align:center">
-        ¿DEL 0 AL 10, QUÉ TAN PROBABLE ES QUE NOS RECOMIENDES?
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(11,1fr);gap:3px;margin-bottom:6px">
-        ${Array.from({length:11},(_,i)=>{
-          const color=i<=6?"r":i<=8?"y":"g";
-          return `<button class="nps-btn ${nps===i?"sel-"+color:""}" onclick="setNPS(${i})">${i}</button>`;
-        }).join("")}
-      </div>
-      <div style="display:flex;justify-content:space-between;font-size:10px;color:#475569">
-        <span>0 = Nada probable</span><span>10 = Muy probable</span>
-      </div>
-    </div>
-
-    <!-- Texto libre -->
-    <div style="margin-bottom:12px">
-      <div style="color:#64748b;font-size:11px;font-weight:700;margin-bottom:6px">👍 ¿Qué estuvo bien? (opcional)</div>
-      <input id="enc_bueno" class="input" placeholder="Ej: Rapidez, amabilidad, precio..."/>
-    </div>
-    <div style="margin-bottom:16px">
-      <div style="color:#64748b;font-size:11px;font-weight:700;margin-bottom:6px">💡 ¿Qué podría mejorar? (opcional)</div>
-      <input id="enc_mejora" class="input" placeholder="Tu opinión nos ayuda a crecer..."/>
-    </div>
-
-    <!-- Submit -->
-    <button onclick="enviarEncuesta()"
-      style="width:100%;padding:13px;background:${estrellas&&nps>=0?"#f59e0b":"#334155"};color:${estrellas&&nps>=0?"#1e293b":"#64748b"};border:none;border-radius:10px;font-weight:900;font-size:15px;cursor:pointer;transition:all .2s"
-      ${!estrellas||nps<0?"disabled":""}>
-      📨 Enviar calificación
-    </button>
-    ${!estrellas||nps<0?`<div style="color:#475569;font-size:11px;text-align:center;margin-top:8px">Selecciona estrellas y tu puntuación de recomendación</div>`:""}
-    `}`}
+  return `<div class="card" style="text-align:center;padding:30px 18px">
+    <div style="font-size:36px;margin-bottom:12px">⭐</div>
+    <div style="color:#fbbf24;font-weight:700;font-size:15px;margin-bottom:8px">Encuesta de satisfacción</div>
+    <div style="color:#475569;font-size:13px">Próximamente disponible</div>
   </div>`;
 }
 
