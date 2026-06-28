@@ -403,6 +403,7 @@ async function verDetalleOT(id,src){
   const placeholderDiag=`<div style="color:#475569;font-size:13px;font-style:italic">Diagnóstico pendiente de registrar</div>`;
   const placeholderTrab=`<div style="color:#475569;font-size:13px;font-style:italic">Trabajos pendiente de publicar</div>`;
   const placeholderRep=`<div style="color:#475569;font-size:13px;font-style:italic">Detalle de repuestos pendiente de publicar</div>`;
+  const placeholderFotos=`<div style="color:#475569;font-size:13px;font-style:italic">Fotos del proceso pendientes de publicar</div>`;
   const el=document.createElement("div");
   el.id="mdl-det-ot";
   el.style.cssText="position:fixed;inset:0;background:#0f172acc;z-index:9999;display:flex;align-items:flex-end;justify-content:center";
@@ -430,6 +431,9 @@ async function verDetalleOT(id,src){
     <div id="det-rep-sec" style="margin-top:14px;padding-top:12px;border-top:1px solid #334155">
       ${sec("Repuestos")}<div style="color:#475569;font-size:13px;font-style:italic">Cargando...</div>
     </div>
+    <div id="det-fotos-sec" style="margin-top:14px;padding-top:12px;border-top:1px solid #334155">
+      ${sec("Fotos del proceso")}<div style="color:#475569;font-size:13px;font-style:italic">Cargando...</div>
+    </div>
     <a href="https://wa.me/${EMPRESA.wa}?text=${waText}" target="_blank"
       style="display:block;margin-top:16px;padding:11px;background:#25d36620;color:#25d366;border:1px solid #25d36640;border-radius:10px;font-weight:700;font-size:13px;text-align:center;text-decoration:none">
       💬 Consultar por WhatsApp
@@ -443,16 +447,18 @@ async function verDetalleOT(id,src){
     const ds=document.getElementById("det-diag-sec");
     const ts=document.getElementById("det-trab-sec");
     const rs=document.getElementById("det-rep-sec");
+    const fs=document.getElementById("det-fotos-sec");
     if(ds)ds.innerHTML=sec("Diagnóstico")+placeholderDiag;
     if(ts)ts.innerHTML=sec("Trabajos")+placeholderTrab;
     if(rs)rs.innerHTML=sec("Repuestos")+placeholderRep;
+    if(fs)fs.innerHTML=sec("Fotos del proceso")+placeholderFotos;
     return;
   }
 
   // Fetch desde vista segura ots_cliente (sin precios, sin datos internos)
   let det=null;
   let r=await SB.from("ots_cliente")
-    .select("diagnostico,problema,problemas,procedimientos_publicos,repuestos_publicos")
+    .select("diagnostico,problema,problemas,procedimientos_publicos,repuestos_publicos,fotos_recepcion_publicas,fotos_trabajo_publicas")
     .eq("id",id).single();
   if(r.error){
     // Fallback: solo texto plano si la vista devuelve error parcial
@@ -463,17 +469,19 @@ async function verDetalleOT(id,src){
   const ds=document.getElementById("det-diag-sec");
   const ts=document.getElementById("det-trab-sec");
   const rs=document.getElementById("det-rep-sec");
-  if(!ds||!ts||!rs)return; // modal cerrado antes de terminar
+  const fs=document.getElementById("det-fotos-sec");
+  if(!ds||!ts||!rs||!fs)return; // modal cerrado antes de terminar
 
   if(!det){
     ds.innerHTML=sec("Diagnóstico")+placeholderDiag;
     ts.innerHTML=sec("Trabajos")+placeholderTrab;
     rs.innerHTML=sec("Repuestos")+placeholderRep;
+    fs.innerHTML=sec("Fotos del proceso")+placeholderFotos;
     return;
   }
 
   // Parsear JSONB si llegan como string (la vista puede devolverlos ya como objetos)
-  ["problemas","procedimientos_publicos","repuestos_publicos"].forEach(k=>{
+  ["problemas","procedimientos_publicos","repuestos_publicos","fotos_recepcion_publicas","fotos_trabajo_publicas"].forEach(k=>{
     if(det[k]&&!Array.isArray(det[k])){try{det[k]=JSON.parse(det[k]);}catch{det[k]=[];}}
   });
 
@@ -531,6 +539,21 @@ async function verDetalleOT(id,src){
     repHtml=placeholderRep;
   }
   rs.innerHTML=sec("Repuestos")+repHtml;
+
+  // Fotos del proceso: recepcion + trabajo, filtradas a http en la vista, doble check en JS
+  // No consulta fotos_salida ni ots directo
+  const fotosRec=det.fotos_recepcion_publicas||[];
+  const fotosTrab=det.fotos_trabajo_publicas||[];
+  const todasFotos=[...fotosRec,...fotosTrab].filter(f=>typeof f==="string"&&f.startsWith("http"));
+  let fotosHtml="";
+  if(todasFotos.length){
+    fotosHtml=`<div style="display:flex;flex-wrap:wrap;gap:6px">`
+      +todasFotos.map(f=>`<img src="${f}" onclick="window.open(this.src,'_blank')" style="width:80px;height:65px;object-fit:cover;border-radius:8px;cursor:pointer;border:1px solid #334155"/>`).join("")
+      +`</div>`;
+  } else {
+    fotosHtml=placeholderFotos;
+  }
+  fs.innerHTML=sec("Fotos del proceso")+fotosHtml;
 }
 
 function cerrarDetalleOT(){
