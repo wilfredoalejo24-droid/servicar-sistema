@@ -149,8 +149,8 @@ async function buscar(){
   }
   const[r1,r3,r4]=await Promise.all([
     buscarFlexible("crm","id,num,placa,cliente,taller,fecha","fecha"),
-    SB.from("aceite_km").select("*").ilike("placa",placa).order("created_at",{ascending:false}).limit(10),
-    SB.from("encuestas").select("*").ilike("placa",placa).order("created_at",{ascending:false}),
+    Promise.resolve({data:[],error:null}), // aceite_km: tabla pendiente de crear
+    Promise.resolve({data:[],error:null}), // encuestas: tabla pendiente de crear
   ]);
 
   if(r1.error) console.warn("CRM falló",r1.error);
