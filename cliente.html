@@ -442,29 +442,26 @@ async function verDetalleOT(id,src){
   el.addEventListener("click",e=>{if(e.target===el)cerrarDetalleOT();});
   document.body.appendChild(el);
 
-  // CRM no tiene diagnóstico ni trabajos en la vista segura
-  if(src!=="ot"){
-    const ds=document.getElementById("det-diag-sec");
-    const ts=document.getElementById("det-trab-sec");
-    const rs=document.getElementById("det-rep-sec");
-    const fs=document.getElementById("det-fotos-sec");
-    if(ds)ds.innerHTML=sec("Diagnóstico")+placeholderDiag;
-    if(ts)ts.innerHTML=sec("Trabajos")+placeholderTrab;
-    if(rs)rs.innerHTML=sec("Repuestos")+placeholderRep;
-    if(fs)fs.innerHTML=sec("Fotos del proceso")+placeholderFotos;
-    return;
-  }
-
   // Fetch desde vista segura ots_cliente (sin precios, sin datos internos)
+  // OTs: consulta por id. CRM: consulta por num + placa (ids de crm != ids de ots)
   let det=null;
-  let r=await SB.from("ots_cliente")
-    .select("diagnostico,problema,problemas,procedimientos_publicos,repuestos_publicos,fotos_recepcion_publicas,fotos_trabajo_publicas")
-    .eq("id",id).single();
-  if(r.error){
-    // Fallback: solo texto plano si la vista devuelve error parcial
-    r=await SB.from("ots_cliente").select("diagnostico,problema").eq("id",id).single();
+  if(src==="ot"){
+    let r=await SB.from("ots_cliente")
+      .select("diagnostico,problema,problemas,procedimientos_publicos,repuestos_publicos,fotos_recepcion_publicas,fotos_trabajo_publicas")
+      .eq("id",id).single();
+    if(r.error){
+      r=await SB.from("ots_cliente").select("diagnostico,problema").eq("id",id).single();
+    }
+    if(!r.error&&r.data) det=r.data;
+  } else if(o.num){
+    const r=await SB.from("ots_cliente")
+      .select("diagnostico,problema,problemas,procedimientos_publicos,repuestos_publicos,fotos_recepcion_publicas,fotos_trabajo_publicas")
+      .eq("num",o.num)
+      .ilike("placa",o.placa||datos.placa||"")
+      .limit(1);
+    if(!r.error&&r.data&&r.data[0]) det=r.data[0];
   }
-  if(!r.error&&r.data) det=r.data;
+  // det=null si CRM sin num o sin OT en ots_cliente → placeholders se muestran abajo
 
   const ds=document.getElementById("det-diag-sec");
   const ts=document.getElementById("det-trab-sec");
