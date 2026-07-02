@@ -43,8 +43,8 @@ const SB=window.supabase.createClient(
 );
 const EMPRESA={nombre:"SERVI CAR PLATINIUM",ciudad:"Viacha - La Paz"};
 const TALLERES=["Taller 1 · Montes","Taller 2 · Bella Vista"];
-const CATS_INV=["Lubricantes","Repuestos","Repuestos usados"];
-const PREF_INV={Lubricantes:"LB",Repuestos:"RP","Repuestos usados":"RU"};
+const CATS_INV=["Aceites","Repuestos nuevos","Repuestos usados"];
+const PREF_INV={Aceites:"AC","Repuestos nuevos":"RN","Repuestos usados":"RU"};
 const EST_COLORS={Activa:"#16a34a",Dañada:"#f97316",Transferida:"#3b82f6","Dada de baja":"#64748b",Faltante:"#ef4444"};
 const WORKERS_FB=["Wilfredo","William","Diego","Evo","Adolfo","Joel"];
 
@@ -54,7 +54,7 @@ let inv=null, crmD=null, workers=null, herrs=null;
 let vacSaldos=null, vacSols=null;
 let turnosData=null;
 let invBusq="", invCat="";
-let crmBusq="";
+let crmBusq="",crmSvcErr=false;
 let herWorker=null;
 let vacVista="resumen";
 let configData=null;
@@ -204,6 +204,7 @@ function renderInventario(){
       <thead><tr>
         <th style="width:48px">Foto</th><th>Código</th><th>Producto</th><th>Marca</th><th>Cat.</th><th>Para</th><th>Stock</th><th>P.Venta</th>
         ${esAdmin()?`<th>Costo</th><th>Margen</th>`:""}
+        ${esEnc()?`<th class="noprint" style="width:40px"></th>`:""}
       </tr></thead>
       <tbody>
       ${filtrado.length===0?`<tr><td colspan="12" style="text-align:center;padding:24px;color:#334155">Sin resultados</td></tr>`:""}
@@ -232,6 +233,7 @@ function renderInventario(){
           ${esAdmin()?`
           <td style="color:#64748b">${fmt(i.costo)}</td>
           <td><span class="badge" style="background:${margen>=20?"#16a34a":margen>=10?"#f59e0b":"#ef4444"}20;color:${margen>=20?"#16a34a":margen>=10?"#f59e0b":"#ef4444"}">${margen.toFixed(0)}%</span></td>`:""}
+          ${esEnc()?`<td class="noprint"><button onclick="modalEditarProd(${i.id})" style="padding:2px 8px;background:#f59e0b20;color:#f59e0b;border:1px solid #f59e0b30;border-radius:6px;font-size:11px;cursor:pointer;font-weight:700">✏️</button></td>`:""}
         </tr>`;
       }).join("")}
       </tbody>
@@ -362,6 +364,71 @@ function modalNuevoProd(){
   draw();
 }
 
+function modalEditarProd(id){
+  const orig=(inv||[]).find(i=>i.id===id);
+  if(!orig){alert("Producto no encontrado");return;}
+  let n={...orig};
+  const draw=()=>{
+    document.getElementById("modal").innerHTML=`
+    <div class="modal-bg" onclick="if(event.target===this)closeModal()">
+      <div class="modal-box su">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <div style="color:#fbbf24;font-weight:900">✏️ Editar producto</div>
+          <button onclick="closeModal()" style="background:none;border:none;color:#64748b;font-size:20px;cursor:pointer">✕</button>
+        </div>
+        <div style="display:grid;gap:10px">
+          <div>
+            <div class="label">Nombre *</div>
+            <input id="ep_nom" class="input" value="${n.nom||""}" placeholder="Nombre del producto"/>
+          </div>
+          <div><div class="label">Marca</div><input id="ep_marca" class="input" value="${n.marca||""}" placeholder="Toyota, Bosch..."/></div>
+          <div>
+            <div class="label">Categoría *</div>
+            <select id="ep_cat" class="input">
+              <option value="">Seleccionar...</option>
+              ${CATS_INV.map(c=>`<option value="${c}" ${n.cat===c?"selected":""}>${c}</option>`).join("")}
+            </select>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div><div class="label">Stock actual</div><input id="ep_stock" type="number" min="0" class="input" value="${n.stock||0}"/></div>
+            <div><div class="label">Stock mínimo</div><input id="ep_min" type="number" min="0" class="input" value="${n.min||2}"/></div>
+            ${esAdmin()?`<div><div class="label">Costo Bs.</div><input id="ep_costo" type="number" min="0" class="input" value="${n.costo||0}"/></div>`:""}
+            <div><div class="label">Precio venta Bs. *</div><input id="ep_precio" type="number" min="0" class="input" value="${n.precio||0}"/></div>
+          </div>
+          <div><div class="label">Para qué vehículo</div><input id="ep_para" class="input" value="${n.para||""}" placeholder="Toyota Corolla 2015-2020"/></div>
+          <div><div class="label">Medida / Especificación</div><input id="ep_medida" class="input" value="${n.medida||""}" placeholder="500ml, 1L, 14mm..."/></div>
+          <div><div class="label">Proveedor</div><input id="ep_prov" class="input" value="${n.prov||""}" placeholder="Nombre del proveedor"/></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px">
+          <button onclick="closeModal()" style="padding:11px;background:#334155;color:#94a3b8;border:none;border-radius:10px;font-weight:700;cursor:pointer">Cancelar</button>
+          <button id="ep_btn_guardar" onclick="epGuardar()" style="padding:11px;background:#f59e0b;color:#1e293b;border:none;border-radius:10px;font-weight:700;cursor:pointer">💾 Guardar</button>
+        </div>
+      </div>
+    </div>`;
+    window.epGuardar=async()=>{
+      const nom=v("ep_nom");
+      const cat=v("ep_cat");
+      if(!nom||!cat){alert("Nombre y categoría son obligatorios");return;}
+      const cambios={
+        nom,marca:v("ep_marca"),cat,
+        para:v("ep_para"),medida:v("ep_medida"),prov:v("ep_prov"),
+        stock:vn("ep_stock"),min:vn("ep_min"),precio:vn("ep_precio"),
+        ...(esAdmin()?{costo:vn("ep_costo")}:{})
+      };
+      const btn=$$("ep_btn_guardar");if(btn){btn.disabled=true;btn.textContent="⏳ Guardando...";}
+      const{error}=await SB.from("inventario").update(cambios).eq("id",id);
+      if(error){
+        alert("Error al guardar: "+error.message);
+        if(btn){btn.disabled=false;btn.textContent="💾 Guardar";}
+        return;
+      }
+      inv=inv.map(i=>i.id===id?{...i,...cambios}:i).sort((a,b)=>(a.nom||"").localeCompare(b.nom||""));
+      closeModal();actualizarContenido();
+    };
+  };
+  draw();
+}
+
 /* ══════════════════════════════════════════════════════
    TAB: CRM
 ══════════════════════════════════════════════════════ */
@@ -376,7 +443,7 @@ async function cargarCRM(){
   /* mapa id → costo para lookup O(1) */
   const costMap={};(invData||[]).forEach(p=>costMap[p.id]=parseFloat(p.costo)||0);
   const parseJ=v=>{if(!v)return[];if(Array.isArray(v))return v;try{return JSON.parse(v);}catch{return[];}};
-  crmD=(data||[]).map(o=>{
+  const otsRows=(data||[]).map(o=>{
     const procs=parseJ(o.procedimientos);
     const reps=[...parseJ(o.repuestos),...parseJ(o.repuestos_usados)];
     const mo=procs.reduce((s,x)=>s+(parseFloat(x.precio)||0),0);
@@ -384,6 +451,7 @@ async function cargarCRM(){
     const capital=reps.reduce((s,x)=>s+(costMap[x.inv_id]||0)*(parseFloat(x.cantidad)||1),0);
     const ganancia_neta=mo+(venta_rep-capital);
     return{
+      _src:"ot",
       num:o.num,placa:o.placa,cliente:o.cliente,
       vehiculo:`${o.marca||""} ${o.modelo||""}`.trim(),
       taller:o.taller,tecnico:o.tecnico,
@@ -391,6 +459,13 @@ async function cargarCRM(){
       ganancia_neta,capital
     };
   });
+  let svcQ=SB.from("crm").select("id,num,placa,cliente,vehiculo,taller,tecnico,fecha,total,tipo").order("fecha",{ascending:false});
+  if(usuario?.taller&&usuario.taller!=="ambos") svcQ=svcQ.eq("taller",usuario.taller);
+  const{data:svcData,error:svcErr}=await svcQ;
+  crmSvcErr=!!svcErr;
+  if(svcErr) console.warn("CRM servicios:",svcErr.message);
+  const svcRows=(svcData||[]).map(c=>({_src:"crm",num:c.num,placa:c.placa,cliente:c.cliente,vehiculo:c.vehiculo||"",taller:c.taller,tecnico:c.tecnico,fecha:c.fecha||"",tipo:c.tipo||"Servicio",total:c.total||"",ganancia_neta:null,capital:null}));
+  crmD=[...otsRows,...svcRows].sort((a,b)=>(b.fecha||"").localeCompare(a.fecha||""));
 }
 
 function renderCRM(){
@@ -399,9 +474,11 @@ function renderCRM(){
     const q=crmBusq.toLowerCase();
     return!q||(r.placa||"").toLowerCase().includes(q)||(r.cliente||"").toLowerCase().includes(q)||(r.num||"").toLowerCase().includes(q);
   });
-  const totGan=filt.reduce((s,r)=>s+parseFloat(r.ganancia_neta||0),0);
-  const totCap=filt.reduce((s,r)=>s+parseFloat(r.capital||0),0);
+  const otsFilt=filt.filter(r=>r._src==="ot");
+  const totGan=otsFilt.reduce((s,r)=>s+parseFloat(r.ganancia_neta||0),0);
+  const totCap=otsFilt.reduce((s,r)=>s+parseFloat(r.capital||0),0);
   return `
+  ${crmSvcErr?`<div style="background:#f59e0b15;border:1px solid #f59e0b30;border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:11px;color:#f59e0b">⚠️ No se pudo cargar historial de servicios rápidos. OTs disponibles.</div>`:""}
   <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">
     <div style="background:#16a34a12;border:1px solid #16a34a25;border-radius:10px;padding:12px;text-align:center">
       <div style="color:#64748b;font-size:9px;font-weight:700">GANANCIA NETA</div>
@@ -416,7 +493,7 @@ function renderCRM(){
     <div style="background:#f59e0b12;border:1px solid #f59e0b25;border-radius:10px;padding:12px;text-align:center">
       <div style="color:#64748b;font-size:9px;font-weight:700">TOTAL</div>
       <div style="color:#fbbf24;font-weight:900;font-size:16px">${fmt(totGan+totCap)}</div>
-      <div style="color:#334155;font-size:9px">${filt.length} servicios</div>
+      <div style="color:#334155;font-size:9px">${otsFilt.length} OTs · ${filt.length-otsFilt.length} servicios</div>
     </div>
   </div>
   <div style="display:flex;gap:6px;margin-bottom:10px" class="noprint">
@@ -427,22 +504,24 @@ function renderCRM(){
   <div class="ovf">
     <table class="tbl">
       <thead><tr>
-        <th>Fecha</th><th>OT</th><th>Placa</th><th>Cliente</th><th>Vehículo</th><th>Taller</th><th>Técnico</th>
-        <th style="color:#4ade80">Ganancia</th><th style="color:#60a5fa">Capital</th>
+        <th>Fecha</th><th>OT / Tipo</th><th>Placa</th><th>Cliente</th><th>Vehículo</th><th>Taller</th><th>Técnico</th>
+        <th style="color:#4ade80">Ganancia / Total</th><th style="color:#60a5fa">Capital</th>
       </tr></thead>
       <tbody>
       ${filt.length===0?`<tr><td colspan="9" style="text-align:center;padding:24px;color:#334155">Sin registros</td></tr>`:""}
-      ${filt.map(r=>`<tr>
+      ${filt.map(r=>{
+        const esCRM=r._src==="crm";
+        return `<tr>
         <td style="color:#64748b;font-size:10px;white-space:nowrap">${r.fecha||"—"}</td>
-        <td style="color:#3b82f6;font-weight:700">${r.num||"—"}</td>
+        <td style="${esCRM?"color:#f59e0b":"color:#3b82f6"};font-weight:700">${esCRM?(r.tipo||"Servicio"):(r.num||"—")}</td>
         <td style="font-weight:700">${r.placa||"—"}</td>
         <td>${r.cliente||"—"}</td>
         <td style="color:#64748b;font-size:10px">${r.vehiculo||"—"}</td>
         <td style="color:#475569;font-size:10px">${r.taller||"—"}</td>
         <td style="color:#64748b;font-size:10px">${r.tecnico||"—"}</td>
-        <td style="color:#16a34a;font-weight:700">${fmt(r.ganancia_neta)}</td>
-        <td style="color:#60a5fa;font-weight:700">${fmt(r.capital)}</td>
-      </tr>`).join("")}
+        <td style="${esCRM?"color:#f59e0b":"color:#16a34a"};font-weight:700">${esCRM?(r.total||"—"):fmt(r.ganancia_neta)}</td>
+        <td style="color:#60a5fa;font-weight:700">${esCRM?"—":fmt(r.capital)}</td>
+      </tr>`;}).join("")}
       </tbody>
     </table>
   </div>`;
@@ -450,8 +529,17 @@ function renderCRM(){
 
 function exportarCRMCSV(){
   const filt=crmD.filter(r=>{const q=crmBusq.toLowerCase();return!q||(r.placa||"").toLowerCase().includes(q)||(r.cliente||"").toLowerCase().includes(q)||(r.num||"").toLowerCase().includes(q);});
-  const cols=["Fecha","OT","Placa","Cliente","Vehículo","Taller","Técnico","Ganancia neta","Capital","Total"];
-  const rows=filt.map(r=>[r.fecha,r.num,r.placa,r.cliente,r.vehiculo,r.taller,r.tecnico,r.ganancia_neta,r.capital,(parseFloat(r.ganancia_neta||0)+parseFloat(r.capital||0)).toFixed(2)].map(x=>`"${x||""}"`));
+  const cols=["Fecha","OT/Tipo","Placa","Cliente","Vehículo","Taller","Técnico","Ganancia/Total","Capital"];
+  const rows=filt.map(r=>{
+    const esCRM=r._src==="crm";
+    return[
+      r.fecha||"",
+      esCRM?(r.tipo||"Servicio"):(r.num||""),
+      r.placa||"",r.cliente||"",r.vehiculo||"",r.taller||"",r.tecnico||"",
+      esCRM?(r.total||""):((parseFloat(r.ganancia_neta||0)).toFixed(2)),
+      esCRM?"":((parseFloat(r.capital||0)).toFixed(2))
+    ].map(x=>`"${x}"`);
+  });
   blobCSV([cols.map(c=>`"${c}"`), ...rows].map(r=>r.join(",")).join("\n"),"crm_servicar.csv");
 }
 
@@ -868,7 +956,7 @@ window.analizarFactura=async function(){
     const data=await resp.json();
     const jsonStr=(data.candidates?.[0]?.content?.parts?.[0]?.text||"{}").replace(/```json\n?/g,"").replace(/```\n?/g,"").trim();
     const parsed=JSON.parse(jsonStr);
-    facturaProductos=(parsed.productos||[]).map(p=>({...p,categoria:"Repuestos",precio_venta:p.precio_venta||Math.round((p.costo||0)*1.3)||0}));
+    facturaProductos=(parsed.productos||[]).map(p=>({...p,categoria:"Repuestos nuevos",precio_venta:p.precio_venta||Math.round((p.costo||0)*1.3)||0}));
     mostrarProductosFactura();
   }catch(e){
     if(res) res.innerHTML=`<div class="card" style="border-color:#ef444430;text-align:center;padding:20px;color:#ef4444">Error: ${e.message}</div>`;
@@ -910,7 +998,7 @@ window.registrarFactura=async function(){
   let ok=0,err=0;
   for(const p of facturaProductos){
     if(!p.nombre)continue;
-    const cat=p.categoria||"Repuestos";
+    const cat=p.categoria||"Repuestos nuevos";
     const pref=PREF_INV[cat]||"PR";
     const{data:ex}=await SB.from("inventario").select("id,stock").ilike("nom",p.nombre).limit(1);
     if(ex?.length){

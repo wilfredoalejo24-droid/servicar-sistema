@@ -3,12 +3,10 @@
 // POST /api/whatsapp  → recibe mensajes entrantes
 
 const SUPA_URL = "https://epirsbudngwbxgcsryvv.supabase.co";
-const SUPA_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwaXJzYnVkbmd3YnhnY3NyeXZ2Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MTAzNjM0OSwiZXhwIjoyMDk2NjEyMzQ5fQ.9SDQYGONsVp5NJW7oFnOAV1G--jXCjjbVC9m1b8OGrM";
+const SUPA_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-// Token hardcodeado solo como fallback si Supabase no responde
-const WA_TOKEN_FALLBACK =
-  "EAARlX3vlebsBRi7Gxu4VLE7Inn6Na5fHuWZC0H5Cz5WFYL2tNZCLBno4o6A3iELQch5ahwCkEN0APSYRRSFue3m4jSurR72cksk2pAIscMWfPheE7RQbMdtZBp9ZAPzr4zKkLU6DESs3oTIv7dRClJLiFWCPeT0pLMQjRCPTW5yV1U7gQtNZBQ2mbMfjipgRnCkIZAiZASYelRL7DB7mcKnvxI4wn5eqvybZB5s3ALPYreZBAGxjpogzkvADPUt3TWxAXeayAm6S0NhCxmlZBU1Jgc";
+// Token de acceso WhatsApp — leído desde variable de entorno
+const WA_TOKEN_FALLBACK = process.env.WHATSAPP_ACCESS_TOKEN;
 const PHONE_NUMBER_ID = "1171710759363489";
 const WILFREDO_WA = "59168167264";
 
@@ -54,6 +52,10 @@ async function sbGet(path) {
 
 async function enviarWA(to, texto) {
   const token = await getWaToken();
+  if (!token) {
+    console.error("enviarWA: token de WhatsApp no configurado");
+    return false;
+  }
   const url = `https://graph.facebook.com/v21.0/${PHONE_NUMBER_ID}/messages`;
   const body = {
     messaging_product: "whatsapp",
@@ -144,6 +146,10 @@ export default async function handler(req, res) {
   // ─── Recepción de mensajes ───
   if (req.method === "POST") {
     const body = req.body;
+
+    if (!SUPA_KEY) {
+      return res.status(500).json({ ok: false, error: "Servicio no disponible. Configuración incompleta." });
+    }
 
     try {
       const entry = body?.entry?.[0];

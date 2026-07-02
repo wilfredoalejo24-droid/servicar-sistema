@@ -165,11 +165,11 @@ function CambioAceite({usuario,inv}){
   const tallerDef=usuario.taller==="ambos"?"":usuario.taller;
   const [tallerSel,setTallerSel]=React.useState(tallerDef);
 
-  const aceitesInv=inv.filter(i=>i.cat==="Aceites"||(i.nom?.toLowerCase().includes("aceite")&&!i.nom?.toLowerCase().includes("freno")&&!i.nom?.toLowerCase().includes("caja")&&!i.nom?.toLowerCase().includes("direc")));
-  const filtrosAceite=inv.filter(i=>i.cat==="Filtros"&&(i.nom?.toLowerCase().includes("aceite")||i.cod?.startsWith("FI")));
-  const filtrosAire=inv.filter(i=>i.cat==="Filtros"&&i.nom?.toLowerCase().includes("aire"));
-  const liquidosFreno=inv.filter(i=>i.cat==="Líquidos");
-  const aceitesDir=inv.filter(i=>i.nom?.toLowerCase().includes("direc")||i.nom?.toLowerCase().includes("hidra"));
+  const aceitesInv=inv.filter(i=>i.cat==="Aceites"&&!i.nom?.toLowerCase().includes("freno")&&!i.nom?.toLowerCase().includes("direc")&&!i.nom?.toLowerCase().includes("hidra"));
+  const filtrosAceite=inv.filter(i=>i.cat==="Repuestos nuevos"&&i.nom?.toLowerCase().includes("filtro")&&!i.nom?.toLowerCase().includes("aire"));
+  const filtrosAire=inv.filter(i=>i.cat==="Repuestos nuevos"&&i.nom?.toLowerCase().includes("filtro")&&i.nom?.toLowerCase().includes("aire"));
+  const liquidosFreno=inv.filter(i=>i.cat==="Aceites"&&i.nom?.toLowerCase().includes("freno"));
+  const aceitesDir=inv.filter(i=>i.cat==="Aceites"&&(i.nom?.toLowerCase().includes("direc")||i.nom?.toLowerCase().includes("hidra")));
 
   const items=[
     {d:`🛢️ ${acSel?acSel.nom:"Aceite motor"} x${acLit}L`,p:acLit*acPv},
@@ -186,12 +186,36 @@ function CambioAceite({usuario,inv}){
 
   const guardar=async()=>{
     if(!placa||!plan||!tallerSel){alert("Completa placa, plan y taller.");return;}
-    await sb.from("caja").insert({fecha:hoy(),taller:tallerSel,concepto:`Cambio aceite — ${placa}`,tipo:"ingreso",subtipo:"ganancia_neta",monto:total,metodo_pago:"Efectivo",registrado_por:usuario.user_name||usuario.nombre,user_name:usuario.nombre});
-    await sb.from("crm").insert({fecha:hoy(),num:"CA",placa,cliente:nombre,tel,vehiculo:modelo,taller:tallerSel,tecnico:tec,total:fmt(total),tipo:"Cambio aceite"});
-    alert(`✅ Guardado en CRM\n🚗 ${placa} — ${fmt(total)}`);
-    // Limpiar formulario
-    setPlan("");setNombre("");setTel("");setPlaca("");setModelo("");setKmIn("");setAcSel(null);setAcPv(45);setFiltro(null);setFiPv(0);
-    setFa(false);setFaSel(null);setLf(false);setLfSel(null);setCj(false);setAd(false);setAdSel(null);setDesc(0);setFotos([]);
+    const capitalTotal=
+      (acSel?parseFloat(acSel.costo||0)*acLit:0)+
+      (filtro?parseFloat(filtro.costo||0):0)+
+      (fa&&faSel?parseFloat(faSel.costo||0):0)+
+      (lf&&lfSel?parseFloat(lfSel.costo||0):0)+
+      (ad&&adSel?parseFloat(adSel.costo||0):0);
+    if(acSel&&parseFloat(acSel.stock||0)<acLit){alert(`Stock insuficiente: ${acSel.nom} tiene ${acSel.stock}L, se necesitan ${acLit}L.`);return;}
+    if(filtro&&parseFloat(filtro.stock||0)<1){alert(`Stock insuficiente: ${filtro.nom} sin unidades disponibles.`);return;}
+    if(fa&&faSel&&parseFloat(faSel.stock||0)<1){alert(`Stock insuficiente: ${faSel.nom} sin unidades disponibles.`);return;}
+    if(lf&&lfSel&&parseFloat(lfSel.stock||0)<1){alert(`Stock insuficiente: ${lfSel.nom} sin unidades disponibles.`);return;}
+    if(ad&&adSel&&parseFloat(adSel.stock||0)<1){alert(`Stock insuficiente: ${adSel.nom} sin unidades disponibles.`);return;}
+    if(total<capitalTotal){alert(`No se puede registrar: costo de insumos (${fmt(capitalTotal)}) supera lo cobrado (${fmt(total)}).`);return;}
+    const gananciaNeta=total-capitalTotal;
+    try{
+      const check=(res,msg)=>{if(res?.error) throw new Error(msg+": "+res.error.message);};
+      const base={fecha:hoy(),taller:tallerSel,tipo:"ingreso",metodo_pago:"Efectivo",registrado_por:usuario.user_name||usuario.nombre,user_name:usuario.nombre};
+      if(capitalTotal>0) check(await sb.from("caja").insert({...base,concepto:`Cambio aceite Capital — ${placa}`,subtipo:"capital_tienda",monto:capitalTotal}),"caja capital");
+      if(gananciaNeta>0) check(await sb.from("caja").insert({...base,concepto:`Cambio aceite Ganancia — ${placa}`,subtipo:"ganancia_neta",monto:gananciaNeta}),"caja ganancia");
+      check(await sb.from("crm").insert({fecha:hoy(),num:"CA",placa,cliente:nombre,tel,vehiculo:modelo,taller:tallerSel,tecnico:tec,total:fmt(total),tipo:"Cambio aceite"}),"crm");
+      if(acSel) check(await sb.from("inventario").update({stock:Math.max(0,acSel.stock-acLit)}).eq("id",acSel.id),"inv aceite");
+      if(filtro) check(await sb.from("inventario").update({stock:Math.max(0,filtro.stock-1)}).eq("id",filtro.id),"inv filtro");
+      if(fa&&faSel) check(await sb.from("inventario").update({stock:Math.max(0,faSel.stock-1)}).eq("id",faSel.id),"inv filtro aire");
+      if(lf&&lfSel) check(await sb.from("inventario").update({stock:Math.max(0,lfSel.stock-1)}).eq("id",lfSel.id),"inv líquido freno");
+      if(ad&&adSel) check(await sb.from("inventario").update({stock:Math.max(0,adSel.stock-1)}).eq("id",adSel.id),"inv aceite dirección");
+      alert(`✅ Guardado en CRM\n🚗 ${placa} — ${fmt(total)}`);
+      setPlan("");setNombre("");setTel("");setPlaca("");setModelo("");setKmIn("");setAcSel(null);setAcPv(45);setFiltro(null);setFiPv(0);
+      setFa(false);setFaSel(null);setLf(false);setLfSel(null);setCj(false);setAd(false);setAdSel(null);setDesc(0);setFotos([]);
+    }catch(e){
+      alert("Error al guardar: "+e.message);
+    }
   };
 
   const enviarWA=()=>{

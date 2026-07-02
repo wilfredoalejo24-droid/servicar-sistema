@@ -2,7 +2,7 @@
 // GET /api/cliente-estado?placa=ABC123
 // GET /api/cliente-estado?nombre=Juan
 const SUPA_URL = "https://epirsbudngwbxgcsryvv.supabase.co";
-const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwaXJzYnVkbmd3YnhnY3NyeXZ2Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MTAzNjM0OSwiZXhwIjoyMDk2NjEyMzQ5fQ.9SDQYGONsVp5NJW7oFnOAV1G--jXCjjbVC9m1b8OGrM";
+const SUPA_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 const PASO_LABELS = {
   1: "En recepción",
@@ -41,6 +41,10 @@ export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "GET")
     return res.status(405).json({ error: "Method not allowed" });
+
+  if (!SUPA_KEY) {
+    return res.status(500).json({ encontrado: false, mensaje: "Servicio no disponible. Configuración incompleta." });
+  }
 
   const { placa, nombre } = req.query || {};
 
