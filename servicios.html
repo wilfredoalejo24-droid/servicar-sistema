@@ -170,9 +170,11 @@ function CambioAceite({usuario,inv}){
   const filtrosAire=inv.filter(i=>i.cat==="Repuestos nuevos"&&i.nom?.toLowerCase().includes("filtro")&&i.nom?.toLowerCase().includes("aire"));
   const liquidosFreno=inv.filter(i=>i.cat==="Aceites"&&i.nom?.toLowerCase().includes("freno"));
   const aceitesDir=inv.filter(i=>i.cat==="Aceites"&&(i.nom?.toLowerCase().includes("direc")||i.nom?.toLowerCase().includes("hidra")));
+  const esPorEnvase=m=>{if(m==null||m===undefined)return false;const ml=String(m).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").trim();return ml.includes("galon")||ml.includes("envase")||ml.includes("cerrado");};
+  const porEnvase=acSel?esPorEnvase(acSel.medida):false;
 
   const items=[
-    {d:`🛢️ ${acSel?acSel.nom:"Aceite motor"} x${acLit}L`,p:acLit*acPv},
+    {d:`🛢️ ${acSel?acSel.nom:"Aceite motor"} x${acLit}${porEnvase?"env":"L"}`,p:acLit*acPv},
     ...(filtro?[{d:`🔘 ${filtro.nom}`,p:fiPv}]:[]),
     ...(plan?[{d:"🚿 Lavado ext+int",p:20}]:[]),
     ...(plan==="premium"?[{d:"⭐ Mano de obra premium",p:100}]:[]),
@@ -192,7 +194,7 @@ function CambioAceite({usuario,inv}){
       (fa&&faSel?parseFloat(faSel.costo||0):0)+
       (lf&&lfSel?parseFloat(lfSel.costo||0):0)+
       (ad&&adSel?parseFloat(adSel.costo||0):0);
-    if(acSel&&parseFloat(acSel.stock||0)<acLit){alert(`Stock insuficiente: ${acSel.nom} tiene ${acSel.stock}L, se necesitan ${acLit}L.`);return;}
+    if(acSel&&parseFloat(acSel.stock||0)<acLit){alert(`Stock insuficiente: ${acSel.nom} tiene ${acSel.stock}${porEnvase?"env":"L"}, se necesitan ${acLit}${porEnvase?"env":"L"}.`);return;}
     if(filtro&&parseFloat(filtro.stock||0)<1){alert(`Stock insuficiente: ${filtro.nom} sin unidades disponibles.`);return;}
     if(fa&&faSel&&parseFloat(faSel.stock||0)<1){alert(`Stock insuficiente: ${faSel.nom} sin unidades disponibles.`);return;}
     if(lf&&lfSel&&parseFloat(lfSel.stock||0)<1){alert(`Stock insuficiente: ${lfSel.nom} sin unidades disponibles.`);return;}
@@ -277,18 +279,21 @@ function CambioAceite({usuario,inv}){
       <div style={{border:"1px solid #22c55e",borderRadius:10,padding:"10px 12px",background:"#f0fdf4"}}>
         <select value={acSel?.id||""} onChange={e=>{
           const a=aceitesInv.find(x=>String(x.id)===e.target.value);
-          setAcSel(a||null);if(a)setAcPv(parseFloat(a.precio)||45);
+          setAcSel(a||null);
+          if(a){setAcPv(parseFloat(a.precio)||45);setAcLit(esPorEnvase(a.medida)?1:4);}
         }} style={{width:"100%",padding:"7px 10px",border:"1px solid #22c55e",borderRadius:8,fontSize:13,marginBottom:8}}>
           <option value="">Seleccionar aceite del inventario...</option>
           {aceitesInv.length===0?<option disabled>Sin aceites en inventario</option>:
-            aceitesInv.map(a=><option key={a.id} value={String(a.id)}>{a.nom} · Stock:{a.stock} · Bs.{a.precio}/L</option>)}
+            aceitesInv.map(a=>{const env=esPorEnvase(a.medida);return <option key={a.id} value={String(a.id)}>{a.nom}{a.medida?` · ${a.medida}`:""} · Stock:{a.stock} · Bs.{a.precio}{env?"/env":"/L"}</option>;})}
         </select>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:6}}>
-          <Campo label="Litros">
-            <input type="number" value={acLit} min={1} max={10} onChange={e=>setAcLit(parseInt(e.target.value)||1)}
+          <Campo label={porEnvase?"Envases":"Litros"}>
+            <input type="number" value={acLit}
+              min={porEnvase?1:0.25} max={20} step={porEnvase?1:0.25}
+              onChange={e=>setAcLit(porEnvase?(parseInt(e.target.value)||1):(parseFloat(e.target.value)||0.25))}
               style={{width:"100%",padding:"7px 10px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:13,textAlign:"center",fontWeight:800,boxSizing:"border-box"}}/>
           </Campo>
-          <Campo label="Precio/L Bs.">
+          <Campo label={porEnvase?"Precio/env Bs.":"Precio/L Bs."}>
             <input type="number" value={acPv} onChange={e=>setAcPv(parseFloat(e.target.value)||0)}
               style={{width:"100%",padding:"7px 10px",border:"1px solid #fbbf24",borderRadius:8,fontSize:13,textAlign:"center",fontWeight:800,color:"#92400e",boxSizing:"border-box"}}/>
           </Campo>
