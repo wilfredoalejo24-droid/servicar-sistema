@@ -787,12 +787,14 @@ function App(){
 
   if(!usuario) return <Login onLogin={u=>{setUsuario(u);setTab("aceite");}}/>;
 
-  const TABS=[
+  const TABS_OT=[
     {k:"aceite",l:"🛢️ Aceite"},
-    {k:"lavado",l:"🚿 Lavado"},
-    {k:"alineado",l:"🎯 Alineado"},
-    {k:"otros",l:"🔧 Otros"},
+    {k:"alineado",l:"🎯 Alineado / Bal."},
     ...(esEnc?[{k:"grua",l:"🚛 Grúa"}]:[]),
+  ];
+  const TABS_SIMPLE=[
+    {k:"lavado",l:"🚿 Lavado"},
+    {k:"otros",l:"🔧 Otros"},
   ];
 
   return <div style={{padding:10,background:"#f0f4f8",minHeight:"100vh",fontFamily:"Arial,sans-serif",color:"#1a1a1a"}}>
@@ -811,8 +813,15 @@ function App(){
         </div>
       </div>
     </div>
-    <div style={{display:"flex",gap:4,marginBottom:10,flexWrap:"wrap"}}>
-      {TABS.map(t=><button key={t.k} onClick={()=>setTab(t.k)} style={{padding:"6px 12px",borderRadius:8,border:`1px solid ${tab===t.k?"#fbbf24":"#e2e8f0"}`,background:tab===t.k?"#fffbeb":"#fff",color:tab===t.k?"#92400e":"#64748b",fontWeight:700,fontSize:11,cursor:"pointer"}}>{t.l}</button>)}
+    <div style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:10,padding:"10px 12px",marginBottom:10}}>
+      <div style={{fontSize:9,fontWeight:700,color:"#f97316",textTransform:"uppercase",letterSpacing:1,marginBottom:5}}>📋 Mini OT — diagnóstico + seguimiento</div>
+      <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:10}}>
+        {TABS_OT.map(t=><button key={t.k} onClick={()=>setTab(t.k)} style={{padding:"6px 12px",borderRadius:8,border:`1px solid ${tab===t.k?"#f97316":"#e2e8f0"}`,background:tab===t.k?"#fff7ed":"#f8fafc",color:tab===t.k?"#c2410c":"#64748b",fontWeight:700,fontSize:11,cursor:"pointer"}}>{t.l}</button>)}
+      </div>
+      <div style={{fontSize:9,fontWeight:700,color:"#16a34a",textTransform:"uppercase",letterSpacing:1,marginBottom:5}}>⚡ Servicio simple — cobro directo</div>
+      <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+        {TABS_SIMPLE.map(t=><button key={t.k} onClick={()=>setTab(t.k)} style={{padding:"6px 12px",borderRadius:8,border:`1px solid ${tab===t.k?"#16a34a":"#e2e8f0"}`,background:tab===t.k?"#f0fdf4":"#f8fafc",color:tab===t.k?"#15803d":"#64748b",fontWeight:700,fontSize:11,cursor:"pointer"}}>{t.l}</button>)}
+      </div>
     </div>
     {tab==="aceite"&&<CambioAceite usuario={usuario} inv={inv}/>}
     {tab==="lavado"&&<Lavado usuario={usuario}/>}
