@@ -208,15 +208,21 @@ function CambioAceite({usuario,inv}){
     try{
       const check=(res,msg)=>{if(res?.error) throw new Error(msg+": "+res.error.message);};
       const base={fecha:hoy(),taller:tallerSel,tipo:"ingreso",metodo_pago:pago,registrado_por:usuario.user_name||usuario.nombre,user_name:usuario.nombre};
+      let acStk=0,fiStk=0,faStk=0,lfStk=0,adStk=0;
+      if(acSel){const{data:fr}=await sb.from("inventario").select("stock").eq("id",acSel.id).maybeSingle();if(!fr)throw new Error("No se pudo leer stock de "+acSel.nom);acStk=parseFloat(fr.stock);if(acStk<acLit)throw new Error(`Stock insuficiente: ${acSel.nom} tiene ${acStk}${porEnvase?"env":"L"}, se necesitan ${acLit}${porEnvase?"env":"L"}.`);}
+      if(filtro){const{data:fr}=await sb.from("inventario").select("stock").eq("id",filtro.id).maybeSingle();if(!fr)throw new Error("No se pudo leer stock de "+filtro.nom);fiStk=parseFloat(fr.stock);if(fiStk<1)throw new Error(`Stock insuficiente: ${filtro.nom} sin unidades disponibles.`);}
+      if(fa&&faSel){const{data:fr}=await sb.from("inventario").select("stock").eq("id",faSel.id).maybeSingle();if(!fr)throw new Error("No se pudo leer stock de "+faSel.nom);faStk=parseFloat(fr.stock);if(faStk<1)throw new Error(`Stock insuficiente: ${faSel.nom} sin unidades disponibles.`);}
+      if(lf&&lfSel){const{data:fr}=await sb.from("inventario").select("stock").eq("id",lfSel.id).maybeSingle();if(!fr)throw new Error("No se pudo leer stock de "+lfSel.nom);lfStk=parseFloat(fr.stock);if(lfStk<1)throw new Error(`Stock insuficiente: ${lfSel.nom} sin unidades disponibles.`);}
+      if(ad&&adSel){const{data:fr}=await sb.from("inventario").select("stock").eq("id",adSel.id).maybeSingle();if(!fr)throw new Error("No se pudo leer stock de "+adSel.nom);adStk=parseFloat(fr.stock);if(adStk<1)throw new Error(`Stock insuficiente: ${adSel.nom} sin unidades disponibles.`);}
       const proxLabel=kmOut?`Próx: ${kmOut.toLocaleString()}km`:proxCambio?`Próx: ${proxCambio}`:"";
       if(capitalTotal>0) check(await sb.from("caja").insert({...base,concepto:`Cambio aceite Capital — ${placa}${proxLabel?` · ${proxLabel}`:""}`,subtipo:"capital_tienda",monto:capitalTotal}),"caja capital");
       if(gananciaNeta>0) check(await sb.from("caja").insert({...base,concepto:`Cambio aceite Ganancia — ${placa}${proxLabel?` · ${proxLabel}`:""}`,subtipo:"ganancia_neta",monto:gananciaNeta}),"caja ganancia");
       check(await sb.from("crm").insert({fecha:hoy(),num:"CA",placa,cliente:nombre,tel,vehiculo:`${modelo||"Vehículo"}${kmIn?` · ${kmIn}km`:""}`,taller:tallerSel,tecnico:tec||usuario.nombre,total:fmt(total),tipo:"Cambio aceite"}),"crm");
-      if(acSel) check(await sb.from("inventario").update({stock:Math.max(0,acSel.stock-acLit)}).eq("id",acSel.id),"inv aceite");
-      if(filtro) check(await sb.from("inventario").update({stock:Math.max(0,filtro.stock-1)}).eq("id",filtro.id),"inv filtro");
-      if(fa&&faSel) check(await sb.from("inventario").update({stock:Math.max(0,faSel.stock-1)}).eq("id",faSel.id),"inv filtro aire");
-      if(lf&&lfSel) check(await sb.from("inventario").update({stock:Math.max(0,lfSel.stock-1)}).eq("id",lfSel.id),"inv líquido freno");
-      if(ad&&adSel) check(await sb.from("inventario").update({stock:Math.max(0,adSel.stock-1)}).eq("id",adSel.id),"inv aceite dirección");
+      if(acSel) check(await sb.from("inventario").update({stock:Math.max(0,acStk-acLit)}).eq("id",acSel.id),"inv aceite");
+      if(filtro) check(await sb.from("inventario").update({stock:Math.max(0,fiStk-1)}).eq("id",filtro.id),"inv filtro");
+      if(fa&&faSel) check(await sb.from("inventario").update({stock:Math.max(0,faStk-1)}).eq("id",faSel.id),"inv filtro aire");
+      if(lf&&lfSel) check(await sb.from("inventario").update({stock:Math.max(0,lfStk-1)}).eq("id",lfSel.id),"inv líquido freno");
+      if(ad&&adSel) check(await sb.from("inventario").update({stock:Math.max(0,adStk-1)}).eq("id",adSel.id),"inv aceite dirección");
       alert(`✅ Guardado en CRM\n🚗 ${placa} — ${fmt(total)}`);
       setPlan("");setNombre("");setTel("");setPlaca("");setModelo("");setKmIn("");setAcSel(null);setAcPv(45);setFiltro(null);setFiPv(0);
       setFa(false);setFaSel(null);setLf(false);setLfSel(null);setCj(false);setAd(false);setAdSel(null);setDesc(0);setProxCambio("");setPago("Efectivo");setFotos([]);
