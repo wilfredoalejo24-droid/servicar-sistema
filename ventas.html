@@ -145,6 +145,8 @@ function Ventas({usuario}){
     const productoSinCosto=carrito.find(i=>parseFloat(i.costo||0)<=0);
     if(productoSinCosto){alert("No se puede vender: el producto "+(productoSinCosto.nom||productoSinCosto.nombre||"seleccionado")+" no tiene costo registrado en inventario.");setLoading(false);return;}
     if(margenVenta<0){alert("No se puede vender: el precio final es menor al costo de los productos.");setLoading(false);return;}
+    const {data:sesionAbierta}=await supabase.from("caja_sesiones").select("id").eq("fecha",hoy()).eq("taller",tallerSel).eq("estado","Abierta").maybeSingle();
+    if(!sesionAbierta){alert("No hay caja abierta para este taller. Abrí caja antes de registrar ventas.");setLoading(false);return;}
     const {data:cnt}=await supabase.from("ventas").select("id",{count:"exact"});
     const num=`VT-${String((cnt?.length||0)+1).padStart(3,"0")}`;
     const venta={num,fecha:hoy(),hora:hora(),taller:tallerSel,cliente,pago,items:carrito,subtotal:sub,descuento:parseFloat(descuento)||0,total,vendedor:usuario.nombre};
