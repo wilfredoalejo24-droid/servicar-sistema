@@ -23,6 +23,7 @@ const TALLERES=["Taller 1 · Montes","Taller 2 · Bella Vista"];
 const fmt=n=>`Bs. ${parseFloat(n||0).toFixed(2)}`;
 const hoy=()=>new Date().toLocaleDateString("es-BO");
 const hora=()=>new Date().toLocaleTimeString("es-BO",{hour:"2-digit",minute:"2-digit"});
+const validarCajaAbierta=async(taller)=>{const{data,error}=await sb.from("caja_sesiones").select("id").eq("fecha",hoy()).eq("taller",taller).eq("estado","Abierta").maybeSingle();if(error||!data){alert("No hay caja abierta para este taller. Abrí caja antes de registrar servicios.");return false;}return true;};
 
 const Btn=({onClick,color="#1e293b",text,style={}})=>
   <button onClick={onClick} style={{padding:"8px 14px",background:color,color:"#fff",border:"none",borderRadius:8,fontWeight:700,fontSize:12,cursor:"pointer",...style}}>{text}</button>;
@@ -201,6 +202,7 @@ function CambioAceite({usuario,inv}){
     if(ad&&adSel&&parseFloat(adSel.stock||0)<1){alert(`Stock insuficiente: ${adSel.nom} sin unidades disponibles.`);return;}
     if(total<capitalTotal){alert(`No se puede registrar: costo de insumos (${fmt(capitalTotal)}) supera lo cobrado (${fmt(total)}).`);return;}
     const gananciaNeta=total-capitalTotal;
+    if(!(await validarCajaAbierta(tallerSel))) return;
     try{
       const check=(res,msg)=>{if(res?.error) throw new Error(msg+": "+res.error.message);};
       const base={fecha:hoy(),taller:tallerSel,tipo:"ingreso",metodo_pago:"Efectivo",registrado_por:usuario.user_name||usuario.nombre,user_name:usuario.nombre};
@@ -434,6 +436,7 @@ function Lavado({usuario}){
 
   const registrar=async()=>{
     if(!tallerSel){alert("Selecciona el taller.");return;}
+    if(!(await validarCajaAbierta(tallerSel))) return;
     await sb.from("caja").insert({fecha:hoy(),taller:tallerSel,concepto:`Lavado${placa?` — ${placa}`:""}${obs?` (${obs})`:""}`,tipo:"ingreso",subtipo:"ganancia_neta",monto:precio,metodo_pago:"Efectivo",registrado_por:usuario.user_name||usuario.nombre,user_name:usuario.nombre});
     if(placa) await sb.from("crm").insert({fecha:hoy(),num:"LV",placa,cliente,tel,vehiculo:"",taller:tallerSel,tecnico:usuario.nombre,total:fmt(precio),tipo:"Lavado"});
     alert(`✅ Lavado registrado — ${fmt(precio)}`);
@@ -495,6 +498,7 @@ function Alineado({usuario}){
 
   const registrar=async()=>{
     if(!tipo||!tallerSel){alert("Selecciona servicio y taller.");return;}
+    if(!(await validarCajaAbierta(tallerSel))) return;
     const concepto=`${tipo==="ambos"?"Alineado+Balanceado":tipo==="alineado"?"Alineado":"Balanceado"}${placa?` — ${placa}`:""}`;
     await sb.from("caja").insert({fecha:hoy(),taller:tallerSel,concepto,tipo:"ingreso",subtipo:"ganancia_neta",monto:total,metodo_pago:"Efectivo",registrado_por:usuario.user_name||usuario.nombre,user_name:usuario.nombre});
     if(placa) await sb.from("crm").insert({fecha:hoy(),num:"AL",placa,cliente,tel,vehiculo:`${marca} ${color}`,taller:tallerSel,tecnico:usuario.nombre,total:fmt(total),tipo:"Alineado"});
@@ -575,6 +579,7 @@ function Grua({usuario}){
 
   const registrar=async()=>{
     if(!origen||!destino||!tallerSel){alert("Completa origen, destino y taller.");return;}
+    if(!(await validarCajaAbierta(tallerSel))) return;
     await sb.from("caja").insert({fecha:hoy(),taller:tallerSel,concepto:`Grúa: ${origen} → ${destino}${placa?` (${placa})`:""}`,tipo:"ingreso",subtipo:"ganancia_neta",monto:precio,metodo_pago:"Efectivo",registrado_por:usuario.user_name||usuario.nombre,user_name:usuario.nombre});
     alert(`✅ Grúa registrada — ${fmt(precio)}`);
     setOrigen("");setDestino("");setPlaca("");setCliente("");setTel("");setObs("");setPrecio(100);setFotos([]);
@@ -652,6 +657,7 @@ function Otros({usuario,inv,esEnc}){
     if(!desc.trim()){alert("La descripción del servicio es obligatoria.");return;}
     if(!tallerSel){alert("Selecciona el taller.");return;}
     setLoading(true);
+    if(!(await validarCajaAbierta(tallerSel))){setLoading(false);return;}
     try{
       const costoProds=productos.reduce((s,p)=>s+(parseFloat(p.costo||0)*p.qty),0);
       const margenProds=totalProds-costoProds;
