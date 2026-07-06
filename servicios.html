@@ -164,6 +164,7 @@ function CambioAceite({usuario,inv}){
   const [desc,setDesc]=React.useState(0);
   const [fotos,setFotos]=React.useState([]);
   const [proxCambio,setProxCambio]=React.useState("");
+  const [pago,setPago]=React.useState("Efectivo");
   const tallerDef=usuario.taller==="ambos"?"":usuario.taller;
   const [tallerSel,setTallerSel]=React.useState(tallerDef);
 
@@ -206,7 +207,7 @@ function CambioAceite({usuario,inv}){
     if(!(await validarCajaAbierta(tallerSel))) return;
     try{
       const check=(res,msg)=>{if(res?.error) throw new Error(msg+": "+res.error.message);};
-      const base={fecha:hoy(),taller:tallerSel,tipo:"ingreso",metodo_pago:"Efectivo",registrado_por:usuario.user_name||usuario.nombre,user_name:usuario.nombre};
+      const base={fecha:hoy(),taller:tallerSel,tipo:"ingreso",metodo_pago:pago,registrado_por:usuario.user_name||usuario.nombre,user_name:usuario.nombre};
       const proxLabel=kmOut?`Próx: ${kmOut.toLocaleString()}km`:proxCambio?`Próx: ${proxCambio}`:"";
       if(capitalTotal>0) check(await sb.from("caja").insert({...base,concepto:`Cambio aceite Capital — ${placa}${proxLabel?` · ${proxLabel}`:""}`,subtipo:"capital_tienda",monto:capitalTotal}),"caja capital");
       if(gananciaNeta>0) check(await sb.from("caja").insert({...base,concepto:`Cambio aceite Ganancia — ${placa}${proxLabel?` · ${proxLabel}`:""}`,subtipo:"ganancia_neta",monto:gananciaNeta}),"caja ganancia");
@@ -218,7 +219,7 @@ function CambioAceite({usuario,inv}){
       if(ad&&adSel) check(await sb.from("inventario").update({stock:Math.max(0,adSel.stock-1)}).eq("id",adSel.id),"inv aceite dirección");
       alert(`✅ Guardado en CRM\n🚗 ${placa} — ${fmt(total)}`);
       setPlan("");setNombre("");setTel("");setPlaca("");setModelo("");setKmIn("");setAcSel(null);setAcPv(45);setFiltro(null);setFiPv(0);
-      setFa(false);setFaSel(null);setLf(false);setLfSel(null);setCj(false);setAd(false);setAdSel(null);setDesc(0);setProxCambio("");setFotos([]);
+      setFa(false);setFaSel(null);setLf(false);setLfSel(null);setCj(false);setAd(false);setAdSel(null);setDesc(0);setProxCambio("");setPago("Efectivo");setFotos([]);
     }catch(e){
       alert("Error al guardar: "+e.message);
     }
@@ -417,6 +418,9 @@ function CambioAceite({usuario,inv}){
         <div style={{display:"flex",justifyContent:"space-between",padding:"10px 12px",background:"#1e293b",fontSize:15,fontWeight:900,color:"#fbbf24"}}>
           <span>💰 TOTAL</span><span>{fmt(total)}</span>
         </div>
+      </div>
+      <div style={{marginTop:8}}>
+        <Campo label="💳 Pago"><Sel value={pago} onChange={setPago} options={["Efectivo","QR","Transferencia"]}/></Campo>
       </div>
       {kmOut&&<div style={{marginTop:8,background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:8,padding:"7px 12px",fontSize:12,color:"#15803d",fontWeight:700}}>
         🔔 Próximo cambio: {kmOut.toLocaleString()} km
