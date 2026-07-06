@@ -580,6 +580,8 @@ function Grua({usuario}){
   const [origen,setOrigen]=React.useState("");
   const [destino,setDestino]=React.useState("");
   const [placa,setPlaca]=React.useState("");
+  const [vehiculo,setVehiculo]=React.useState("");
+  const [tec,setTec]=React.useState(usuario.nombre);
   const [obs,setObs]=React.useState("");
   const [pago,setPago]=React.useState("Efectivo");
   const [fotos,setFotos]=React.useState([]);
@@ -589,9 +591,11 @@ function Grua({usuario}){
   const registrar=async()=>{
     if(!origen||!destino||!tallerSel){alert("Completa origen, destino y taller.");return;}
     if(!(await validarCajaAbierta(tallerSel))) return;
-    await sb.from("caja").insert({fecha:hoy(),taller:tallerSel,concepto:`Grúa: ${origen} → ${destino}${placa?` (${placa})`:""}`,tipo:"ingreso",subtipo:"ganancia_neta",monto:precio,metodo_pago:pago,registrado_por:usuario.user_name||usuario.nombre,user_name:usuario.nombre});
+    const concepto=`Grúa: ${origen} → ${destino}${placa?` (${placa})`:""}${obs?` · ${obs}`:""}`;
+    await sb.from("caja").insert({fecha:hoy(),taller:tallerSel,concepto,tipo:"ingreso",subtipo:"ganancia_neta",monto:precio,metodo_pago:pago,registrado_por:usuario.user_name||usuario.nombre,user_name:usuario.nombre});
+    if(placa||cliente) await sb.from("crm").insert({fecha:hoy(),num:"GR",placa:placa||"",cliente,tel,vehiculo:vehiculo||"Servicio de grúa",taller:tallerSel,tecnico:tec||usuario.nombre,total:fmt(precio),tipo:"Grúa"});
     alert(`✅ Grúa registrada — ${fmt(precio)}`);
-    setOrigen("");setDestino("");setPlaca("");setCliente("");setTel("");setObs("");setPrecio(100);setFotos([]);
+    setOrigen("");setDestino("");setPlaca("");setCliente("");setTel("");setVehiculo("");setTec(usuario.nombre);setObs("");setPrecio(100);setFotos([]);
   };
 
   return <Card>
@@ -609,6 +613,8 @@ function Grua({usuario}){
       <Campo label="📍 Recoge en *"><Inp value={origen} onChange={setOrigen} placeholder="Dirección o referencia"/></Campo>
       <Campo label="📍 Entrega en *"><Inp value={destino} onChange={setDestino} placeholder="Taller, domicilio..."/></Campo>
       <Campo label="Placa"><Inp value={placa} onChange={setPlaca} placeholder="1234ABC"/></Campo>
+      <Campo label="Vehículo"><Inp value={vehiculo} onChange={setVehiculo} placeholder="Toyota Corolla, moto, camión..."/></Campo>
+      <Campo label="Técnico"><Inp value={tec} onChange={setTec} placeholder={usuario.nombre}/></Campo>
       <Campo label="Pago"><Sel value={pago} onChange={setPago} options={["Efectivo","QR","Transferencia"]}/></Campo>
     </div>
     <Campo label="Observación"><Inp value={obs} onChange={setObs} placeholder="Tipo de falla..."/></Campo>
