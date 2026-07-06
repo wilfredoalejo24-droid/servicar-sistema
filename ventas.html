@@ -147,6 +147,13 @@ function Ventas({usuario}){
     if(margenVenta<0){alert("No se puede vender: el precio final es menor al costo de los productos.");setLoading(false);return;}
     const {data:sesionAbierta}=await supabase.from("caja_sesiones").select("id").eq("fecha",hoy()).eq("taller",tallerSel).eq("estado","Abierta").maybeSingle();
     if(!sesionAbierta){alert("No hay caja abierta para este taller. Abrí caja antes de registrar ventas.");setLoading(false);return;}
+    const stockFresco={};
+    for(const i of carrito){
+      const{data:sf,error:sfErr}=await supabase.from("inventario").select("id,nom,stock").eq("id",i.id).maybeSingle();
+      if(sfErr||!sf){alert(`No se pudo validar stock de ${i.nom}. Venta cancelada.`);setLoading(false);return;}
+      if(sf.stock<i.qty){alert(`Stock insuficiente para ${i.nom}. Disponible: ${sf.stock}, solicitado: ${i.qty}. Venta cancelada.`);setLoading(false);return;}
+      stockFresco[i.id]=sf.stock;
+    }
     const {data:cnt}=await supabase.from("ventas").select("id",{count:"exact"});
     const num=`VT-${String((cnt?.length||0)+1).padStart(3,"0")}`;
     const venta={num,fecha:hoy(),hora:hora(),taller:tallerSel,cliente,pago,items:carrito,subtotal:sub,descuento:parseFloat(descuento)||0,total,vendedor:usuario.nombre};
@@ -154,7 +161,7 @@ function Ventas({usuario}){
     if(ventaError){console.error("Error al guardar venta:",ventaError);alert("Error al guardar la venta: "+ventaError.message);setLoading(false);return;}
     if(costoTotal>0){const{error:cajaCostoError}=await supabase.from("caja").insert({fecha:hoy(),taller:tallerSel,concepto:`Venta ${num} — Capital repuestos`,tipo:"ingreso",subtipo:"capital_tienda",monto:costoTotal,metodo_pago:pago,registrado_por:usuario.user_name||usuario.nombre,user_name:usuario.nombre});if(cajaCostoError){console.error("Error capital en caja:",cajaCostoError);alert("La venta se guardó, pero NO se registró el capital en caja: "+cajaCostoError.message);setLoading(false);return;}}
     if(margenVenta>0){const{error:cajaMargenError}=await supabase.from("caja").insert({fecha:hoy(),taller:tallerSel,concepto:`Venta ${num} — Ganancia repuestos`,tipo:"ingreso",subtipo:"ganancia_neta",monto:margenVenta,metodo_pago:pago,registrado_por:usuario.user_name||usuario.nombre,user_name:usuario.nombre});if(cajaMargenError){console.error("Error ganancia en caja:",cajaMargenError);alert("La venta se guardó, pero NO se registró la ganancia en caja: "+cajaMargenError.message);setLoading(false);return;}}
-    for(const i of carrito){const{error:invError}=await supabase.from("inventario").update({stock:i.stock-i.qty}).eq("id",i.id);if(invError)console.error("Error actualizando stock de",i.nom,":",invError);}
+    for(const i of carrito){const{error:invError}=await supabase.from("inventario").update({stock:stockFresco[i.id]-i.qty}).eq("id",i.id);if(invError){alert(`La venta fue registrada, pero falló el descuento de stock de ${i.nom}. Avise al encargado para corregir inventario.`);setLoading(false);return;}}
     setVentaOk({...venta});
     setCarrito([]); setCliente(""); setDescuento(0); setBusq("");
     setLoading(false);
