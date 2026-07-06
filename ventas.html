@@ -31,6 +31,7 @@ const EMPRESA = {
 const fmt = n=>`Bs. ${parseFloat(n||0).toFixed(2)}`;
 const hoy = ()=>new Date().toLocaleDateString("es-BO");
 const hora = ()=>new Date().toLocaleTimeString("es-BO",{hour:"2-digit",minute:"2-digit"});
+const generarNumVenta=()=>{const d=new Date();const pad2=n=>String(n).padStart(2,"0");const pad3=n=>String(n).padStart(3,"0");return `VT-${d.getFullYear()}${pad2(d.getMonth()+1)}${pad2(d.getDate())}-${pad2(d.getHours())}${pad2(d.getMinutes())}${pad2(d.getSeconds())}-${pad3(d.getMilliseconds())}`;}
 
 const Btn=({onClick,color="#1e293b",text,style={}})=>
   <button onClick={onClick} style={{padding:"8px 14px",background:color,color:"#fff",border:"none",borderRadius:8,fontWeight:700,fontSize:12,cursor:"pointer",...style}}>{text}</button>;
@@ -154,8 +155,7 @@ function Ventas({usuario}){
       if(sf.stock<i.qty){alert(`Stock insuficiente para ${i.nom}. Disponible: ${sf.stock}, solicitado: ${i.qty}. Venta cancelada.`);setLoading(false);return;}
       stockFresco[i.id]=sf.stock;
     }
-    const {data:cnt}=await supabase.from("ventas").select("id",{count:"exact"});
-    const num=`VT-${String((cnt?.length||0)+1).padStart(3,"0")}`;
+    const num=generarNumVenta();
     const venta={num,fecha:hoy(),hora:hora(),taller:tallerSel,cliente,pago,items:carrito,subtotal:sub,descuento:parseFloat(descuento)||0,total,vendedor:usuario.nombre};
     const{error:ventaError}=await supabase.from("ventas").insert(venta);
     if(ventaError){console.error("Error al guardar venta:",ventaError);alert("Error al guardar la venta: "+ventaError.message);setLoading(false);return;}
