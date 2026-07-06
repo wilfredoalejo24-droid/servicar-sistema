@@ -500,7 +500,7 @@ function Alineado({usuario}){
     if(!tipo||!tallerSel){alert("Selecciona servicio y taller.");return;}
     if(!(await validarCajaAbierta(tallerSel))) return;
     const concepto=`${tipo==="ambos"?"Alineado+Balanceado":tipo==="alineado"?"Alineado":"Balanceado"}${placa?` — ${placa}`:""}`;
-    await sb.from("caja").insert({fecha:hoy(),taller:tallerSel,concepto,tipo:"ingreso",subtipo:"ganancia_neta",monto:total,metodo_pago:"Efectivo",registrado_por:usuario.user_name||usuario.nombre,user_name:usuario.nombre});
+    await sb.from("caja").insert({fecha:hoy(),taller:tallerSel,concepto,tipo:"ingreso",subtipo:"ganancia_neta",monto:total,metodo_pago:pago,registrado_por:usuario.user_name||usuario.nombre,user_name:usuario.nombre});
     if(placa) await sb.from("crm").insert({fecha:hoy(),num:"AL",placa,cliente,tel,vehiculo:`${marca} ${color}`,taller:tallerSel,tecnico:usuario.nombre,total:fmt(total),tipo:"Alineado"});
     alert(`✅ Registrado — ${fmt(total)}`);
     setTipo("");setPlaca("");setMarca("");setColor("");setCliente("");setTel("");setFotos([]);
@@ -580,7 +580,7 @@ function Grua({usuario}){
   const registrar=async()=>{
     if(!origen||!destino||!tallerSel){alert("Completa origen, destino y taller.");return;}
     if(!(await validarCajaAbierta(tallerSel))) return;
-    await sb.from("caja").insert({fecha:hoy(),taller:tallerSel,concepto:`Grúa: ${origen} → ${destino}${placa?` (${placa})`:""}`,tipo:"ingreso",subtipo:"ganancia_neta",monto:precio,metodo_pago:"Efectivo",registrado_por:usuario.user_name||usuario.nombre,user_name:usuario.nombre});
+    await sb.from("caja").insert({fecha:hoy(),taller:tallerSel,concepto:`Grúa: ${origen} → ${destino}${placa?` (${placa})`:""}`,tipo:"ingreso",subtipo:"ganancia_neta",monto:precio,metodo_pago:pago,registrado_por:usuario.user_name||usuario.nombre,user_name:usuario.nombre});
     alert(`✅ Grúa registrada — ${fmt(precio)}`);
     setOrigen("");setDestino("");setPlaca("");setCliente("");setTel("");setObs("");setPrecio(100);setFotos([]);
   };
