@@ -442,16 +442,17 @@ function Lavado({usuario}){
   const [placa,setPlaca]=React.useState("");
   const [tel,setTel]=React.useState("");
   const [fotos,setFotos]=React.useState([]);
+  const [pago,setPago]=React.useState("Efectivo");
   const tallerDef=usuario.taller==="ambos"?"":usuario.taller;
   const [tallerSel,setTallerSel]=React.useState(tallerDef);
 
   const registrar=async()=>{
     if(!tallerSel){alert("Selecciona el taller.");return;}
     if(!(await validarCajaAbierta(tallerSel))) return;
-    await sb.from("caja").insert({fecha:hoy(),taller:tallerSel,concepto:`Lavado${placa?` — ${placa}`:""}${obs?` (${obs})`:""}`,tipo:"ingreso",subtipo:"ganancia_neta",monto:precio,metodo_pago:"Efectivo",registrado_por:usuario.user_name||usuario.nombre,user_name:usuario.nombre});
+    await sb.from("caja").insert({fecha:hoy(),taller:tallerSel,concepto:`Lavado${placa?` — ${placa}`:""}${obs?` (${obs})`:""}`,tipo:"ingreso",subtipo:"ganancia_neta",monto:precio,metodo_pago:pago,registrado_por:usuario.user_name||usuario.nombre,user_name:usuario.nombre});
     if(placa) await sb.from("crm").insert({fecha:hoy(),num:"LV",placa,cliente,tel,vehiculo:"",taller:tallerSel,tecnico:usuario.nombre,total:fmt(precio),tipo:"Lavado"});
     alert(`✅ Lavado registrado — ${fmt(precio)}`);
-    setPrecio(20);setObs("");setCliente("");setPlaca("");setTel("");setFotos([]);
+    setPrecio(20);setObs("");setCliente("");setPlaca("");setTel("");setPago("Efectivo");setFotos([]);
   };
 
   return <Card>
@@ -483,6 +484,9 @@ function Lavado({usuario}){
     <div style={{background:"#1e293b",borderRadius:10,padding:"10px 14px",display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
       <span style={{color:"#94a3b8",fontSize:12}}>Total</span>
       <span style={{color:"#fbbf24",fontWeight:900,fontSize:18}}>{fmt(precio)}</span>
+    </div>
+    <div style={{marginBottom:10}}>
+      <Campo label="💳 Pago"><Sel value={pago} onChange={setPago} options={["Efectivo","QR","Transferencia"]}/></Campo>
     </div>
     <Btn onClick={registrar} color="#16a34a" text="💾 Cobrar y registrar" style={{width:"100%",padding:11}}/>
   </Card>;
