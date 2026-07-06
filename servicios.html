@@ -487,6 +487,10 @@ function Alineado({usuario}){
   const [color,setColor]=React.useState("");
   const [cliente,setCliente]=React.useState("");
   const [tel,setTel]=React.useState("");
+  const [tec,setTec]=React.useState(usuario.nombre);
+  const [km,setKm]=React.useState("");
+  const [proxRevision,setProxRevision]=React.useState("");
+  const [obs,setObs]=React.useState("");
   const [pago,setPago]=React.useState("Efectivo");
   const [fotos,setFotos]=React.useState([]);
   const tallerDef=usuario.taller==="ambos"?"":usuario.taller;
@@ -499,11 +503,12 @@ function Alineado({usuario}){
   const registrar=async()=>{
     if(!tipo||!tallerSel){alert("Selecciona servicio y taller.");return;}
     if(!(await validarCajaAbierta(tallerSel))) return;
-    const concepto=`${tipo==="ambos"?"Alineado+Balanceado":tipo==="alineado"?"Alineado":"Balanceado"}${placa?` — ${placa}`:""}`;
+    const tipoLabel=tipo==="ambos"?"Alineado+Balanceado":tipo==="alineado"?"Alineado":"Balanceado";
+    const concepto=`${tipoLabel}${placa?` — ${placa}`:""}${proxRevision?` · Próx: ${proxRevision}`:""}${obs?` · ${obs}`:""}`;
     await sb.from("caja").insert({fecha:hoy(),taller:tallerSel,concepto,tipo:"ingreso",subtipo:"ganancia_neta",monto:total,metodo_pago:pago,registrado_por:usuario.user_name||usuario.nombre,user_name:usuario.nombre});
-    if(placa) await sb.from("crm").insert({fecha:hoy(),num:"AL",placa,cliente,tel,vehiculo:`${marca} ${color}`,taller:tallerSel,tecnico:usuario.nombre,total:fmt(total),tipo:"Alineado"});
+    if(placa) await sb.from("crm").insert({fecha:hoy(),num:"AL",placa,cliente,tel,vehiculo:`${marca} ${color}${km?` · ${km}km`:""}`,taller:tallerSel,tecnico:tec||usuario.nombre,total:fmt(total),tipo:"Alineado"});
     alert(`✅ Registrado — ${fmt(total)}`);
-    setTipo("");setPlaca("");setMarca("");setColor("");setCliente("");setTel("");setFotos([]);
+    setTipo("");setPlaca("");setMarca("");setColor("");setCliente("");setTel("");setTec(usuario.nombre);setKm("");setProxRevision("");setObs("");setFotos([]);
   };
 
   return <Card>
@@ -522,7 +527,11 @@ function Alineado({usuario}){
       <Campo label="Placa"><Inp value={placa} onChange={setPlaca} placeholder="1234ABC"/></Campo>
       <Campo label="Marca / Modelo"><Inp value={marca} onChange={setMarca} placeholder="Toyota Corolla"/></Campo>
       <Campo label="Color"><Inp value={color} onChange={setColor} placeholder="Blanco"/></Campo>
+      <Campo label="Técnico"><Inp value={tec} onChange={setTec} placeholder={usuario.nombre}/></Campo>
+      <Campo label="Km actual"><Inp type="number" value={km} onChange={setKm} placeholder="85000"/></Campo>
+      <Campo label="Próx. revisión"><Inp value={proxRevision} onChange={setProxRevision} placeholder="6 meses / al notar..."/></Campo>
       <Campo label="Pago"><Sel value={pago} onChange={setPago} options={["Efectivo","QR","Transferencia"]}/></Campo>
+      <Campo label="Observación"><Inp value={obs} onChange={setObs} placeholder="Ruido al frenar, vibración..."/></Campo>
     </div>
 
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:7,marginBottom:10}}>
