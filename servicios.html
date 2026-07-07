@@ -827,6 +827,7 @@ function App(){
   const [usuario,setUsuario]=React.useState(null);
   const [tab,setTab]=React.useState("aceite");
   const [inv,setInv]=React.useState([]);
+  const [grupo,setGrupo]=React.useState("ot");
   const esEnc=usuario&&["admin","encargado"].includes(usuario.rol);
 
   React.useEffect(()=>{
@@ -862,14 +863,16 @@ function App(){
       </div>
     </div>
     <div style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:10,padding:"10px 12px",marginBottom:10}}>
-      <div style={{fontSize:9,fontWeight:700,color:"#f97316",textTransform:"uppercase",letterSpacing:1,marginBottom:5}}>📋 Mini OT — diagnóstico + seguimiento</div>
-      <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:10}}>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
+        <button onClick={()=>{setGrupo("ot");setTab("aceite");}} style={{padding:"12px 8px",borderRadius:10,border:`2px solid ${grupo==="ot"?"#f97316":"#e2e8f0"}`,background:grupo==="ot"?"#fff7ed":"#f8fafc",color:grupo==="ot"?"#c2410c":"#64748b",fontWeight:900,fontSize:13,cursor:"pointer",textAlign:"center"}}>🔧 MINI OT</button>
+        <button onClick={()=>{setGrupo("simple");setTab("lavado");}} style={{padding:"12px 8px",borderRadius:10,border:`2px solid ${grupo==="simple"?"#16a34a":"#e2e8f0"}`,background:grupo==="simple"?"#f0fdf4":"#f8fafc",color:grupo==="simple"?"#15803d":"#64748b",fontWeight:900,fontSize:13,cursor:"pointer",textAlign:"center"}}>⚡ SERVICIO RÁPIDO</button>
+      </div>
+      {grupo==="ot"&&<div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
         {TABS_OT.map(t=><button key={t.k} onClick={()=>setTab(t.k)} style={{padding:"6px 12px",borderRadius:8,border:`1px solid ${tab===t.k?"#f97316":"#e2e8f0"}`,background:tab===t.k?"#fff7ed":"#f8fafc",color:tab===t.k?"#c2410c":"#64748b",fontWeight:700,fontSize:11,cursor:"pointer"}}>{t.l}</button>)}
-      </div>
-      <div style={{fontSize:9,fontWeight:700,color:"#16a34a",textTransform:"uppercase",letterSpacing:1,marginBottom:5}}>⚡ Servicio simple — cobro directo</div>
-      <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+      </div>}
+      {grupo==="simple"&&<div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
         {TABS_SIMPLE.map(t=><button key={t.k} onClick={()=>setTab(t.k)} style={{padding:"6px 12px",borderRadius:8,border:`1px solid ${tab===t.k?"#16a34a":"#e2e8f0"}`,background:tab===t.k?"#f0fdf4":"#f8fafc",color:tab===t.k?"#15803d":"#64748b",fontWeight:700,fontSize:11,cursor:"pointer"}}>{t.l}</button>)}
-      </div>
+      </div>}
     </div>
     {tab==="aceite"&&<CambioAceite usuario={usuario} inv={inv}/>}
     {tab==="lavado"&&<Lavado usuario={usuario}/>}
