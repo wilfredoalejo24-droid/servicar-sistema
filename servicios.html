@@ -860,7 +860,46 @@ function MiniOTBase({usuario,inv}){
       return [...prev,{...p,qty:1}];
     });
   };
-  const registrar=()=>{alert("Mini OT base lista. Conexión a caja/inventario/CRM pendiente de Fase 4.");};
+  const registrar=async()=>{
+    if(!tallerSel){alert("Selecciona el taller.");return;}
+    if(!placa.trim()){alert("La placa es obligatoria para el historial.");return;}
+    if(!tec.trim()){alert("El técnico es obligatorio.");return;}
+    if(!kmIn||!(parseInt(kmIn)>0)){alert("Ingresa el kilometraje actual.");return;}
+    if(servicios.length===0){alert("Agrega al menos un servicio.");return;}
+    const placaNorm=placa.trim().toUpperCase();
+    const{data:historial,error:histErr}=await sb.from("crm")
+      .select("placa,cliente,tel,vehiculo")
+      .ilike("placa",placaNorm)
+      .order("fecha",{ascending:false})
+      .limit(1)
+      .maybeSingle();
+    if(histErr){alert("Error buscando historial de la placa.");return;}
+    if(historial?.cliente&&cliente&&historial.cliente!==cliente.trim()){
+      const ok=confirm(`⚠️ Esta placa ya existe registrada a nombre de "${historial.cliente}". ¿Continuar con el nombre actual "${cliente}"?`);
+      if(!ok) return;
+    }
+    const incluyeCA=servicios.some(s=>s.tipo==="Cambio de aceite");
+    const tiposLabel=servicios.map(s=>s.tipo+(s.desc?` (${s.desc})`:"")).join(", ");
+    const numCRM=incluyeCA?"CA":"OT";
+    const tipoCRM=incluyeCA?"Cambio aceite":tiposLabel;
+    const vehiculoBase=modelo||historial?.vehiculo?.split("·")[0]?.trim()||"Vehículo";
+    const{error:crmErr}=await sb.from("crm").insert({
+      fecha:hoy(),
+      num:numCRM,
+      placa:placaNorm,
+      cliente:cliente||historial?.cliente||"",
+      tel:tel||historial?.tel||"",
+      vehiculo:`${vehiculoBase}${kmIn?` · ${kmIn}km`:""}`,
+      taller:tallerSel,
+      tecnico:tec||usuario.nombre,
+      total:fmt(total),
+      tipo:tipoCRM
+    });
+    if(crmErr){alert("Error guardando historial en CRM.");return;}
+    alert("✅ Mini OT guardada en CRM. Falta registrar caja e inventario en Fase 4B.");
+    setCliente("");setTel("");setPlaca("");setModelo("");setTec(usuario.nombre);
+    setKmIn("");setServicios([]);setProductos([]);setFotos([]);
+  };
   return <div>
     {usuario.taller==="ambos"&&<Card><Tit text="🏢 Taller"/><Sel value={tallerSel} onChange={setTallerSel} options={TALLERES}/></Card>}
     <Card>
@@ -956,7 +995,7 @@ function MiniOTBase({usuario,inv}){
         <span style={{color:"#fbbf24",fontWeight:900,fontSize:18}}>{fmt(total)}</span>
       </div>
     </Card>}
-    <Btn onClick={registrar} color="#f97316" text="💾 Guardar Mini OT base (Fase 4 pendiente)" style={{width:"100%",padding:13,fontSize:14,marginBottom:20}}/>
+    <Btn onClick={registrar} color="#f97316" text="💾 Guardar historial CRM (Caja/Inventario pendiente)" style={{width:"100%",padding:13,fontSize:14,marginBottom:20}}/>
   </div>;
 }
 
