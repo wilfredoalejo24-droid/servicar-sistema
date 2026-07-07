@@ -823,6 +823,143 @@ function Otros({usuario,inv,esEnc}){
   </div>;
 }
 
+function MiniOTBase({usuario,inv}){
+  const tallerDef=usuario.taller==="ambos"?"":usuario.taller;
+  const [tallerSel,setTallerSel]=React.useState(tallerDef);
+  const [cliente,setCliente]=React.useState("");
+  const [tel,setTel]=React.useState("");
+  const [placa,setPlaca]=React.useState("");
+  const [modelo,setModelo]=React.useState("");
+  const [tec,setTec]=React.useState(usuario.nombre);
+  const [kmIn,setKmIn]=React.useState("");
+  const [kmInt,setKmInt]=React.useState(10000);
+  const kmOut=React.useMemo(()=>{const k=parseInt(kmIn);if(!isNaN(k)&&k>0)return k+parseInt(kmInt);return null;},[kmIn,kmInt]);
+  const TIPOS_SVC=["Cambio de aceite","Alineado","Balanceado","Grúa","Diagnóstico","Reparación","Mano de obra","Otro trabajo"];
+  const [servicios,setServicios]=React.useState([]);
+  const [tipoSel,setTipoSel]=React.useState("");
+  const [descSvc,setDescSvc]=React.useState("");
+  const [precioSvc,setPrecioSvc]=React.useState(0);
+  const [productos,setProductos]=React.useState([]);
+  const [busqProd,setBusqProd]=React.useState("");
+  const [mostrarProd,setMostrarProd]=React.useState(false);
+  const [fotos,setFotos]=React.useState([]);
+  const totalSvc=servicios.reduce((s,x)=>s+parseFloat(x.precio||0),0);
+  const totalProd=productos.reduce((s,p)=>s+(parseFloat(p.precio||0)*p.qty),0);
+  const total=totalSvc+totalProd;
+  const invFilt=inv.filter(i=>!busqProd||i.nom.toLowerCase().includes(busqProd.toLowerCase())||(i.marca||"").toLowerCase().includes(busqProd.toLowerCase()));
+  const agregarSvc=()=>{
+    if(!tipoSel){alert("Selecciona el tipo de servicio.");return;}
+    if(!precioSvc||parseFloat(precioSvc)<=0){alert("Ingresa el precio del servicio.");return;}
+    setServicios(prev=>[...prev,{tipo:tipoSel,desc:descSvc,precio:parseFloat(precioSvc)}]);
+    setTipoSel("");setDescSvc("");setPrecioSvc(0);
+  };
+  const agregarProd=p=>{
+    setProductos(prev=>{
+      const ex=prev.find(x=>x.id===p.id);
+      if(ex){if(ex.qty>=p.stock){alert(`Solo hay ${p.stock} en stock`);return prev;}return prev.map(x=>x.id===p.id?{...x,qty:x.qty+1}:x);}
+      return [...prev,{...p,qty:1}];
+    });
+  };
+  const registrar=()=>{alert("Mini OT base lista. Conexión a caja/inventario/CRM pendiente de Fase 4.");};
+  return <div>
+    {usuario.taller==="ambos"&&<Card><Tit text="🏢 Taller"/><Sel value={tallerSel} onChange={setTallerSel} options={TALLERES}/></Card>}
+    <Card>
+      <Tit text="👤 Cliente"/>
+      <div style={{marginBottom:8}}>
+        <div style={{fontSize:11,color:"#3b82f6",fontWeight:700,marginBottom:4}}>🔍 Buscar cliente existente:</div>
+        <BuscadorCliente onSelect={c=>{setCliente(c.cliente||"");setTel(c.tel||"");setPlaca(c.placa||"");setModelo(c.vehiculo||"");}}/>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+        <Campo label="Nombre"><Inp value={cliente} onChange={setCliente} placeholder="Nombre completo"/></Campo>
+        <Campo label="Teléfono"><Inp value={tel} onChange={setTel} placeholder="70000000"/></Campo>
+        <Campo label="Placa"><Inp value={placa} onChange={setPlaca} placeholder="1234ABC"/></Campo>
+        <Campo label="Vehículo / Modelo"><Inp value={modelo} onChange={setModelo} placeholder="Toyota Corolla"/></Campo>
+        <Campo label="Técnico"><Inp value={tec} onChange={setTec} placeholder={usuario.nombre}/></Campo>
+      </div>
+    </Card>
+    <Card>
+      <Tit text="🔢 Kilometraje"/>
+      <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:8,alignItems:"end",background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:8,padding:"10px 12px"}}>
+        <Campo label="Km actual"><input type="number" value={kmIn} onChange={e=>setKmIn(e.target.value)} placeholder="85000" style={{width:"100%",padding:"7px 10px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:13,boxSizing:"border-box"}}/></Campo>
+        <div style={{color:"#15803d",fontSize:20,paddingBottom:6}}>→</div>
+        <Campo label="Próximo kilometraje (opcional)"><input value={kmOut?kmOut.toLocaleString():"—"} readOnly style={{width:"100%",padding:"7px 10px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:13,fontWeight:800,color:kmOut?"#f97316":"#94a3b8",background:"#fff7ed",boxSizing:"border-box"}}/></Campo>
+      </div>
+      <div style={{marginTop:6}}>
+        <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:4}}>
+          {[5000,7500,10000,15000].map(v=><button key={v} onClick={()=>setKmInt(v)} style={{padding:"2px 7px",borderRadius:20,border:`1px solid ${kmInt===v?"#f59e0b":"#e2e8f0"}`,background:kmInt===v?"#fef3c7":"#f8fafc",fontWeight:700,fontSize:10,cursor:"pointer"}}>{v.toLocaleString()}</button>)}
+        </div>
+        <input type="number" value={kmInt} onChange={e=>setKmInt(parseInt(e.target.value)||0)} style={{width:"100%",padding:"6px 10px",border:"1px solid #86efac",borderRadius:8,fontSize:13,fontWeight:800,color:"#15803d",boxSizing:"border-box"}}/>
+      </div>
+    </Card>
+    <Card>
+      <Tit text="🔧 Servicios"/>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+        <Campo label="Tipo *"><Sel value={tipoSel} onChange={setTipoSel} options={TIPOS_SVC}/></Campo>
+        <Campo label="Precio Bs. *"><input type="number" value={precioSvc} min={0} onChange={e=>setPrecioSvc(e.target.value)} style={{width:"100%",padding:"7px 10px",border:"1px solid #fbbf24",borderRadius:8,fontSize:13,fontWeight:800,color:"#92400e",textAlign:"center",boxSizing:"border-box"}}/></Campo>
+        <Campo label="Descripción (opcional)"><Inp value={descSvc} onChange={setDescSvc} placeholder="Detalle..."/></Campo>
+        <div style={{display:"flex",alignItems:"flex-end"}}><Btn onClick={agregarSvc} color="#f97316" text="+ Agregar" style={{width:"100%",padding:"7px 10px"}}/></div>
+      </div>
+      {servicios.length===0
+        ?<div style={{color:"#94a3b8",fontSize:12,textAlign:"center",padding:"8px 0"}}>Sin servicios agregados</div>
+        :servicios.map((s,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 8px",background:"#fff7ed",borderRadius:7,marginBottom:4,border:"1px solid #fed7aa"}}>
+          <div><div style={{fontWeight:700,fontSize:11}}>{s.tipo}</div>{s.desc&&<div style={{fontSize:10,color:"#64748b"}}>{s.desc}</div>}</div>
+          <div style={{display:"flex",gap:6,alignItems:"center"}}>
+            <span style={{fontWeight:900,color:"#f97316",fontSize:12}}>{fmt(s.precio)}</span>
+            <button onClick={()=>setServicios(prev=>prev.filter((_,j)=>j!==i))} style={{background:"#fee2e2",color:"#dc2626",border:"none",borderRadius:5,padding:"1px 6px",cursor:"pointer",fontSize:11}}>✕</button>
+          </div>
+        </div>)
+      }
+    </Card>
+    <Card>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:mostrarProd?8:0}}>
+        <Tit text="📦 Repuestos / Productos"/>
+        <button onClick={()=>{setMostrarProd(!mostrarProd);setBusqProd("");}} style={{padding:"5px 12px",background:"#1d4ed8",color:"#fff",border:"none",borderRadius:7,fontSize:11,fontWeight:700,cursor:"pointer"}}>{mostrarProd?"✕ Cerrar":"+ Agregar"}</button>
+      </div>
+      {mostrarProd&&<div style={{marginBottom:10}}>
+        <input value={busqProd} onChange={e=>setBusqProd(e.target.value)} placeholder="🔍 Buscar producto..." style={{width:"100%",padding:"7px 10px",border:"1px solid #3b82f6",borderRadius:8,fontSize:12,boxSizing:"border-box",marginBottom:6}}/>
+        <div style={{maxHeight:200,overflowY:"auto",border:"1px solid #e2e8f0",borderRadius:8}}>
+          {invFilt.length===0?<div style={{padding:12,color:"#94a3b8",fontSize:12,textAlign:"center"}}>Sin resultados</div>:
+          invFilt.map(p=><div key={p.id} onClick={()=>agregarProd(p)} style={{padding:"8px 10px",cursor:"pointer",borderBottom:"1px solid #f3f4f6",display:"flex",justifyContent:"space-between",alignItems:"center",background:"#fff"}} onMouseEnter={e=>e.currentTarget.style.background="#fffbeb"} onMouseLeave={e=>e.currentTarget.style.background="#fff"}>
+            <div><div style={{fontWeight:700,fontSize:11}}>{p.nom}</div><div style={{fontSize:10,color:"#94a3b8"}}>Stock: {p.stock}{p.cat?` · ${p.cat}`:""}</div></div>
+            <span style={{fontWeight:900,color:"#f59e0b",fontSize:12}}>{fmt(p.precio)}</span>
+          </div>)}
+        </div>
+      </div>}
+      {productos.length===0
+        ?<div style={{color:"#94a3b8",fontSize:12,textAlign:"center",padding:"8px 0"}}>Sin repuestos</div>
+        :productos.map(p=><div key={p.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 8px",background:"#f8fafc",borderRadius:7,marginBottom:4,border:"1px solid #e2e8f0"}}>
+          <div><div style={{fontWeight:700,fontSize:11}}>{p.nom}</div><div style={{fontSize:10,color:"#16a34a",fontWeight:700}}>{fmt(parseFloat(p.precio||0)*p.qty)}</div></div>
+          <div style={{display:"flex",gap:4,alignItems:"center"}}>
+            <button onClick={()=>setProductos(prev=>prev.map(x=>x.id===p.id&&x.qty>1?{...x,qty:x.qty-1}:x))} style={{width:22,height:22,borderRadius:5,border:"1px solid #e2e8f0",background:"#fff",cursor:"pointer",fontSize:13,fontWeight:700}}>−</button>
+            <span style={{fontWeight:800,fontSize:13,minWidth:20,textAlign:"center"}}>{p.qty}</span>
+            <button onClick={()=>setProductos(prev=>prev.map(x=>x.id===p.id&&x.qty<x.stock?{...x,qty:x.qty+1}:x))} style={{width:22,height:22,borderRadius:5,border:"1px solid #e2e8f0",background:"#fff",cursor:"pointer",fontSize:13,fontWeight:700}}>+</button>
+            <button onClick={()=>setProductos(prev=>prev.filter(x=>x.id!==p.id))} style={{background:"#fee2e2",color:"#dc2626",border:"none",borderRadius:5,padding:"1px 6px",cursor:"pointer",fontSize:11}}>✕</button>
+          </div>
+        </div>)
+      }
+    </Card>
+    <Card><Tit text="📷 Fotos"/><FotoUpload fotos={fotos} setFotos={setFotos} label="📷 Fotografiar el vehículo / trabajo"/></Card>
+    {(servicios.length>0||productos.length>0)&&<Card style={{border:"2px solid #1e293b",padding:"10px 14px"}}>
+      <Tit text="💰 Resumen"/>
+      {totalSvc>0&&<>
+        <div style={{fontSize:10,fontWeight:700,color:"#f97316",textTransform:"uppercase",marginBottom:4}}>Servicios / Mano de obra</div>
+        {servicios.map((s,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#64748b",marginBottom:2}}><span>{s.tipo}{s.desc?` · ${s.desc}`:""}</span><span>{fmt(s.precio)}</span></div>)}
+        <div style={{display:"flex",justifyContent:"space-between",fontSize:12,fontWeight:700,color:"#f97316",marginBottom:8,paddingTop:4,borderTop:"1px solid #fed7aa"}}><span>Subtotal servicios</span><span>{fmt(totalSvc)}</span></div>
+      </>}
+      {totalProd>0&&<>
+        <div style={{fontSize:10,fontWeight:700,color:"#1d4ed8",textTransform:"uppercase",marginBottom:4}}>Productos / Repuestos</div>
+        {productos.map(p=><div key={p.id} style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#64748b",marginBottom:2}}><span>{p.nom} x{p.qty}</span><span>{fmt(parseFloat(p.precio||0)*p.qty)}</span></div>)}
+        <div style={{display:"flex",justifyContent:"space-between",fontSize:12,fontWeight:700,color:"#1d4ed8",marginBottom:8,paddingTop:4,borderTop:"1px solid #bfdbfe"}}><span>Subtotal repuestos</span><span>{fmt(totalProd)}</span></div>
+      </>}
+      <div style={{display:"flex",justifyContent:"space-between",background:"#1e293b",borderRadius:8,padding:"8px 12px",marginTop:4}}>
+        <span style={{color:"#94a3b8",fontSize:13,fontWeight:700}}>💰 TOTAL</span>
+        <span style={{color:"#fbbf24",fontWeight:900,fontSize:18}}>{fmt(total)}</span>
+      </div>
+    </Card>}
+    <Btn onClick={registrar} color="#f97316" text="💾 Guardar Mini OT base (Fase 4 pendiente)" style={{width:"100%",padding:13,fontSize:14,marginBottom:20}}/>
+  </div>;
+}
+
 function App(){
   const [usuario,setUsuario]=React.useState(null);
   const [tab,setTab]=React.useState("aceite");
@@ -867,18 +1004,13 @@ function App(){
         <button onClick={()=>{setGrupo("ot");setTab("aceite");}} style={{padding:"12px 8px",borderRadius:10,border:`2px solid ${grupo==="ot"?"#f97316":"#e2e8f0"}`,background:grupo==="ot"?"#fff7ed":"#f8fafc",color:grupo==="ot"?"#c2410c":"#64748b",fontWeight:900,fontSize:13,cursor:"pointer",textAlign:"center"}}>🔧 MINI OT</button>
         <button onClick={()=>{setGrupo("simple");setTab("lavado");}} style={{padding:"12px 8px",borderRadius:10,border:`2px solid ${grupo==="simple"?"#16a34a":"#e2e8f0"}`,background:grupo==="simple"?"#f0fdf4":"#f8fafc",color:grupo==="simple"?"#15803d":"#64748b",fontWeight:900,fontSize:13,cursor:"pointer",textAlign:"center"}}>⚡ SERVICIO RÁPIDO</button>
       </div>
-      {grupo==="ot"&&<div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
-        {TABS_OT.map(t=><button key={t.k} onClick={()=>setTab(t.k)} style={{padding:"6px 12px",borderRadius:8,border:`1px solid ${tab===t.k?"#f97316":"#e2e8f0"}`,background:tab===t.k?"#fff7ed":"#f8fafc",color:tab===t.k?"#c2410c":"#64748b",fontWeight:700,fontSize:11,cursor:"pointer"}}>{t.l}</button>)}
-      </div>}
       {grupo==="simple"&&<div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
         {TABS_SIMPLE.map(t=><button key={t.k} onClick={()=>setTab(t.k)} style={{padding:"6px 12px",borderRadius:8,border:`1px solid ${tab===t.k?"#16a34a":"#e2e8f0"}`,background:tab===t.k?"#f0fdf4":"#f8fafc",color:tab===t.k?"#15803d":"#64748b",fontWeight:700,fontSize:11,cursor:"pointer"}}>{t.l}</button>)}
       </div>}
     </div>
-    {tab==="aceite"&&<CambioAceite usuario={usuario} inv={inv}/>}
-    {tab==="lavado"&&<Lavado usuario={usuario}/>}
-    {tab==="alineado"&&<Alineado usuario={usuario}/>}
-    {tab==="otros"&&<Otros usuario={usuario} inv={inv} esEnc={!!esEnc}/>}
-    {tab==="grua"&&esEnc&&<Grua usuario={usuario}/>}
+    {grupo==="ot"&&<MiniOTBase usuario={usuario} inv={inv}/>}
+    {grupo==="simple"&&tab==="lavado"&&<Lavado usuario={usuario}/>}
+    {grupo==="simple"&&tab==="otros"&&<Otros usuario={usuario} inv={inv} esEnc={!!esEnc}/>}
   </div>;
 }
 
