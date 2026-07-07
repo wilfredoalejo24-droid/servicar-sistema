@@ -867,53 +867,106 @@ function MiniOTBase({usuario,inv}){
     if(!tec.trim()){alert("El técnico es obligatorio.");return;}
     if(!kmIn||!(parseInt(kmIn)>0)){alert("Ingresa el kilometraje actual.");return;}
     if(servicios.length===0){alert("Agrega al menos un servicio.");return;}
-    if(productos.length>0){alert("Los repuestos/productos se conectan en Fase 4C. Para guardar ahora, elimina los productos y guarda solo servicios.");return;}
-    if(!(await validarCajaAbierta(tallerSel))) return;
-    const placaNorm=placa.trim().toUpperCase();
-    const{data:historial,error:histErr}=await sb.from("crm")
-      .select("placa,cliente,tel,vehiculo")
-      .ilike("placa",placaNorm)
-      .order("fecha",{ascending:false})
-      .limit(1)
-      .maybeSingle();
-    if(histErr){alert("Error buscando historial de la placa.");return;}
-    if(historial?.cliente&&cliente&&historial.cliente!==cliente.trim()){
-      const ok=confirm(`⚠️ Esta placa ya existe registrada a nombre de "${historial.cliente}". ¿Continuar con el nombre actual "${cliente}"?`);
-      if(!ok) return;
+    const costoProds=productos.reduce((s,p)=>s+(parseFloat(p.costo||0)*p.qty),0);
+    const margenProds=totalProd-costoProds;
+    if(productos.length>0){
+      const prodSinCosto=productos.find(p=>{const costo=parseFloat(p.costo);return !Number.isFinite(costo)||costo<=0;});
+      if(prodSinCosto){alert(`El producto "${prodSinCosto.nom}" no tiene costo registrado. Contacta al admin.`);return;}
+      const prodSinPrecio=productos.find(p=>{const precio=parseFloat(p.precio);return !Number.isFinite(precio)||precio<=0;});
+      if(prodSinPrecio){alert(`El producto "${prodSinPrecio.nom}" no tiene precio de venta válido. Contacta al admin.`);return;}
+      if(margenProds<0){alert("El precio de repuestos es menor al costo. Revisa los precios.");return;}
     }
-    const incluyeCA=servicios.some(s=>s.tipo==="Cambio de aceite");
-    const tiposLabel=servicios.map(s=>s.tipo+(s.desc?` (${s.desc})`:"")).join(", ");
-    const numCRM=incluyeCA?"CA":"OT";
-    const tipoCRM=incluyeCA?"Cambio aceite":tiposLabel;
-    const vehiculoBase=modelo||historial?.vehiculo?.split("·")[0]?.trim()||"Vehículo";
-    const{error:crmErr}=await sb.from("crm").insert({
-      fecha:hoy(),
-      num:numCRM,
-      placa:placaNorm,
-      cliente:cliente||historial?.cliente||"",
-      tel:tel||historial?.tel||"",
-      vehiculo:`${vehiculoBase}${kmIn?` · ${kmIn}km`:""}`,
-      taller:tallerSel,
-      tecnico:tec||usuario.nombre,
-      total:fmt(totalSvc),
-      tipo:tipoCRM
-    });
-    if(crmErr){alert("Error guardando historial en CRM.");return;}
-    const{error:cajaErr}=await sb.from("caja").insert({
-      fecha:hoy(),
-      taller:tallerSel,
-      concepto:`Mini OT: ${tiposLabel} — ${placaNorm}`,
-      tipo:"ingreso",
-      subtipo:"ganancia_neta",
-      monto:totalSvc,
-      metodo_pago:pago,
-      registrado_por:usuario.user_name||usuario.nombre,
-      user_name:usuario.nombre
-    });
-    if(cajaErr){alert("CRM guardado, pero falló el registro en caja. Revisa antes de continuar.");return;}
-    alert("✅ Mini OT guardada en CRM y caja. Inventario/repuestos pendiente de Fase 4C.");
-    setCliente("");setTel("");setPlaca("");setModelo("");setTec(usuario.nombre);
-    setKmIn("");setServicios([]);setProductos([]);setFotos([]);
+    if(!(await validarCajaAbierta(tallerSel))) return;
+    try{
+      const stocksFrescos=[];
+      for(const p of productos){
+        const{data:fr,error:stockErr}=await sb.from("inventario").select("stock").eq("id",p.id).maybeSingle();
+        if(stockErr||!fr){alert(`No se pudo leer stock de ${p.nom}. Intenta de nuevo.`);return;}
+        const stk=parseFloat(fr.stock||0);
+        if(stk<p.qty){alert(`Stock insuficiente: ${p.nom} tiene ${stk}, se necesitan ${p.qty}.`);return;}
+        stocksFrescos.push({id:p.id,stk,qty:p.qty});
+      }
+      const placaNorm=placa.trim().toUpperCase();
+      const{data:historial,error:histErr}=await sb.from("crm")
+        .select("placa,cliente,tel,vehiculo")
+        .ilike("placa",placaNorm)
+        .order("fecha",{ascending:false})
+        .limit(1)
+        .maybeSingle();
+      if(histErr){alert("Error buscando historial de la placa.");return;}
+      if(historial?.cliente&&cliente&&historial.cliente!==cliente.trim()){
+        const ok=confirm(`⚠️ Esta placa ya existe registrada a nombre de "${historial.cliente}". ¿Continuar con el nombre actual "${cliente}"?`);
+        if(!ok) return;
+      }
+      const incluyeCA=servicios.some(s=>s.tipo==="Cambio de aceite");
+      const tiposLabel=servicios.map(s=>s.tipo+(s.desc?` (${s.desc})`:"")).join(", ");
+      const numCRM=incluyeCA?"CA":"OT";
+      const tipoCRM=incluyeCA?"Cambio aceite":tiposLabel;
+      const vehiculoBase=modelo||historial?.vehiculo?.split("·")[0]?.trim()||"Vehículo";
+      const{error:crmErr}=await sb.from("crm").insert({
+        fecha:hoy(),
+        num:numCRM,
+        placa:placaNorm,
+        cliente:cliente||historial?.cliente||"",
+        tel:tel||historial?.tel||"",
+        vehiculo:`${vehiculoBase}${kmIn?` · ${kmIn}km`:""}`,
+        taller:tallerSel,
+        tecnico:tec||usuario.nombre,
+        total:fmt(total),
+        tipo:tipoCRM
+      });
+      if(crmErr){alert("Error guardando historial en CRM.");return;}
+      const{error:cajaErr}=await sb.from("caja").insert({
+        fecha:hoy(),
+        taller:tallerSel,
+        concepto:`Mini OT: ${tiposLabel} — ${placaNorm}`,
+        tipo:"ingreso",
+        subtipo:"ganancia_neta",
+        monto:totalSvc,
+        metodo_pago:pago,
+        registrado_por:usuario.user_name||usuario.nombre,
+        user_name:usuario.nombre
+      });
+      if(cajaErr){alert("CRM guardado, pero falló el registro en caja. Revisa antes de continuar.");return;}
+      if(costoProds>0){
+        const{error:cajaCErr}=await sb.from("caja").insert({
+          fecha:hoy(),
+          taller:tallerSel,
+          concepto:`Mini OT Capital: ${tiposLabel} — ${placaNorm}`,
+          tipo:"ingreso",
+          subtipo:"capital_tienda",
+          monto:costoProds,
+          metodo_pago:pago,
+          registrado_por:usuario.user_name||usuario.nombre,
+          user_name:usuario.nombre
+        });
+        if(cajaCErr){alert("CRM y caja MO guardados, pero falló capital en caja. Revisa.");return;}
+      }
+      if(margenProds>0){
+        const{error:cajaMErr}=await sb.from("caja").insert({
+          fecha:hoy(),
+          taller:tallerSel,
+          concepto:`Mini OT Ganancia Prod: ${tiposLabel} — ${placaNorm}`,
+          tipo:"ingreso",
+          subtipo:"ganancia_neta",
+          monto:margenProds,
+          metodo_pago:pago,
+          registrado_por:usuario.user_name||usuario.nombre,
+          user_name:usuario.nombre
+        });
+        if(cajaMErr){alert("CRM y caja guardados, pero falló ganancia prod en caja. Revisa.");return;}
+      }
+      for(const s of stocksFrescos){
+        const{error:updErr}=await sb.from("inventario").update({stock:Math.max(0,s.stk-s.qty)}).eq("id",s.id);
+        if(updErr){alert("Caja guardada, pero falló el descuento de inventario. Revisar stock manualmente.");return;}
+      }
+      alert("✅ Mini OT registrada en CRM, caja e inventario.");
+      setCliente("");setTel("");setPlaca("");setModelo("");setTec(usuario.nombre);
+      setKmIn("");setServicios([]);setProductos([]);setFotos([]);setPago("Efectivo");
+    }catch(e){
+      console.error(e);
+      alert("Error registrando Mini OT. Revisa antes de continuar.");
+    }
   };
   return <div>
     {usuario.taller==="ambos"&&<Card><Tit text="🏢 Taller"/><Sel value={tallerSel} onChange={setTallerSel} options={TALLERES}/></Card>}
