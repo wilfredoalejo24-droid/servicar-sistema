@@ -843,6 +843,7 @@ function MiniOTBase({usuario,inv}){
   const [busqProd,setBusqProd]=React.useState("");
   const [mostrarProd,setMostrarProd]=React.useState(false);
   const [fotos,setFotos]=React.useState([]);
+  const [pago,setPago]=React.useState("Efectivo");
   const totalSvc=servicios.reduce((s,x)=>s+parseFloat(x.precio||0),0);
   const totalProd=productos.reduce((s,p)=>s+(parseFloat(p.precio||0)*p.qty),0);
   const total=totalSvc+totalProd;
@@ -866,6 +867,8 @@ function MiniOTBase({usuario,inv}){
     if(!tec.trim()){alert("El técnico es obligatorio.");return;}
     if(!kmIn||!(parseInt(kmIn)>0)){alert("Ingresa el kilometraje actual.");return;}
     if(servicios.length===0){alert("Agrega al menos un servicio.");return;}
+    if(productos.length>0){alert("Los repuestos/productos se conectan en Fase 4C. Para guardar ahora, elimina los productos y guarda solo servicios.");return;}
+    if(!(await validarCajaAbierta(tallerSel))) return;
     const placaNorm=placa.trim().toUpperCase();
     const{data:historial,error:histErr}=await sb.from("crm")
       .select("placa,cliente,tel,vehiculo")
@@ -892,11 +895,23 @@ function MiniOTBase({usuario,inv}){
       vehiculo:`${vehiculoBase}${kmIn?` · ${kmIn}km`:""}`,
       taller:tallerSel,
       tecnico:tec||usuario.nombre,
-      total:fmt(total),
+      total:fmt(totalSvc),
       tipo:tipoCRM
     });
     if(crmErr){alert("Error guardando historial en CRM.");return;}
-    alert("✅ Mini OT guardada en CRM. Falta registrar caja e inventario en Fase 4B.");
+    const{error:cajaErr}=await sb.from("caja").insert({
+      fecha:hoy(),
+      taller:tallerSel,
+      concepto:`Mini OT: ${tiposLabel} — ${placaNorm}`,
+      tipo:"ingreso",
+      subtipo:"ganancia_neta",
+      monto:totalSvc,
+      metodo_pago:pago,
+      registrado_por:usuario.user_name||usuario.nombre,
+      user_name:usuario.nombre
+    });
+    if(cajaErr){alert("CRM guardado, pero falló el registro en caja. Revisa antes de continuar.");return;}
+    alert("✅ Mini OT guardada en CRM y caja. Inventario/repuestos pendiente de Fase 4C.");
     setCliente("");setTel("");setPlaca("");setModelo("");setTec(usuario.nombre);
     setKmIn("");setServicios([]);setProductos([]);setFotos([]);
   };
@@ -978,6 +993,7 @@ function MiniOTBase({usuario,inv}){
       }
     </Card>
     <Card><Tit text="📷 Fotos"/><FotoUpload fotos={fotos} setFotos={setFotos} label="📷 Fotografiar el vehículo / trabajo"/></Card>
+    <div style={{marginBottom:10}}><Campo label="💳 Pago"><Sel value={pago} onChange={setPago} options={["Efectivo","QR","Transferencia"]}/></Campo></div>
     {(servicios.length>0||productos.length>0)&&<Card style={{border:"2px solid #1e293b",padding:"10px 14px"}}>
       <Tit text="💰 Resumen"/>
       {totalSvc>0&&<>
@@ -995,7 +1011,7 @@ function MiniOTBase({usuario,inv}){
         <span style={{color:"#fbbf24",fontWeight:900,fontSize:18}}>{fmt(total)}</span>
       </div>
     </Card>}
-    <Btn onClick={registrar} color="#f97316" text="💾 Guardar historial CRM (Caja/Inventario pendiente)" style={{width:"100%",padding:13,fontSize:14,marginBottom:20}}/>
+    <Btn onClick={registrar} color="#f97316" text="💾 Registrar Mini OT" style={{width:"100%",padding:13,fontSize:14,marginBottom:20}}/>
   </div>;
 }
 
